@@ -15,49 +15,31 @@ CHARPR_BLACK = "15"
 COLOR_HEX = {"black": "#000000", "blue": "#0000FF"}
 
 
-def _escape_text(text: str) -> str:
-    return html.escape(text)
+def make_paragraph_xml(text: str, char_pr_id: str = CHARPR_BLACK,
+                       is_first: bool = True) -> str:
+    """원본 update_hwpx.py 와 동일한 하드코딩 방식.
+    단순하고 검증된 구조라 한글이 안전하게 파싱."""
+    escaped = html.escape(text)
+    pid = "2147483648" if is_first else "0"
+    return (
+        f'<hp:p id="{pid}" paraPrIDRef="27" styleIDRef="0" '
+        f'pageBreak="0" columnBreak="0" merged="0">'
+        f'<hp:run charPrIDRef="{char_pr_id}"><hp:t>{escaped}</hp:t></hp:run>'
+        f'<hp:linesegarray>'
+        f'<hp:lineseg textpos="0" vertpos="0" vertsize="1100" '
+        f'textheight="1100" baseline="935" spacing="164" horzpos="0" '
+        f'horzsize="31508" flags="393216"/>'
+        f'</hp:linesegarray></hp:p>'
+    )
 
 
-def _clone_paragraph_with_text(p_template_xml: str, line_text: str,
-                               override_color_id=None, first_paragraph=True) -> str:
-    """원본 문단 XML을 통째로 복제하고 텍스트만 교체.
-
-    3가지 run 패턴 모두 처리:
-      1) <hp:run ...><hp:t>기존 내용</hp:t></hp:run>  → hp:t 내용만 교체
-      2) <hp:run ...></hp:run> (빈 run)              → hp:t 추가
-      3) <hp:run .../>         (self-closing)        → hp:t 포함 형태로 확장
-    """
-    escaped = _escape_text(line_text)
-    new_p = p_template_xml
-
-    # 1) hp:t 존재 여부 확인
-    if re.search(r'<hp:t>[^<]*</hp:t>', new_p):
-        new_p = re.sub(r'<hp:t>[^<]*</hp:t>',
-                       f'<hp:t>{escaped}</hp:t>', new_p, count=1)
-    else:
-        # 2) 빈 <hp:run ...></hp:run>
-        if re.search(r'<hp:run\b[^>]*></hp:run>', new_p):
-            new_p = re.sub(r'(<hp:run\b[^>]*>)</hp:run>',
-                           rf'\1<hp:t>{escaped}</hp:t></hp:run>',
-                           new_p, count=1)
-        else:
-            # 3) self-closing <hp:run .../>
-            new_p = re.sub(r'<hp:run\b([^/]*)/>',
-                           rf'<hp:run\1><hp:t>{escaped}</hp:t></hp:run>',
-                           new_p, count=1)
-
-    # 원본 HWPX 관습: 각 셀의 첫 문단 id=2147483648, 나머지 id=0
-    # (업데이트된 원본 04.15 파일 분석: id=2147483648 이 88.8% 차지)
-    if first_paragraph:
-        new_p = re.sub(r'(<hp:p\s+)id="\d+"',
-                       r'\1id="2147483648"', new_p, count=1)
-    else:
-        new_p = re.sub(r'(<hp:p\s+)id="\d+"', r'\1id="0"', new_p, count=1)
-    if override_color_id is not None:
-        new_p = re.sub(r'(<hp:run\b[^/>]*charPrIDRef=")\d+(")',
-                       rf'\g<1>{override_color_id}\g<2>', new_p, count=1)
-    return new_p
+def make_cell_content(text: str, char_pr_id: str = CHARPR_BLACK) -> str:
+    """여러 줄 텍스트를 여러 <hp:p> 문단으로 변환."""
+    lines = (text or "").splitlines() or [""]
+    return "".join(
+        make_paragraph_xml(line, char_pr_id=char_pr_id, is_first=(i == 0))
+        for i, line in enumerate(lines)
+    )
 
 
 def find_cell_sublist(xml, col, row, nth=0):
@@ -84,28 +66,13 @@ def find_cell_sublist(xml, col, row, nth=0):
 
 
 def replace_cell(xml, col, row, text, override_color_id=None, nth=0):
-    """셀 내부의 첫 <hp:p>...</hp:p> 를 템플릿으로 통째로 복제해 텍스트만 교체.
-    원본 문단의 paraPr / charPr / lineseg / id 등 모든 속성이 그대로 보존됨."""
+    """셀 내용을 새 <hp:p> 블록으로 교체. 하드코딩된 구조 사용."""
     start, end = find_cell_sublist(xml, col, row, nth=nth)
     if start is None:
         return xml
-    old_content = xml[start:end]
-    # 첫 <hp:p>...</hp:p> 전체 블록 추출
-    p_m = re.search(r'<hp:p\b[^>]*>.*?</hp:p>', old_content, re.DOTALL)
-    if not p_m:
-        return xml  # 템플릿 없으면 건드리지 않음
-    p_template = p_m.group(0)
-
-    lines = (text or "").splitlines() or [""]
-    new_paragraphs = [
-        _clone_paragraph_with_text(
-            p_template, line,
-            override_color_id=override_color_id,
-            first_paragraph=(i == 0),
-        )
-        for i, line in enumerate(lines)
-    ]
-    return xml[:start] + "".join(new_paragraphs) + xml[end:]
+    char_pr = override_color_id if override_color_id is not None else CHARPR_BLACK
+    new_content = make_cell_content(text, char_pr_id=char_pr)
+    return xml[:start] + new_content + xml[end:]
 
 
 def ensure_blue_charpr(header_xml: str) -> tuple[str, str]:
