@@ -59,7 +59,9 @@ def _get_client():
     return gspread.authorize(creds)
 
 
+@st.cache_resource
 def _get_sheet():
+    """워크시트 핸들을 세션 내에서 재사용 (매번 API 호출 방지)."""
     client = _get_client()
     sheet_id = st.secrets["sheet"]["id"]
     ss = client.open_by_key(sheet_id)
@@ -83,10 +85,16 @@ def _row_to_dict(row: list) -> dict:
     return dict(zip(HEADER, padded))
 
 
-def load_week(week: str) -> dict:
+@st.cache_data(ttl=30)
+def _fetch_all_values() -> list:
+    """전체 시트를 한 번만 읽어서 30초간 캐시 (API 쿼터 절감)."""
     ws = _get_sheet()
     _ensure_header(ws)
-    records = ws.get_all_values()
+    return ws.get_all_values()
+
+
+def load_week(week: str) -> dict:
+    records = _fetch_all_values()
     out = {}
     for r in records[1:]:
         row = _row_to_dict(r)
@@ -110,9 +118,11 @@ def save_submission(name: str, week: str, values: dict) -> str:
         row = _row_to_dict(r)
         if row.get("이름") == name and row.get("주차", "") == week:
             end_col = chr(ord('A') + COL_COUNT - 1)
-            ws.update(f"A{i}:{end_col}{i}", [new_row])
+            ws.update(values=[new_row], range_name=f"A{i}:{end_col}{i}")
+            _fetch_all_values.clear()  # 캐시 무효화
             return "updated"
     ws.append_row(new_row)
+    _fetch_all_values.clear()
     return "created"
 
 
