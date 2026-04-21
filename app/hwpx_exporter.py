@@ -15,23 +15,54 @@ CHARPR_BLACK = "15"
 COLOR_HEX = {"black": "#000000", "blue": "#0000FF"}
 
 
-def make_paragraph_xml(text, char_pr_id=CHARPR_BLACK, is_first=True):
+DEFAULT_P_ATTRS = (
+    'id="0" paraPrIDRef="27" styleIDRef="0" '
+    'pageBreak="0" columnBreak="0" merged="0"'
+)
+DEFAULT_LINESEG = (
+    '<hp:linesegarray>'
+    '<hp:lineseg textpos="0" vertpos="0" vertsize="1100" textheight="1100" '
+    'baseline="935" spacing="164" horzpos="0" horzsize="31508" flags="393216"/>'
+    '</hp:linesegarray>'
+)
+
+
+def make_paragraph_from_template(text, p_attrs, run_char_pr_id, lineseg_xml):
+    """원본 셀 문단의 속성을 유지하면서 텍스트만 교체한 새 문단 생성."""
     escaped = html.escape(text)
-    pid = "2147483648" if is_first else "0"
     return (
-        f'<hp:p id="{pid}" paraPrIDRef="27" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
-        f'<hp:run charPrIDRef="{char_pr_id}"><hp:t>{escaped}</hp:t></hp:run>'
-        f'<hp:linesegarray>'
-        f'<hp:lineseg textpos="0" vertpos="0" vertsize="1100" textheight="1100" baseline="935" spacing="164" horzpos="0" horzsize="31508" flags="393216"/>'
-        f'</hp:linesegarray></hp:p>'
+        f'<hp:p {p_attrs}>'
+        f'<hp:run charPrIDRef="{run_char_pr_id}"><hp:t>{escaped}</hp:t></hp:run>'
+        f'{lineseg_xml}</hp:p>'
     )
 
 
-def make_cell_content(text, char_pr_id=CHARPR_BLACK):
+def extract_cell_template(content_xml):
+    """셀 내부 XML에서 첫 번째 <hp:p>의 속성·charPr·lineseg 추출.
+    반환: (p_attrs_str, run_char_pr_id_or_None, lineseg_xml_str)"""
+    p_m = re.search(r'<hp:p\s+([^>]*)>', content_xml)
+    p_attrs = p_m.group(1) if p_m else DEFAULT_P_ATTRS
+    # id는 0으로 통일 (원본이 0 또는 2147483648 다양)
+    p_attrs = re.sub(r'id="\d+"', 'id="0"', p_attrs)
+
+    run_m = re.search(r'<hp:run\s+charPrIDRef="(\d+)"', content_xml)
+    run_char_pr_id = run_m.group(1) if run_m else None
+
+    ls_m = re.search(r'<hp:linesegarray>.*?</hp:linesegarray>', content_xml, re.DOTALL)
+    lineseg_xml = ls_m.group(0) if ls_m else DEFAULT_LINESEG
+
+    return p_attrs, run_char_pr_id, lineseg_xml
+
+
+def make_cell_content(text, cell_template, override_color_id=None):
+    """cell_template = (p_attrs, orig_char_pr, lineseg). override_color_id 있으면 색상 덮어씀."""
+    p_attrs, orig_char_pr, lineseg = cell_template
+    # 원본 셀 charPr 우선, 없으면 검정 기본값. 파란색 필드만 override.
+    run_id = override_color_id if override_color_id is not None else (orig_char_pr or CHARPR_BLACK)
     lines = (text or "").splitlines() or [""]
     return "".join(
-        make_paragraph_xml(line, char_pr_id=char_pr_id, is_first=(i == 0))
-        for i, line in enumerate(lines)
+        make_paragraph_from_template(line, p_attrs, run_id, lineseg)
+        for line in lines
     )
 
 
@@ -58,11 +89,16 @@ def find_cell_sublist(xml, col, row, nth=0):
     return sublist_content_start, sublist_end
 
 
-def replace_cell(xml, col, row, text, char_pr_id=CHARPR_BLACK, nth=0):
+def replace_cell(xml, col, row, text, override_color_id=None, nth=0):
+    """셀 내부를 text로 교체. 원본 셀 문단 속성(paraPr/charPr/lineseg)은 유지하고,
+    override_color_id가 주어지면 run의 charPrIDRef만 그 값으로 강제."""
     start, end = find_cell_sublist(xml, col, row, nth=nth)
     if start is None:
         return xml
-    return xml[:start] + make_cell_content(text, char_pr_id) + xml[end:]
+    old_content = xml[start:end]
+    cell_template = extract_cell_template(old_content)
+    new_content = make_cell_content(text, cell_template, override_color_id)
+    return xml[:start] + new_content + xml[end:]
 
 
 def ensure_blue_charpr(header_xml: str) -> tuple[str, str]:
@@ -150,8 +186,10 @@ def build_report(template_bytes: bytes, submissions: dict,
             else:
                 raise ValueError(f"잘못된 셀 명세: {spec}")
             text = data.get(field, "")
+            # 파란색으로 명시된 필드만 override. 검정은 원본 셀 charPr 유지.
+            override = color_to_id["blue"] if color == "blue" else None
             xml = replace_cell(xml, col, row, text,
-                               char_pr_id=color_to_id[color],
+                               override_color_id=override,
                                nth=nth)
 
     all_files['Contents/section0.xml'] = xml.encode('utf-8')
