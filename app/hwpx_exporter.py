@@ -17,13 +17,17 @@ COLOR_HEX = {"black": "#000000", "blue": "#0000FF"}
 
 def _sanitize_for_hwpx(text: str) -> str:
     """한글 HWPX 파서가 싫어하는 문자 정리.
-    - 백슬래시(\\): 한글이 이스케이프 문자로 잘못 해석하는 것으로 추정. 제거.
-    - 그 외 비정상적 whitespace: 정상 공백으로 치환.
+    - 백슬래시(\\): 이스케이프 오해. 제거
+    - 탭(\\t): HWPX 내부 구조자 충돌 가능. 공백 4개로 치환
+    - 그 외 제어문자 (\\n, \\r 제외): 제거
     """
     if not text:
         return ""
-    # 백슬래시 제거
     text = text.replace("\\", "")
+    text = text.replace("\t", "    ")
+    # \n, \r 외의 제어문자 제거 (0x00-0x1F, 0x7F)
+    text = "".join(c for c in text
+                   if ord(c) >= 0x20 or c in ("\n", "\r"))
     return text
 
 
