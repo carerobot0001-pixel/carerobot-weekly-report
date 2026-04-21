@@ -149,6 +149,10 @@ def build_report(template_bytes: bytes, submissions: dict,
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:
         xml = zin.read('Contents/section0.xml').decode('utf-8')
         header = zin.read('Contents/header.xml').decode('utf-8')
+        # 원본 ZIP 엔트리 순서 + 압축 방식 보존
+        # (mimetype은 반드시 무압축/STORED + 첫 엔트리여야 HWPX로 인식됨)
+        entry_order = [info.filename for info in zin.infolist()]
+        compress_types = {info.filename: info.compress_type for info in zin.infolist()}
         all_files = {name: zin.read(name) for name in zin.namelist()}
 
     header, blue_id = ensure_blue_charpr(header)
@@ -198,9 +202,14 @@ def build_report(template_bytes: bytes, submissions: dict,
     all_files['Contents/header.xml'] = header.encode('utf-8')
 
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zout:
-        for name, data in all_files.items():
-            zout.writestr(name, data)
+    with zipfile.ZipFile(buf, 'w') as zout:
+        # 원본 순서대로 각 엔트리를 원본 압축방식 그대로 기록
+        # (mimetype=STORED 첫 엔트리 요구사항 준수)
+        for name in entry_order:
+            data = all_files[name]
+            zinfo = zipfile.ZipInfo(name)
+            zinfo.compress_type = compress_types.get(name, zipfile.ZIP_DEFLATED)
+            zout.writestr(zinfo, data)
     return buf.getvalue()
 
 
