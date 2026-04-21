@@ -1,0 +1,33 @@
+# 비밀 파일 (절대 깃허브에 올리면 안 됨)
+app/.streamlit/secrets.toml
+app/service_account.json
+**/service_account.json
+
+# 테스트/분석용 임시 파일
+app/test_output*.hwpx
+app/_gen_secrets.py
+app/_charPr_sample.xml
+app/new_structure.txt
+app/tables_dump.txt
+app/structure_dump.txt
+app/streamlit.log
+app/.deploy_notes.txt
+app/cell_map.txt
+cell_map.txt
+
+# 파이썬 캐시
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS/에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code 로컬 설정
+.claude/
+weekly_notes.txt
+update_hwpx.py
