@@ -149,10 +149,10 @@ def build_report(template_bytes: bytes, submissions: dict,
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:
         xml = zin.read('Contents/section0.xml').decode('utf-8')
         header = zin.read('Contents/header.xml').decode('utf-8')
-        # 원본 ZIP 엔트리 순서 + 압축 방식 보존
-        # (mimetype은 반드시 무압축/STORED + 첫 엔트리여야 HWPX로 인식됨)
+        # 원본 ZipInfo 전체를 보존 (external_attr, create_system, create_version,
+        # extract_version, flag_bits, date_time 등 한글이 검사할 가능성 있는 모든 메타)
         entry_order = [info.filename for info in zin.infolist()]
-        compress_types = {info.filename: info.compress_type for info in zin.infolist()}
+        original_infos = {info.filename: info for info in zin.infolist()}
         all_files = {name: zin.read(name) for name in zin.namelist()}
 
     header, blue_id = ensure_blue_charpr(header)
@@ -203,14 +203,67 @@ def build_report(template_bytes: bytes, submissions: dict,
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w') as zout:
-        # 원본 순서대로 각 엔트리를 원본 압축방식 그대로 기록
-        # (mimetype=STORED 첫 엔트리 요구사항 준수)
         for name in entry_order:
             data = all_files[name]
-            zinfo = zipfile.ZipInfo(name)
-            zinfo.compress_type = compress_types.get(name, zipfile.ZIP_DEFLATED)
+            orig = original_infos[name]
+            zinfo = zipfile.ZipInfo(name, date_time=orig.date_time)
+            zinfo.compress_type = orig.compress_type
+            zinfo.external_attr = orig.external_attr
+            zinfo.create_system = orig.create_system
+            zinfo.create_version = orig.create_version
+            zinfo.extract_version = orig.extract_version
+            zinfo.flag_bits = orig.flag_bits
+            zinfo.extra = orig.extra
             zout.writestr(zinfo, data)
-    return buf.getvalue()
+
+    # Python zipfile 이 writestr 과정에서 flag_bits를 자동 변경(특히 0x04 clear)
+    # 한글은 일부 엔트리의 flag_bits=0x04 를 기대하므로 바이너리 레벨에서 복원
+    raw = buf.getvalue()
+    raw = _patch_zip_flag_bits(raw, original_infos)
+    return raw
+
+
+def _patch_zip_flag_bits(zip_bytes: bytes, original_infos: dict) -> bytes:
+    """ZIP 로컬 파일 헤더와 중앙 디렉토리 엔트리의 flag_bits 필드를
+    원본 ZipInfo.flag_bits 값으로 복원."""
+    data = bytearray(zip_bytes)
+    LFH_SIG = b'PK\x03\x04'
+    CD_SIG = b'PK\x01\x02'
+
+    # 로컬 파일 헤더 스캔
+    pos = 0
+    while True:
+        idx = data.find(LFH_SIG, pos)
+        if idx == -1:
+            break
+        # LFH 구조: sig(4) ver(2) flag(2) method(2) time(2) date(2) crc(4) csize(4) usize(4) nlen(2) elen(2) name extra
+        name_len = int.from_bytes(data[idx + 26:idx + 28], 'little')
+        extra_len = int.from_bytes(data[idx + 28:idx + 30], 'little')
+        name = data[idx + 30:idx + 30 + name_len].decode('utf-8', errors='replace')
+        if name in original_infos:
+            target_flag = original_infos[name].flag_bits
+            data[idx + 6:idx + 8] = target_flag.to_bytes(2, 'little')
+        # 다음으로
+        comp_size = int.from_bytes(data[idx + 18:idx + 22], 'little')
+        pos = idx + 30 + name_len + extra_len + comp_size
+
+    # 중앙 디렉토리 스캔
+    pos = 0
+    while True:
+        idx = data.find(CD_SIG, pos)
+        if idx == -1:
+            break
+        # CD 구조: sig(4) vermade(2) verneeded(2) flag(2) method(2) ...
+        name_len = int.from_bytes(data[idx + 28:idx + 30], 'little')
+        extra_len = int.from_bytes(data[idx + 30:idx + 32], 'little')
+        cmt_len = int.from_bytes(data[idx + 32:idx + 34], 'little')
+        name = data[idx + 46:idx + 46 + name_len].decode('utf-8', errors='replace')
+        if name in original_infos:
+            target_flag = original_infos[name].flag_bits
+            data[idx + 8:idx + 10] = target_flag.to_bytes(2, 'little')
+        pos = idx + 46 + name_len + extra_len + cmt_len
+
+    return bytes(data)
 
 
 def load_template(template_path: str) -> bytes:
