@@ -124,7 +124,8 @@ def member_page():
 
         extra_fields = [f for f in fields if f in (
             "smart_care_space",
-            "project_confirmation_done", "project_confirmation_plan",
+            "project_confirmation_1",
+            "project_confirmation_2_done", "project_confirmation_2_plan",
             "research_meeting", "director_meeting", "mohw_weekly")]
         if extra_fields:
             st.subheader("📌 추가 작성 항목")

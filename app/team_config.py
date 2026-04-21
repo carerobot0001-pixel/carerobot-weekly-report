@@ -109,8 +109,9 @@ TEAM_MEMBERS = [
         "cells": {
             "task_done": (4, 25),
             "task_plan": (5, 25),
-            # 사업단 공통확인사항 - 계획 칸 (HWPX 매핑 보류 - 표 처리 결정 후 추가)
-            "project_confirmation_plan": None,
+            # 사업단 공통확인사항 2 - 업무실적/계획 2칸 (HWPX 매핑 보류)
+            "project_confirmation_2_done": None,
+            "project_confirmation_2_plan": None,
             # 회의자료 3종
             "research_meeting": (4, 28),
             "director_meeting": (4, 29),
@@ -123,8 +124,8 @@ TEAM_MEMBERS = [
         "cells": {
             "task_done": (4, 26),
             "task_plan": (5, 26),
-            # 사업단 공통확인사항 - 실적 칸 (HWPX 매핑 보류)
-            "project_confirmation_done": None,
+            # 사업단 공통확인사항 1 - 1칸 (HWPX 매핑 보류)
+            "project_confirmation_1": None,
         },
     },
 ]
@@ -137,8 +138,9 @@ FIELD_LABELS = {
     "task_done": "업무 실적",
     "task_plan": "업무 계획",
     "smart_care_space": "스마트돌봄스페이스",
-    "project_confirmation_done": "사업단 공통확인사항 — 실적",
-    "project_confirmation_plan": "사업단 공통확인사항 — 계획",
+    "project_confirmation_1": "사업단 공통확인사항 1",
+    "project_confirmation_2_done": "사업단 공통확인사항 2 — 업무 실적",
+    "project_confirmation_2_plan": "사업단 공통확인사항 2 — 업무 계획",
     "research_meeting": "연구소 회의자료 (소장주재회의)",
     "director_meeting": "원장+재활원 주요간부회의자료",
     "mohw_weekly": "복지부 본부 주간일정 (보산진 보고)",
@@ -159,7 +161,8 @@ def get_fields_for(member):
     order = ["acquired_data", "research_done", "research_plan",
              "task_done", "task_plan",
              "smart_care_space",
-             "project_confirmation_done", "project_confirmation_plan",
+             "project_confirmation_1",
+             "project_confirmation_2_done", "project_confirmation_2_plan",
              "research_meeting", "director_meeting", "mohw_weekly"]
     return [f for f in order if f in member["cells"]]
 
