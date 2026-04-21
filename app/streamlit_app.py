@@ -225,9 +225,9 @@ def admin_page():
         st.error("주차 형식이 잘못되었습니다 (YYYY-MM-DD).")
         return
 
-    # PDF 다운로드 섹션 — 간단하고 확실한 백업 옵션 (HWPX 문제 발생 시 대안)
-    st.markdown("### 📕 PDF (즉시 다운로드, 확실히 작동)")
-    st.caption("HWPX 대신 PDF로 내보내기. 회의실에서 바로 띄우거나 출력 가능.")
+    # PDF 다운로드 섹션 — 기본 출력
+    st.markdown("### 📕 PDF (회의자료)")
+    st.caption("10명 업무보고 취합 PDF. 회의실에서 바로 띄우거나 출력 가능.")
 
     if st.button("📕 PDF 생성 및 다운로드", use_container_width=True):
         try:
@@ -260,7 +260,35 @@ def admin_page():
 
     st.markdown("---")
     st.markdown("### 📄 HWPX (한글 편집용)")
-    st.caption("⚠️ 현재 한글에서 안 열리는 이슈 조사 중. PDF를 주력으로 쓰시길 권장.")
+    st.caption("⚠️ 현재 한글에서 안 열리는 이슈 조사 중.")
+
+    # 🔬 디버그: 템플릿 원본 그대로 다운로드 (수정 없음)
+    with st.expander("🔬 디버그 도구 (HWPX 이슈 진단용)"):
+        st.caption(
+            "선택한 템플릿 파일을 **내용 수정 없이 그대로** 다운로드. "
+            "한글에서 이 파일이 열리면 → XML 수정 로직이 문제. "
+            "이것도 안 열리면 → Streamlit 다운로드 경로나 ZIP 재포장이 문제."
+        )
+        repo_root = Path(__file__).resolve().parent.parent
+        template_files = sorted(repo_root.glob("돌봄로봇_업무보고*.hwpx"))
+        if template_files:
+            debug_tpl = st.selectbox(
+                "원본 그대로 다운로드할 템플릿",
+                template_files,
+                format_func=lambda p: p.name,
+                index=len(template_files) - 1,
+                key="debug_tpl_select",
+            )
+            if st.button("🔬 원본 그대로 다운로드 (수정 0)", use_container_width=True):
+                raw = debug_tpl.read_bytes()
+                st.download_button(
+                    "💾 원본 다운로드",
+                    data=raw,
+                    file_name=f"DEBUG_원본_{debug_tpl.name}",
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                )
+                st.info("다운 후 한글에서 열어보세요. 열리면 → 제 수정 로직 문제. 안 열리면 → 다운로드 경로 문제.")
 
     # 수요일 기준(보고일): 실적=지난주 수요일~이번주 화요일, 계획=이번주 수요일~다음주 화요일
     period_start = (wed - timedelta(days=7)).strftime("%Y.%m.%d.")  # 지난주 수요일
