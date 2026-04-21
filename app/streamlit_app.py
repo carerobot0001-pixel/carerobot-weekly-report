@@ -418,6 +418,102 @@ def admin_page():
                 )
                 st.info("Lv3 = Lv2 + replace_cell 한 번 호출 (김건양 연구실적 r14 c4).")
 
+            # Level 4: 셀 10개 수정 (색상 없음)
+            if st.button("🔬 Lv4: 셀 10개 수정 (색상 X)",
+                         use_container_width=True):
+                import re
+                from hwpx_exporter import _patch_zip_flag_bits, replace_cell
+                src = debug_tpl.read_bytes()
+                with zipfile.ZipFile(_io.BytesIO(src), 'r') as zin:
+                    order = [i.filename for i in zin.infolist()]
+                    infos = {i.filename: i for i in zin.infolist()}
+                    files = {n: zin.read(n) for n in order}
+                xml = files['Contents/section0.xml'].decode('utf-8')
+                # 팀원 10명 연구실적 셀만 수정 (또는 업무실적)
+                test_cells = [
+                    (4, 2), (4, 5), (4, 8), (4, 11),   # 현장실증팀 연구실적
+                    (4, 14), (4, 17), (4, 20), (4, 23), # 로봇기술팀 연구실적
+                    (4, 25), (4, 26),                   # 최혜민/정지수 업무실적
+                ]
+                for i, (c, r) in enumerate(test_cells):
+                    xml = replace_cell(xml, c, r, f"테스트 {i+1} 한 줄짜리")
+                files['Contents/section0.xml'] = xml.encode('utf-8')
+
+                buf = _io.BytesIO()
+                with zipfile.ZipFile(buf, 'w') as zout:
+                    for name in order:
+                        orig = infos[name]
+                        zi = zipfile.ZipInfo(name, date_time=orig.date_time)
+                        zi.compress_type = orig.compress_type
+                        zi.external_attr = orig.external_attr
+                        zi.create_system = orig.create_system
+                        zi.create_version = orig.create_version
+                        zi.extract_version = orig.extract_version
+                        zi.flag_bits = orig.flag_bits
+                        zi.extra = orig.extra
+                        zout.writestr(zi, files[name])
+                result = _patch_zip_flag_bits(buf.getvalue(), infos)
+                st.download_button(
+                    "💾 Lv4 다운로드",
+                    data=result,
+                    file_name=f"DEBUG_Lv4_{debug_tpl.name}",
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                )
+                st.info("Lv4 = 10개 셀 연달아 수정, 색상 override 없음.")
+
+            # Level 5: Lv4 + 획득데이터에 파란색 색상 override
+            if st.button("🔬 Lv5: Lv4 + 획득데이터 파란색",
+                         use_container_width=True):
+                import re
+                from hwpx_exporter import (_patch_zip_flag_bits, replace_cell,
+                                           ensure_blue_charpr)
+                src = debug_tpl.read_bytes()
+                with zipfile.ZipFile(_io.BytesIO(src), 'r') as zin:
+                    order = [i.filename for i in zin.infolist()]
+                    infos = {i.filename: i for i in zin.infolist()}
+                    files = {n: zin.read(n) for n in order}
+                xml = files['Contents/section0.xml'].decode('utf-8')
+                header = files['Contents/header.xml'].decode('utf-8')
+                header, blue_id = ensure_blue_charpr(header)
+                # 10개 셀 + 4개 획득데이터 셀(파란색)
+                test_cells = [
+                    (4, 2), (4, 5), (4, 8), (4, 11),
+                    (4, 14), (4, 17), (4, 20), (4, 23),
+                    (4, 25), (4, 26),
+                ]
+                for i, (c, r) in enumerate(test_cells):
+                    xml = replace_cell(xml, c, r, f"테스트 {i+1} 한 줄짜리")
+                # 획득데이터 4개 파란색
+                for i, (c, r) in enumerate([(4, 1), (4, 4), (4, 7), (4, 10)]):
+                    xml = replace_cell(xml, c, r, f"획득 {i+1}",
+                                       override_color_id=blue_id)
+                files['Contents/section0.xml'] = xml.encode('utf-8')
+                files['Contents/header.xml'] = header.encode('utf-8')
+
+                buf = _io.BytesIO()
+                with zipfile.ZipFile(buf, 'w') as zout:
+                    for name in order:
+                        orig = infos[name]
+                        zi = zipfile.ZipInfo(name, date_time=orig.date_time)
+                        zi.compress_type = orig.compress_type
+                        zi.external_attr = orig.external_attr
+                        zi.create_system = orig.create_system
+                        zi.create_version = orig.create_version
+                        zi.extract_version = orig.extract_version
+                        zi.flag_bits = orig.flag_bits
+                        zi.extra = orig.extra
+                        zout.writestr(zi, files[name])
+                result = _patch_zip_flag_bits(buf.getvalue(), infos)
+                st.download_button(
+                    "💾 Lv5 다운로드",
+                    data=result,
+                    file_name=f"DEBUG_Lv5_{debug_tpl.name}",
+                    mime="application/octet-stream",
+                    use_container_width=True,
+                )
+                st.info("Lv5 = Lv4 + 획득데이터 셀 4개에 파란색 override 추가.")
+
     # 수요일 기준(보고일): 실적=지난주 수요일~이번주 화요일, 계획=이번주 수요일~다음주 화요일
     period_start = (wed - timedelta(days=7)).strftime("%Y.%m.%d.")  # 지난주 수요일
     period_end = (wed - timedelta(days=1)).strftime("%Y.%m.%d.")    # 이번주 화요일
