@@ -24,11 +24,8 @@ GREY_BG = "F5F5F5"  # 헤더 배경색
 
 
 def _set_cell_vertical_text(cell):
-    """셀 텍스트를 세로쓰기로 (한 글자씩 위→아래)."""
-    tc_pr = cell._tc.get_or_add_tcPr()
-    text_direction = OxmlElement('w:textDirection')
-    text_direction.set(qn('w:val'), 'btLr')  # bottom-to-top, left-to-right = 세로쓰기
-    tc_pr.append(text_direction)
+    """더 이상 사용하지 않음 — 정상 가로 글씨로 두면 좁은 컬럼에서 자동 줄바꿈됨."""
+    pass  # 회전시키지 않음
 
 
 def _set_cell_bg(cell, color_hex: str):
