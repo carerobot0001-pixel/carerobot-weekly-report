@@ -11,6 +11,7 @@ from team_config import (
 )
 from sheets_store import load_week, save_submission, submission_status, FIELD_KEYS
 from hwpx_exporter import build_report
+from pdf_exporter import build_pdf
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
 
@@ -216,13 +217,50 @@ def admin_page():
                 st.text(val)
             st.divider()
 
-    st.subheader("📤 HWPX 내보내기")
+    st.subheader("📤 내보내기")
 
     try:
         wed = wednesday_of_week(week)
     except ValueError:
         st.error("주차 형식이 잘못되었습니다 (YYYY-MM-DD).")
         return
+
+    # PDF 다운로드 섹션 — 간단하고 확실한 백업 옵션 (HWPX 문제 발생 시 대안)
+    st.markdown("### 📕 PDF (즉시 다운로드, 확실히 작동)")
+    st.caption("HWPX 대신 PDF로 내보내기. 회의실에서 바로 띄우거나 출력 가능.")
+
+    if st.button("📕 PDF 생성 및 다운로드", use_container_width=True):
+        try:
+            subs_for_pdf = load_week(week)
+            # 미제출자 지난주 fallback 동일 적용
+            last_week_str = (wed - timedelta(days=7)).strftime("%Y-%m-%d")
+            last_week_subs = load_week(last_week_str)
+            for name in MEMBER_NAMES:
+                if name not in subs_for_pdf and name in last_week_subs:
+                    subs_for_pdf[name] = last_week_subs[name]
+
+            pdf_bytes = build_pdf(
+                subs_for_pdf,
+                title_date=wed.strftime("%y.%m.%d."),
+                period_start=(wed - timedelta(days=7)).strftime("%Y.%m.%d."),
+                period_end=(wed - timedelta(days=1)).strftime("%Y.%m.%d."),
+                plan_start=wed.strftime("%Y.%m.%d."),
+                plan_end=(wed + timedelta(days=6)).strftime("%Y.%m.%d."),
+            )
+            st.download_button(
+                "💾 PDF 다운로드",
+                data=pdf_bytes,
+                file_name=f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+            st.success("PDF 생성 완료.")
+        except Exception as e:
+            st.error(f"PDF 생성 실패: {e}")
+
+    st.markdown("---")
+    st.markdown("### 📄 HWPX (한글 편집용)")
+    st.caption("⚠️ 현재 한글에서 안 열리는 이슈 조사 중. PDF를 주력으로 쓰시길 권장.")
 
     # 수요일 기준(보고일): 실적=지난주 수요일~이번주 화요일, 계획=이번주 수요일~다음주 화요일
     period_start = (wed - timedelta(days=7)).strftime("%Y.%m.%d.")  # 지난주 수요일
