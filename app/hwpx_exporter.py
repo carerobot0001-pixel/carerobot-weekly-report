@@ -135,6 +135,8 @@ def build_report(template_bytes: bytes, submissions: dict,
     for m in TEAM_MEMBERS:
         data = submissions.get(m["name"], {})
         for field, spec in m["cells"].items():
+            if spec is None:
+                continue  # HWPX 매핑 보류 필드 (시트 저장만 됨)
             if field in ("research_done", "research_plan") and not m["has_research"]:
                 continue
             if len(spec) == 2:
