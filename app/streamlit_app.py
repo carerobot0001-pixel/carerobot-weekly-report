@@ -15,14 +15,14 @@ from hwpx_exporter import build_report
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
 
 
-def this_friday() -> str:
+def this_wednesday() -> str:
     today = datetime.now().date()
-    days_until_fri = (4 - today.weekday()) % 7
-    friday = today + timedelta(days=days_until_fri)
-    return friday.strftime("%Y-%m-%d")
+    days_until_wed = (2 - today.weekday()) % 7
+    wednesday = today + timedelta(days=days_until_wed)
+    return wednesday.strftime("%Y-%m-%d")
 
 
-def friday_of_week(week_str: str) -> datetime:
+def wednesday_of_week(week_str: str) -> datetime:
     return datetime.strptime(week_str, "%Y-%m-%d")
 
 
@@ -48,15 +48,34 @@ def member_page():
     with col1:
         name = st.selectbox("본인 이름", MEMBER_NAMES, key="member_name")
     with col2:
-        week = st.text_input("보고 주차 (금요일 기준)", value=this_friday(),
-                             help="예: 2026-04-24")
+        week = st.text_input("보고 주차 (수요일 기준)", value=this_wednesday(),
+                             help="예: 2026-04-22")
 
     member = get_member(name)
     fields = get_fields_for(member)
 
-    existing = load_week(week).get(name, {})
-    if existing:
-        st.info(f"이전 저장본을 불러왔습니다. (마지막 저장: {existing.get('submitted_at','-')})")
+    current = load_week(week).get(name, {})
+
+    # 지난주 제출 내용 조회 (이번주 초기값으로 사용)
+    last_week = None
+    last_week_data = {}
+    try:
+        this_wed = wednesday_of_week(week)
+        last_week = (this_wed - timedelta(days=7)).strftime("%Y-%m-%d")
+        last_week_data = load_week(last_week).get(name, {})
+    except Exception:
+        pass
+
+    # prefill 우선순위: 이번주 기존 저장본 > 지난주 내용 > 빈값
+    if current:
+        existing = current
+        st.info(f"📝 이번주({week}) 저장본을 불러왔습니다. (마지막 저장: {current.get('submitted_at','-')})")
+    elif last_week_data:
+        existing = last_week_data
+        st.warning(f"🗂️ **지난주({last_week}) 내용을 그대로 불러왔습니다.** 내용을 확인하고 이번주에 맞게 수정해주세요.")
+    else:
+        existing = {}
+        st.caption(f"ℹ️ 지난주({last_week or '-'}) 제출 기록도 없어 빈 칸으로 시작합니다.")
 
     values = {}
     with st.form("report_form", clear_on_submit=False):
@@ -129,8 +148,8 @@ def member_page():
 def admin_page():
     st.header("📊 담당자 대시보드")
 
-    week = st.text_input("조회 주차", value=this_friday(),
-                         help="예: 2026-04-24 (해당 주 금요일)")
+    week = st.text_input("조회 주차", value=this_wednesday(),
+                         help="예: 2026-04-22 (해당 주 수요일)")
 
     status = submission_status(week)
     df = pd.DataFrame([
@@ -168,16 +187,17 @@ def admin_page():
     st.subheader("📤 HWPX 내보내기")
 
     try:
-        fri = friday_of_week(week)
+        wed = wednesday_of_week(week)
     except ValueError:
         st.error("주차 형식이 잘못되었습니다 (YYYY-MM-DD).")
         return
 
-    period_start = (fri - timedelta(days=6)).strftime("%Y.%m.%d.")
-    period_end = fri.strftime("%Y.%m.%d.")
-    plan_start = (fri + timedelta(days=3)).strftime("%Y.%m.%d.")
-    plan_end = (fri + timedelta(days=7)).strftime("%Y.%m.%d.")
-    title_date = fri.strftime("%y.%m.%d.")
+    # 수요일 기준: 실적=지난주 목요일~이번주 수요일, 계획=이번주 목요일~다음주 수요일
+    period_start = (wed - timedelta(days=6)).strftime("%Y.%m.%d.")
+    period_end = wed.strftime("%Y.%m.%d.")
+    plan_start = (wed + timedelta(days=1)).strftime("%Y.%m.%d.")
+    plan_end = (wed + timedelta(days=7)).strftime("%Y.%m.%d.")
+    title_date = wed.strftime("%y.%m.%d.")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -216,7 +236,7 @@ def admin_page():
                 period_start=period_start, period_end=period_end,
                 plan_start=plan_start, plan_end=plan_end,
             )
-            filename = f"돌봄로봇_업무보고({fri.strftime('%m.%d')})_취합본.hwpx"
+            filename = f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.hwpx"
             st.download_button(
                 "💾 HWPX 다운로드",
                 data=result,
