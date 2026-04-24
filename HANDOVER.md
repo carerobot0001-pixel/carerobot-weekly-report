@@ -1,6 +1,6 @@
 # 인수인계 체크리스트
 
-**넘기는 사람**: 김건양 연구원 (`carerobot0001@gmail.com` / GitHub `rlarjsdid`)
+**넘기는 사람**: 김건양 연구원 (`carerobot0001@gmail.com` / GitHub `carerobot0001-pixel`)
 **받는 사람**: (신규 관리자)
 
 아래 8가지를 순서대로 진행하면 됩니다. 관리자 Claude Code에게 `CLAUDE.md`를 읽혀놓으면 각 단계에서 막힐 때 도움 받을 수 있습니다.
@@ -40,7 +40,7 @@ streamlit run streamlit_app.py
 ## ☐ 4. GitHub 레포 권한 이전
 
 **방법 A — 소유권 완전 이전 (추천)**:
-1. 김건양이 `github.com/rlarjsdid/carerobot-weekly-report/settings` 접속
+1. 김건양이 `github.com/carerobot0001-pixel/carerobot-weekly-report/settings` 접속
 2. **Danger Zone → Transfer ownership**
 3. 관리자 GitHub 아이디 입력 → 확인
 4. 관리자 수락 후 완료

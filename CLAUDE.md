@@ -12,8 +12,8 @@
 ```
 ┌──────────────────────────────────────────┐
 │ Streamlit Cloud (streamlit.app)          │ ← 앱 호스팅
-│   └─ GitHub(rlarjsdid/carerobot-         │
-│         weekly-report)에서 자동 배포       │
+│   └─ GitHub(carerobot0001-pixel/          │
+│         carerobot-weekly-report)에서 자동 │
 ├──────────────────────────────────────────┤
 │ Google Sheets ("돌봄로봇_업무보고_제출함")  │ ← 입력 데이터 저장
 │   └─ 서비스 계정(streamlit-bot@…)으로 접근 │
@@ -107,7 +107,7 @@
 | 항목 | URL |
 |------|-----|
 | 앱 (배포본) | https://carerobot-weekly-report.streamlit.app |
-| GitHub 레포 | https://github.com/rlarjsdid/carerobot-weekly-report |
+| GitHub 레포 | https://github.com/carerobot0001-pixel/carerobot-weekly-report |
 | 구글시트 | https://docs.google.com/spreadsheets/d/1VX-t21tTlXyGPhxksgcoZ0t9js3ABPn_vpiWi_fJcRg/edit |
 | Streamlit Cloud 대시보드 | https://share.streamlit.io |
 | Google Cloud Console | https://console.cloud.google.com (프로젝트 ID: `molten-guide-469800-e0`) |
