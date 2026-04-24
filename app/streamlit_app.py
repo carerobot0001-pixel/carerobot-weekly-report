@@ -177,6 +177,64 @@ def member_page():
             st.error(f"저장 실패: {e}")
 
 
+def history_page():
+    """과거 주차 회의록(전체 팀원 업무보고) 읽기 전용 조회.
+
+    류현경 요청(이슈 #1): "4.21 기준으로 4.15 / 4.8 / 4.1 ... 주간업무보고
+    회의록 열람". 팀원·관리자 모두 접근 가능.
+    """
+    st.header("📚 과거 회의록 열람")
+    st.caption("지난 주차들의 팀원 업무보고 내용을 조회합니다 (읽기 전용).")
+
+    default_week = (datetime.now().date() - timedelta(days=7)).strftime("%Y-%m-%d")
+    week = st.text_input(
+        "조회할 주차 (수요일 기준 YYYY-MM-DD)",
+        value=default_week,
+        help="예: 2026-04-15  /  기본값은 지난주 수요일",
+    )
+
+    try:
+        datetime.strptime(week, "%Y-%m-%d")
+    except ValueError:
+        st.error("주차 형식이 잘못되었습니다 (YYYY-MM-DD).")
+        return
+
+    data = load_week(week)
+    if not data:
+        st.info(f"📭 {week} 주차에 저장된 내용이 없습니다. 주차 입력을 확인해주세요.")
+        return
+
+    done_names = [n for n in MEMBER_NAMES if n in data]
+    missing_names = [n for n in MEMBER_NAMES if n not in data]
+    st.success(
+        f"✅ 제출자 {len(done_names)}/{len(MEMBER_NAMES)}명 — "
+        + (", ".join(done_names) if done_names else "(없음)")
+    )
+    if missing_names:
+        st.caption(f"⏳ 미제출: {', '.join(missing_names)}")
+
+    st.divider()
+
+    for name in MEMBER_NAMES:
+        r = data.get(name)
+        if not r:
+            continue
+        with st.expander(f"👤 {name}  _({r.get('submitted_at', '-')})_",
+                         expanded=False):
+            member = get_member(name)
+            fields = get_fields_for(member)
+            any_shown = False
+            for f in fields:
+                val = r.get(f, "")
+                if not val:
+                    continue  # 빈 필드는 숨김
+                st.caption(FIELD_LABELS[f])
+                st.text(val)
+                any_shown = True
+            if not any_shown:
+                st.caption("_(빈 제출)_")
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
 
@@ -302,7 +360,7 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["업무보고 작성"]
+        mode_options = ["업무보고 작성", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -315,6 +373,8 @@ def main():
 
     if mode == "업무보고 작성":
         member_page()
+    elif mode == "📚 과거 회의록 열람":
+        history_page()
     else:
         admin_page()
 
