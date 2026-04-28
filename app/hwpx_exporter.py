@@ -65,15 +65,51 @@ def make_cell_content(text: str, char_pr_id: str = CHARPR_BLACK,
     )
 
 
+def _find_clean_lineseg_in_column(xml: str, col: int) -> str | None:
+    """같은 col 의 다른 row 들에서 31508(DEFAULT 시그니처) 이 아닌
+    정상 lineseg 를 찾아 반환. 없으면 None.
+
+    셀 병합으로 이상하게 큰 horzsize(>50000) 는 col 폭이 안 맞으므로 제외.
+    """
+    for r in range(0, 35):  # 본문 테이블 row 범위 여유분
+        s, e = find_cell_sublist(xml, col, r, nth=0)
+        if s is None:
+            continue
+        m = re.search(r'<hp:linesegarray>.*?</hp:linesegarray>',
+                      xml[s:e], re.DOTALL)
+        if not m:
+            continue
+        candidate = m.group(0)
+        if 'horzsize="31508"' in candidate:
+            continue  # 오염된 동족
+        # 셀 병합으로 폭이 큰 lineseg 제외 (col 폭과 안 맞음)
+        hm = re.search(r'horzsize="(\d+)"', candidate)
+        if hm and int(hm.group(1)) < 50000:
+            return candidate
+    return None
+
+
 def extract_cell_lineseg(xml: str, col: int, row: int, nth: int = 0) -> str:
     """해당 셀의 원본 <hp:linesegarray> 를 추출 (셀 너비 정보 보존).
-    없으면 DEFAULT_LINESEG 반환."""
+    없으면 DEFAULT_LINESEG 반환.
+
+    오염 감지: 추출된 lineseg 의 horzsize 가 31508(DEFAULT 시그니처) 이면
+    이전 generation 에서 우리 fallback 이 셀에 박혀버린 자기-오염 상태.
+    같은 col 의 깨끗한 lineseg 로 자동 차용해 무한 누적을 끊음.
+    """
     start, end = find_cell_sublist(xml, col, row, nth=nth)
     if start is None:
         return DEFAULT_LINESEG
     content = xml[start:end]
     m = re.search(r'<hp:linesegarray>.*?</hp:linesegarray>', content, re.DOTALL)
-    return m.group(0) if m else DEFAULT_LINESEG
+    if not m:
+        return DEFAULT_LINESEG
+    lineseg = m.group(0)
+    if 'horzsize="31508"' in lineseg:
+        clean = _find_clean_lineseg_in_column(xml, col)
+        if clean:
+            return clean
+    return lineseg
 
 
 def find_cell_sublist(xml, col, row, nth=0):
