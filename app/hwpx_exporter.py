@@ -203,6 +203,15 @@ def build_report(template_bytes: bytes, submissions: dict,
     header, blue_id = ensure_blue_charpr(header)
     color_to_id = {"black": CHARPR_BLACK, "blue": blue_id}
 
+    # 변경 추적(트랙 체인지) 설정 끄기 — 한글이 파일 열 때 "변경 내용 표시"
+    # 모드로 자동 전환되어 글자가 겹쳐 보이는 착시 방지.
+    # flags="56" (기본) → flags="0" 으로 비트 모두 해제.
+    header = re.sub(
+        r'<hh:trackchageConfig\s+flags="\d+"\s*/>',
+        '<hh:trackchageConfig flags="0"/>',
+        header,
+    )
+
     xml = re.sub(
         r'과업별 업무 보고 \(\d{2}\.\d{2}\.\d{2}\.\)',
         f'과업별 업무 보고 ({title_date})',
