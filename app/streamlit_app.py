@@ -9,7 +9,11 @@ from team_config import (
     get_member, get_fields_for,
     APP_PASSWORD, ADMIN_PASSWORD,
 )
-from sheets_store import load_week, save_submission, submission_status, FIELD_KEYS
+from sheets_store import load_week, save_submission, submission_status, FIELD_KEYS, KST
+from space_store import (
+    FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, sheet_url,
+    faq_rows, add_faq, space_log_rows, add_space_log,
+)
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -235,6 +239,179 @@ def history_page():
                 st.caption("_(빈 제출)_")
 
 
+def _render_sheet_error(e: Exception, sheet_label: str, secrets_key: str):
+    """외부 시트 접근 실패 시 원인별 안내 (설정 누락 / 공유 누락)."""
+    if isinstance(e, SheetNotConfigured):
+        st.warning(f"⚙️ **{sheet_label} 시트 ID가 아직 설정되지 않았습니다.**")
+        st.markdown("Streamlit Cloud → 앱 → **Settings → Secrets** 에 아래 섹션을 추가해주세요. "
+                    "(시트 ID는 구글시트 URL의 `/d/` 와 `/edit` 사이 문자열)")
+        st.code(f'[smart_space]\n{secrets_key} = "구글시트_문서ID"', language="toml")
+    else:
+        sa_email = dict(st.secrets.get("gcp_service_account", {})).get(
+            "client_email", "(서비스 계정 이메일)")
+        st.error(f"🔒 **{sheet_label} 시트에 접근할 수 없습니다.** "
+                 "시트 소유자가 아래 계정을 **편집자**로 공유해야 합니다.")
+        st.markdown("구글시트 우상단 **공유** → 아래 이메일 추가 → 권한 **편집자** → 보내기")
+        st.code(sa_email)
+        with st.expander("오류 상세"):
+            st.text(str(e))
+
+
+def _flash(key: str):
+    """직전 등록 성공 메시지를 rerun 후에 표시."""
+    msg = st.session_state.pop(key, None)
+    if msg:
+        st.success(msg)
+
+
+def faq_tab():
+    st.caption("스페이스 **사용매뉴얼 FAQ** 항목을 수집합니다 — 직접 느낀 점, 방문자에게 "
+               "전해 들은 질문 등을 자유롭게 등록해주세요. (백정은 연구원 취합)")
+    _flash("faq_flash")
+
+    try:
+        rows = faq_rows()
+    except Exception as e:
+        _render_sheet_error(e, "FAQ", "faq_sheet_id")
+        return
+
+    SPACES = ["공통", "1차 스마트돌봄스페이스", "2차 스마트돌봄스페이스",
+              "3차 스마트돌봄스페이스", "4차 스마트돌봄스페이스", "기타(직접 입력)"]
+    DOMAINS = ["이승", "배설", "식사", "목욕", "욕창·자세변환",
+               "모니터링", "IoT", "시설", "기타(직접 입력)"]
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        writer = st.selectbox("작성자", MEMBER_NAMES, key="faq_writer")
+    with c2:
+        space = st.selectbox("공간 구분", SPACES, key="faq_space")
+        if space == "기타(직접 입력)":
+            space = st.text_input("공간 구분 직접 입력", key="faq_space_custom",
+                                  placeholder="예: 3차/4차 스마트돌봄스페이스")
+    with c3:
+        domain = st.selectbox("돌봄분야", DOMAINS, key="faq_domain")
+        if domain == "기타(직접 입력)":
+            domain = st.text_input("돌봄분야 직접 입력", key="faq_domain_custom")
+
+    c4, c5 = st.columns(2)
+    with c4:
+        device = st.text_input("기기/서비스", key="faq_device",
+                               placeholder="예: LUNA, 샤워베드, IoT, emfit QS")
+    with c5:
+        qtype = st.selectbox("문의 유형", ["사용법", "오류", "기타"], key="faq_qtype")
+
+    question = st.text_area("예상 질문(FAQ) — 필수", key="faq_question", height=90,
+                            placeholder="예: 샤워베드 높이조절이 안돼요")
+    answer = st.text_area("답변 — 아는 경우만 (비워두면 담당자가 채웁니다)",
+                          key="faq_answer", height=90)
+    note = st.text_input("비고", key="faq_note")
+
+    if st.button("➕ FAQ 등록", type="primary", use_container_width=True):
+        if not question.strip():
+            st.warning("질문을 입력해주세요.")
+        else:
+            try:
+                no = add_faq(space=space, domain=domain, device=device,
+                             question=question.strip(), answer=answer.strip(),
+                             qtype=qtype, writer=writer, note=note.strip())
+                st.session_state["faq_flash"] = f"✅ FAQ 등록 완료 (번호 {no}) — 감사합니다!"
+                for k in ("faq_question", "faq_answer", "faq_note", "faq_device"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+            except Exception as e:
+                st.error(f"등록 실패: {e}")
+
+    st.divider()
+    st.subheader(f"📋 수집된 FAQ — {len(rows)}건")
+    if rows:
+        df = pd.DataFrame(rows[::-1], columns=FAQ_HEADER)  # 최신이 위로
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.caption("아직 등록된 항목이 없습니다.")
+    url = sheet_url("faq_sheet_id")
+    if url:
+        st.markdown(f"🔗 [구글시트 원본에서 보기/수정]({url})")
+
+
+def space_log_tab():
+    st.caption("스페이스에서 발견한 **문제·조치사항**을 관리대장에 기록합니다. "
+               "(한벼리 연구원 관리)")
+    _flash("log_flash")
+
+    try:
+        rows = space_log_rows()
+    except Exception as e:
+        _render_sheet_error(e, "스페이스 관리대장", "space_sheet_id")
+        return
+
+    LOCATIONS = ["1차", "2차", "3차", "4차", "공통", "기타(직접 입력)"]
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        finder = st.selectbox("발견자", MEMBER_NAMES, key="log_finder")
+    with c2:
+        location = st.selectbox("위치", LOCATIONS, key="log_location")
+        if location == "기타(직접 입력)":
+            location = st.text_input("위치 직접 입력", key="log_location_custom")
+    with c3:
+        found_date = st.date_input("발견 일자", value=datetime.now(KST).date(),
+                                   key="log_date")
+
+    problem = st.text_area("문제 — 필수", key="log_problem", height=90,
+                           placeholder="예: 로봇청소기 전선 씹힘")
+    action = st.text_area("조치방안 (선택)", key="log_action", height=90,
+                          placeholder="예: 전선 정리 및 로봇청소기 교체")
+    c4, c5 = st.columns(2)
+    with c4:
+        status = st.selectbox("진행상황", ["진행중", "처리완료"], key="log_status")
+    with c5:
+        note = st.text_input("비고", key="log_note")
+
+    if st.button("➕ 관리대장에 기록", type="primary", use_container_width=True):
+        if not problem.strip():
+            st.warning("문제 내용을 입력해주세요.")
+        else:
+            try:
+                no = add_space_log(location=location, problem=problem.strip(),
+                                   finder=finder, action=action.strip(),
+                                   found_date=found_date.strftime("%Y-%m-%d"),
+                                   status=status, note=note.strip())
+                st.session_state["log_flash"] = f"✅ 관리대장 기록 완료 (번호 {no})"
+                for k in ("log_problem", "log_action", "log_note"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+            except Exception as e:
+                st.error(f"기록 실패: {e}")
+
+    st.divider()
+    open_rows = [r for r in rows if r[2].strip() and r[6].strip() != "처리완료"]
+    st.subheader(f"⏳ 미해결 문제 — {len(open_rows)}건")
+    if open_rows:
+        df_open = pd.DataFrame(open_rows[::-1], columns=SPACE_LOG_HEADER)
+        st.dataframe(
+            df_open[["번호", "위치", "문제", "발견자", "조치방안", "발견 일자", "진행상황"]],
+            use_container_width=True, hide_index=True)
+    else:
+        st.caption("미해결 문제가 없습니다 🎉")
+    with st.expander(f"📚 전체 기록 보기 ({len(rows)}건)"):
+        if rows:
+            st.dataframe(pd.DataFrame(rows[::-1], columns=SPACE_LOG_HEADER),
+                         use_container_width=True, hide_index=True)
+    url = sheet_url("space_sheet_id")
+    if url:
+        st.markdown(f"🔗 [구글시트 원본에서 보기/수정]({url}) — 조치 완료 처리는 시트에서 직접")
+
+
+def space_page():
+    """스마트돌봄스페이스: FAQ 수집(백정은) + 관리대장 문제 접수(한벼리)."""
+    st.header("🏠 스마트돌봄스페이스")
+    tab_faq, tab_log = st.tabs(["📖 사용매뉴얼 FAQ 수집", "🔧 관리대장 (문제 접수)"])
+    with tab_faq:
+        faq_tab()
+    with tab_log:
+        space_log_tab()
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
 
@@ -360,7 +537,7 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["업무보고 작성", "📚 과거 회의록 열람"]
+        mode_options = ["업무보고 작성", "🏠 스마트돌봄스페이스", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -373,6 +550,8 @@ def main():
 
     if mode == "업무보고 작성":
         member_page()
+    elif mode == "🏠 스마트돌봄스페이스":
+        space_page()
     elif mode == "📚 과거 회의록 열람":
         history_page()
     else:

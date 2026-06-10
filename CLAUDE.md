@@ -32,7 +32,8 @@
 └── app/                                    ← Streamlit 앱
     ├── streamlit_app.py                    ← 메인 앱 (UI, 라우팅)
     ├── team_config.py                      ← 팀원 10명 + 셀 매핑 + 비밀번호
-    ├── sheets_store.py                     ← 구글시트 읽기/쓰기
+    ├── sheets_store.py                     ← 구글시트 읽기/쓰기 (업무보고 제출함)
+    ├── space_store.py                      ← 스마트돌봄스페이스 외부 시트 연동 (FAQ/관리대장)
     ├── hwpx_exporter.py                    ← HWPX 취합본 생성
     ├── requirements.txt                    ← 파이썬 의존성
     ├── SETUP.md                            ← 초기 설치 가이드
@@ -89,6 +90,24 @@
 2. 담당자: `carerobot-admin` 로그인 → 대시보드에서 제출 현황 확인 → 미제출자 독촉
 3. 수요일 회의 전: 대시보드 하단 "HWPX 생성 및 다운로드" → 파일 받아 회의에서 띄움
 
+## 스마트돌봄스페이스 페이지 (2026-06 추가)
+
+사이드바 "🏠 스마트돌봄스페이스" 메뉴 — 팀원 누구나 사용. 탭 2개:
+
+| 탭 | 대상 시트 (운영자) | 동작 |
+|----|-------------------|------|
+| 📖 사용매뉴얼 FAQ 수집 | "스마트돌봄스페이스 FAQ" (백정은) | FAQ 항목 등록 + 전체 목록 조회 |
+| 🔧 관리대장 (문제 접수) | "스마트돌봄스페이스 관련 문제 및 돌봄로봇 관리" 중 `스페이스 관리대장` 탭 (한벼리) | 문제 접수 + 미해결 목록 조회 |
+
+- 코드: `app/space_store.py` (시트 연동) + `streamlit_app.py`의 `space_page()`
+- **시트 ID는 코드·이 문서에 없음** — secrets `[smart_space]` 섹션(`faq_sheet_id`, `space_sheet_id`)에만 둠.
+  레포가 공개라서 ID가 노출되면 외부인이 시트에 접근할 수 있기 때문 (실제 값은 로컬
+  `app/.streamlit/secrets.toml`과 Streamlit Cloud Secrets에 있음)
+- **각 시트에 서비스 계정(`streamlit-bot@…`)이 '편집자'로 공유되어 있어야 함.** 안 되어 있으면
+  앱 화면에 공유 안내가 뜸 (앱이 죽지는 않음)
+- 시트 컬럼 구조가 바뀌면 `space_store.py`의 `FAQ_HEADER` / `SPACE_LOG_HEADER`만 맞춰 수정
+- 앱은 **행 추가(append)와 조회만** 함 — 기존 행 수정(예: 조치 완료 처리)은 구글시트에서 직접
+
 ## 배포 (Streamlit Cloud)
 
 - main 브랜치에 push → 자동 재배포 (1~2분)
@@ -109,6 +128,7 @@
 | 앱 (배포본) | https://carerobot-weekly-report.streamlit.app |
 | GitHub 레포 | https://github.com/carerobot0001-pixel/carerobot-weekly-report |
 | 구글시트 | https://docs.google.com/spreadsheets/d/1VX-t21tTlXyGPhxksgcoZ0t9js3ABPn_vpiWi_fJcRg/edit |
+| FAQ·관리대장 시트 | URL 비공개 (위 "스마트돌봄스페이스 페이지" 참고 — secrets에 ID 저장) |
 | Streamlit Cloud 대시보드 | https://share.streamlit.io |
 | Google Cloud Console | https://console.cloud.google.com (프로젝트 ID: `molten-guide-469800-e0`) |
 
@@ -118,6 +138,8 @@
 - **"템플릿 HWPX를 선택하거나 업로드해주세요"** → 레포 루트에 `돌봄로봇_업무보고*.hwpx` 파일이 있는지 확인
 - **"서비스 계정 인증 실패"** → Streamlit Cloud Secrets에 `secrets.toml` 전체 내용 붙여넣었는지 확인
 - **"시트를 열 수 없음"** → 구글시트의 공유 설정에 서비스 계정 이메일(`streamlit-bot@molten-guide-469800-e0.iam.gserviceaccount.com`)이 편집자로 있는지 확인
+- **스마트돌봄스페이스 탭에 "시트에 접근할 수 없습니다"** → 해당 구글시트(FAQ 또는 관리대장)에 서비스 계정 이메일이 편집자로 공유됐는지 확인
+- **스마트돌봄스페이스 탭에 "시트 ID가 아직 설정되지 않았습니다"** → Streamlit Cloud Secrets에 `[smart_space]` 섹션이 빠진 것. 로컬 `app/.streamlit/secrets.toml`의 같은 섹션을 복사해 붙여넣기
 - **HWPX가 한글에서 "파일 손상" 에러로 안 열림** → `TROUBLESHOOTING.md` 의 "1. HWPX 생성본이 한글에서..." 섹션 참고. 탭 문자·자간·flag_bits 등 과거 범인 5종과 재발 시 체크리스트가 정리되어 있음
 - **기타 과거 비자명 오류 기록** → `TROUBLESHOOTING.md` 전체
 
