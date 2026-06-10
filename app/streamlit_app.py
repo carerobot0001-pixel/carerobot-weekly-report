@@ -344,15 +344,17 @@ def space_log_tab():
         _render_sheet_error(e, "스페이스 관리대장", "space_sheet_id")
         return
 
-    LOCATIONS = ["1차", "2차", "3차", "4차", "공통", "기타(직접 입력)"]
-
     c1, c2, c3 = st.columns(3)
     with c1:
         finder = st.selectbox("발견자", MEMBER_NAMES, key="log_finder")
     with c2:
-        location = st.selectbox("위치", LOCATIONS, key="log_location")
-        if location == "기타(직접 입력)":
-            location = st.text_input("위치 직접 입력", key="log_location_custom")
+        locs = st.multiselect("위치 (복수 선택 가능)",
+                              ["1차", "2차", "3차", "4차", "목욕", "공통"],
+                              key="log_locs")
+        loc_custom = st.text_input("위치 직접 입력 (선택지에 없을 때)",
+                                   key="log_loc_custom")
+        location = ", ".join(
+            locs + ([loc_custom.strip()] if loc_custom.strip() else []))
     with c3:
         found_date = st.date_input("발견 일자", value=datetime.now(KST).date(),
                                    key="log_date")
@@ -363,13 +365,16 @@ def space_log_tab():
                           placeholder="예: 전선 정리 및 로봇청소기 교체")
     c4, c5 = st.columns(2)
     with c4:
-        status = st.selectbox("진행상황", ["진행중", "처리완료"], key="log_status")
+        status = st.selectbox("진행상황", ["시작 안함", "진행중", "처리완료"],
+                              key="log_status")
     with c5:
         note = st.text_input("비고", key="log_note")
 
     if st.button("➕ 관리대장에 기록", type="primary", use_container_width=True):
         if not problem.strip():
             st.warning("문제 내용을 입력해주세요.")
+        elif not location:
+            st.warning("위치를 선택하거나 입력해주세요.")
         else:
             try:
                 no = add_space_log(location=location, problem=problem.strip(),
