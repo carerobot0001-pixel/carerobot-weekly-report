@@ -11,8 +11,8 @@ from team_config import (
 )
 from sheets_store import load_week, save_submission, submission_status, FIELD_KEYS, KST
 from space_store import (
-    FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, sheet_url,
-    faq_rows, add_faq, space_log_rows, add_space_log,
+    FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, RowMismatch, sheet_url,
+    faq_rows, add_faq, space_log_rows, add_space_log, resolve_space_log,
 )
 from hwpx_exporter import build_report
 
@@ -337,12 +337,16 @@ def space_log_tab():
     st.caption("스페이스에서 발견한 **문제·조치사항**을 관리대장에 기록합니다. "
                "(한벼리 연구원 관리)")
     _flash("log_flash")
+    warn = st.session_state.pop("log_flash_warn", None)
+    if warn:
+        st.warning(warn)
 
     try:
-        rows = space_log_rows()
+        indexed = space_log_rows()
     except Exception as e:
         _render_sheet_error(e, "스페이스 관리대장", "space_sheet_id")
         return
+    rows = [r for _, r in indexed]
 
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -389,13 +393,57 @@ def space_log_tab():
                 st.error(f"기록 실패: {e}")
 
     st.divider()
-    open_rows = [r for r in rows if r[2].strip() and r[6].strip() != "처리완료"]
-    st.subheader(f"⏳ 미해결 문제 — {len(open_rows)}건")
-    if open_rows:
-        df_open = pd.DataFrame(open_rows[::-1], columns=SPACE_LOG_HEADER)
+    open_items = [(i, r) for i, r in indexed
+                  if r[2].strip() and r[6].strip() != "처리완료"]
+    st.subheader(f"⏳ 미해결 문제 — {len(open_items)}건")
+    if open_items:
+        df_open = pd.DataFrame([r for _, r in open_items][::-1],
+                               columns=SPACE_LOG_HEADER)
         st.dataframe(
             df_open[["번호", "위치", "문제", "발견자", "조치방안", "발견 일자", "진행상황"]],
             use_container_width=True, hide_index=True)
+
+        st.markdown("**✅ 완료 처리** — 해결된 문제를 선택하면 시트에 바로 반영됩니다.")
+        labels = {}
+        for i, r in open_items:
+            labels[f"{r[2][:45]} — {r[1] or '위치?'} · 발견 {r[3] or '-'} · 시트 {i}행"] = (i, r)
+        sel = st.selectbox("완료 처리할 문제 선택", list(labels.keys()),
+                           index=None, placeholder="문제를 선택하세요...",
+                           key="resolve_sel")
+        if sel:
+            ri, rr = labels[sel]
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                fixer = st.selectbox("조치자 (본인 이름)", MEMBER_NAMES,
+                                     key="resolve_fixer")
+            with rc2:
+                fixed_date = st.date_input("조치일자",
+                                           value=datetime.now(KST).date(),
+                                           key="resolve_date")
+            action_txt = st.text_input(
+                "조치 내용 (선택 — 입력하면 '조치방안' 칸에 기록, 비우면 기존 내용 유지)",
+                key="resolve_action",
+                placeholder=f"기존 조치방안: {rr[4][:50] or '(비어있음)'}")
+            if st.button("✅ 처리완료로 변경", type="primary",
+                         use_container_width=True):
+                try:
+                    resolve_space_log(ri, rr[2], fixer,
+                                      fixed_date.strftime("%Y-%m-%d"),
+                                      action_txt.strip())
+                    st.session_state["log_flash"] = (
+                        f"✅ 처리완료로 변경됨 — \"{rr[2][:30]}\" (조치자: {fixer})")
+                    for k in ("resolve_sel", "resolve_action"):
+                        st.session_state.pop(k, None)
+                    st.rerun()
+                except RowMismatch:
+                    space_log_rows.clear()
+                    st.session_state["log_flash_warn"] = (
+                        "그 사이 시트가 수정되어 행 위치가 바뀌었습니다. "
+                        "목록을 새로 불러왔으니 다시 선택해주세요.")
+                    st.session_state.pop("resolve_sel", None)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"완료 처리 실패: {e}")
     else:
         st.caption("미해결 문제가 없습니다 🎉")
     with st.expander(f"📚 전체 기록 보기 ({len(rows)}건)"):
@@ -404,7 +452,8 @@ def space_log_tab():
                          use_container_width=True, hide_index=True)
     url = sheet_url("space_sheet_id")
     if url:
-        st.markdown(f"🔗 [구글시트 원본에서 보기/수정]({url}) — 조치 완료 처리는 시트에서 직접")
+        st.markdown(f"🔗 [구글시트 원본에서 보기/수정]({url}) — "
+                    "내용 수정·삭제는 시트에서 직접")
 
 
 def space_page():

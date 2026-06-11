@@ -31,6 +31,10 @@ class SheetNotConfigured(Exception):
     """secrets [smart_space]에 해당 시트 ID가 등록되지 않음."""
 
 
+class RowMismatch(Exception):
+    """캐시된 행 위치와 실제 시트 내용이 불일치 (그 사이 시트가 수정됨)."""
+
+
 def _sheet_id(key: str) -> str:
     sid = st.secrets.get("smart_space", {}).get(key, "")
     if not sid:
@@ -122,7 +126,14 @@ def add_faq(space: str, domain: str, device: str, question: str,
 
 @st.cache_data(ttl=60)
 def space_log_rows() -> list:
-    return _data_rows(_space_log_ws(), SPACE_LOG_HEADER)
+    """(시트 행 번호, 패딩된 행) 튜플 목록 — 행 번호는 완료 처리 시 위치 지정용."""
+    vals = _space_log_ws().get_all_values()
+    out = []
+    for i, r in enumerate(vals[1:], start=2):
+        if not any(c.strip() for c in r):
+            continue
+        out.append((i, (list(r) + [""] * len(SPACE_LOG_HEADER))[:len(SPACE_LOG_HEADER)]))
+    return out
 
 
 def add_space_log(location: str, problem: str, finder: str, action: str,
@@ -139,3 +150,27 @@ def add_space_log(location: str, problem: str, finder: str, action: str,
                len(SPACE_LOG_HEADER))
     space_log_rows.clear()
     return no
+
+
+def resolve_space_log(row_idx: int, expected_problem: str, fixer: str,
+                      fixed_date: str, action: str = "") -> None:
+    """미해결 문제를 처리완료로 변경 — 해당 행의 G(진행상황)/H(조치일자)/J(조치자),
+    조치 내용이 입력된 경우에만 E(조치방안) 칸을 수정한다.
+
+    쓰기 직전에 그 행의 '문제' 텍스트를 다시 읽어 선택 시점과 같은지 확인한다
+    (목록 캐시 60초 사이에 시트에서 행이 추가/삭제되면 위치가 밀릴 수 있음).
+    """
+    ws = _space_log_ws()
+    current = ws.row_values(row_idx)
+    cur_problem = current[2].strip() if len(current) > 2 else ""
+    if cur_problem != expected_problem.strip():
+        raise RowMismatch(f"{row_idx}행: '{cur_problem}' != '{expected_problem}'")
+    data = [
+        {"range": f"G{row_idx}", "values": [["처리완료"]]},
+        {"range": f"H{row_idx}", "values": [[fixed_date]]},
+        {"range": f"J{row_idx}", "values": [[fixer]]},
+    ]
+    if action.strip():
+        data.append({"range": f"E{row_idx}", "values": [[action.strip()]]})
+    ws.batch_update(data, value_input_option="USER_ENTERED")
+    space_log_rows.clear()
