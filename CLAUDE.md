@@ -134,6 +134,9 @@
 
 ## 문제 해결
 
+- **"Zzzz — This app has gone to sleep" 화면** → 무료 호스팅이라 한동안 방문자가 없으면 절전됨.
+  파란 **"Yes, get this app back up!"** 버튼을 누르면 1~2분 뒤 정상 접속 (팀원 누구나 가능, 로그인 불필요).
+  main에 push해서 재배포해도 깨어남
 - **"You do not have access to this app"** → 레포가 비공개로 바뀌면 앱도 비공개. GitHub Settings → Public 유지
 - **"템플릿 HWPX를 선택하거나 업로드해주세요"** → 레포 루트에 `돌봄로봇_업무보고*.hwpx` 파일이 있는지 확인
 - **"서비스 계정 인증 실패"** → Streamlit Cloud Secrets에 `secrets.toml` 전체 내용 붙여넣었는지 확인
