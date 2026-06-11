@@ -64,15 +64,32 @@ def _space_log_ws():
         return ss.get_worksheet(0)  # 단톡 공유 링크가 gid=0 (첫 탭)
 
 
-def _data_rows(ws, header: list) -> list:
+def _filter_data(vals: list, header: list) -> list:
     """헤더 제외, 값이 하나라도 있는 행만. 각 행을 헤더 길이에 맞춰 패딩."""
-    vals = ws.get_all_values()
     out = []
     for r in vals[1:]:
         if not any(c.strip() for c in r):
             continue
         out.append((list(r) + [""] * len(header))[:len(header)])
     return out
+
+
+def _data_rows(ws, header: list) -> list:
+    return _filter_data(ws.get_all_values(), header)
+
+
+def _write_row(ws, row_idx: int, row: list, ncols: int):
+    """row_idx 행(마지막 데이터 행 바로 아래)에 한 줄 기록.
+
+    append_row(테이블 자동 감지)는 필터가 시트 끝까지 걸린 시트(관리대장)에서
+    새 행을 그리드 맨 끝(994행)에 떨어뜨려 운영자가 못 보고 지나치게 된다.
+    그래서 마지막 값이 있는 행을 직접 찾아 그 다음 행에 쓴다.
+    """
+    if row_idx > ws.row_count:  # 그리드가 꽉 찬 경우에만 append로 확장
+        ws.append_row(row, value_input_option="USER_ENTERED", table_range="A1")
+        return
+    end_col = chr(ord('A') + ncols - 1)
+    ws.update(values=[row], range_name=f"A{row_idx}:{end_col}{row_idx}", raw=False)
 
 
 def _next_no(rows: list) -> int:
@@ -94,9 +111,11 @@ def faq_rows() -> list:
 def add_faq(space: str, domain: str, device: str, question: str,
             answer: str, qtype: str, writer: str, note: str) -> int:
     ws = _faq_ws()
-    no = _next_no(_data_rows(ws, FAQ_HEADER))
-    ws.append_row([no, space, domain, device, question, answer, qtype, writer, note],
-                  value_input_option="USER_ENTERED", table_range="A1")
+    vals = ws.get_all_values()
+    no = _next_no(_filter_data(vals, FAQ_HEADER))
+    _write_row(ws, len(vals) + 1,
+               [no, space, domain, device, question, answer, qtype, writer, note],
+               len(FAQ_HEADER))
     faq_rows.clear()
     return no
 
@@ -109,12 +128,14 @@ def space_log_rows() -> list:
 def add_space_log(location: str, problem: str, finder: str, action: str,
                   found_date: str, status: str, note: str) -> int:
     ws = _space_log_ws()
-    no = _next_no(_data_rows(ws, SPACE_LOG_HEADER))
+    vals = ws.get_all_values()
+    no = _next_no(_filter_data(vals, SPACE_LOG_HEADER))
     # 접수 시점에 이미 처리완료면 조치일자/조치자도 함께 기록
     fixed_date = found_date if status == "처리완료" else ""
     fixer = finder if status == "처리완료" else ""
-    ws.append_row([no, location, problem, finder, action, found_date,
-                   status, fixed_date, "", fixer, note],
-                  value_input_option="USER_ENTERED", table_range="A1")
+    _write_row(ws, len(vals) + 1,
+               [no, location, problem, finder, action, found_date,
+                status, fixed_date, "", fixer, note],
+               len(SPACE_LOG_HEADER))
     space_log_rows.clear()
     return no
