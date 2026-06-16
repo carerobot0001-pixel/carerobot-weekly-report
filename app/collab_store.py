@@ -9,8 +9,6 @@ import json
 import gspread
 import streamlit as st
 from datetime import datetime
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request, AuthorizedSession
 
 from sheets_store import _get_client, KST
 
@@ -57,6 +55,9 @@ def drive_enabled() -> bool:
 def _oauth_session():
     if not drive_enabled():
         raise OAuthNotConfigured()
+    # 지연 임포트: 이 모듈들(requests 의존)이 없는 환경에서도 앱 로딩은 되게
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request, AuthorizedSession
     o = st.secrets["google_oauth"]
     creds = Credentials(None, refresh_token=o["refresh_token"],
                         client_id=o["client_id"], client_secret=o["client_secret"],
