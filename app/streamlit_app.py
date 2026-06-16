@@ -17,6 +17,9 @@ from space_store import (
     FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, RowMismatch, sheet_url,
     faq_rows, add_faq, space_log_rows, add_space_log, resolve_space_log,
 )
+from purchase_store import (
+    PURCHASE_HEADER, purchase_rows, add_purchase, build_purchase_xlsx,
+)
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -496,6 +499,102 @@ def space_page():
         space_log_tab()
 
 
+def purchase_page():
+    """구매요청서 작성 — 품목 표 입력 → 구글시트 누적 + 엑셀 양식 다운로드."""
+    st.header("🛒 구매요청서 작성")
+    st.caption("장비·재료 구매요청 품목을 입력하면 구글시트에 누적되고, 첨부 양식과 같은 "
+               "엑셀 파일로도 내려받을 수 있습니다.")
+    _flash("purchase_flash")
+
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        requester = st.selectbox("요청자", MEMBER_NAMES, key="pur_requester")
+    with c2:
+        reason = st.text_input("구매사유", value="돌봄로봇 실증연구", key="pur_reason")
+
+    st.markdown("**품목 입력** — 표에 한 줄씩 추가하세요. 단가·수량을 넣으면 합계가 자동 계산됩니다. "
+                "(맨 아래 빈 줄에 입력하면 행이 늘어나고, 행 왼쪽 체크 후 휴지통으로 삭제)")
+    blank = pd.DataFrame(
+        [{"품명": "", "품목(상세)": "", "단가": 0, "수량": 1, "비고(구매처)": ""}
+         for _ in range(3)])
+    edited = st.data_editor(
+        blank, num_rows="dynamic", use_container_width=True, key="pur_editor",
+        column_config={
+            "품명": st.column_config.TextColumn("품명", width="medium"),
+            "품목(상세)": st.column_config.TextColumn("품목(상세)", width="large"),
+            "단가": st.column_config.NumberColumn("단가(원)", min_value=0, step=100,
+                                                format="%d"),
+            "수량": st.column_config.NumberColumn("수량", min_value=0, step=1,
+                                               format="%d"),
+            "비고(구매처)": st.column_config.TextColumn("비고(구매처/링크)", width="medium"),
+        },
+    )
+
+    v = edited[edited["품명"].astype(str).str.strip() != ""].copy()
+    v["단가"] = pd.to_numeric(v["단가"], errors="coerce").fillna(0).astype(int)
+    v["수량"] = pd.to_numeric(v["수량"], errors="coerce").fillna(0).astype(int)
+    v["합계"] = v["단가"] * v["수량"]
+    total = int(v["합계"].sum())
+
+    if not v.empty:
+        preview = v[["품명", "단가", "수량", "합계"]].copy()
+        for col in ("단가", "합계"):
+            preview[col] = preview[col].map("{:,}".format)
+        st.dataframe(preview, hide_index=True, use_container_width=True)
+    st.metric("총액", f"{total:,} 원")
+    st.caption("⚠️ 합계·총액은 표 입력 후 자동 계산됩니다.")
+
+    items = [{"품명": r["품명"], "품목": r["품목(상세)"], "단가": int(r["단가"]),
+              "수량": int(r["수량"]), "비고": r["비고(구매처)"]}
+             for _, r in v.iterrows()]
+
+    b1, b2 = st.columns(2)
+    with b1:
+        if st.button("💾 구글시트에 저장", type="primary", use_container_width=True):
+            if not items:
+                st.warning("품명이 있는 품목을 1개 이상 입력해주세요.")
+            else:
+                try:
+                    req_id, n, tot = add_purchase(requester, reason, items)
+                    st.session_state["purchase_flash"] = (
+                        f"✅ 저장 완료 — {n}개 품목, 총 {tot:,}원 (요청ID {req_id})")
+                    st.session_state.pop("pur_editor", None)  # 표 초기화
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"저장 실패: {e}")
+    with b2:
+        if items:
+            st.download_button(
+                "📄 엑셀 양식 다운로드",
+                data=build_purchase_xlsx(requester, reason, items),
+                file_name=f"구매요청서_{requester}_"
+                          f"{datetime.now(KST).strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument."
+                     "spreadsheetml.sheet",
+                use_container_width=True)
+        else:
+            st.button("📄 엑셀 양식 다운로드", disabled=True,
+                      use_container_width=True,
+                      help="품목을 입력하면 활성화됩니다.")
+
+    st.divider()
+    rows = purchase_rows()
+    # 요청ID 기준으로 묶어서 최근 요청부터 표시
+    by_req = {}
+    for r in rows:
+        by_req.setdefault(r[0], []).append(r)
+    st.subheader(f"📋 누적 구매요청 — {len(by_req)}건 / 품목 {len(rows)}개")
+    for req_id in sorted(by_req, reverse=True)[:30]:
+        grp = by_req[req_id]
+        ts, who = grp[0][1], grp[0][2]
+        gtotal = sum(int(x[7] or 0) for x in grp)
+        with st.expander(f"🧾 {ts} · {who} — {len(grp)}개 품목 · {gtotal:,}원"):
+            df = pd.DataFrame(grp, columns=PURCHASE_HEADER)
+            st.dataframe(df[["품명", "품목(상세)", "단가", "수량", "합계",
+                             "구매사유", "비고(구매처)"]],
+                         hide_index=True, use_container_width=True)
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
 
@@ -621,7 +720,8 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["업무보고 작성", "🏠 스마트돌봄스페이스", "📚 과거 회의록 열람"]
+        mode_options = ["업무보고 작성", "🏠 스마트돌봄스페이스", "🛒 구매요청서",
+                        "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -636,6 +736,8 @@ def main():
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":
         space_page()
+    elif mode == "🛒 구매요청서":
+        purchase_page()
     elif mode == "📚 과거 회의록 열람":
         history_page()
     else:

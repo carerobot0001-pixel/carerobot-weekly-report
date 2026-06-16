@@ -34,6 +34,7 @@
     ├── team_config.py                      ← 팀원 10명 + 셀 매핑 + 비밀번호
     ├── sheets_store.py                     ← 구글시트 읽기/쓰기 (업무보고 제출함)
     ├── space_store.py                      ← 스마트돌봄스페이스 외부 시트 연동 (FAQ/관리대장)
+    ├── purchase_store.py                   ← 구매요청 시트 누적 + 엑셀 양식 생성
     ├── hwpx_exporter.py                    ← HWPX 취합본 생성
     ├── requirements.txt                    ← 파이썬 의존성
     ├── SETUP.md                            ← 초기 설치 가이드
@@ -110,6 +111,20 @@
   진행상황(G)/조치일자(H)/조치자(J), 조치 내용 입력 시 조치방안(E) 칸만 수정하며,
   쓰기 직전에 그 행의 '문제' 텍스트를 재확인해 행 밀림을 감지함(`RowMismatch`).
   그 외 수정·삭제는 구글시트에서 직접
+
+## 구매요청서 페이지 (2026-06 추가)
+
+사이드바 "🛒 구매요청서" 메뉴 — 팀원 누구나 사용. 장비·재료 구매요청용.
+
+- 코드: `app/purchase_store.py` + `streamlit_app.py`의 `purchase_page()`
+- **별도 시트를 안 만듦** — 업무보고 제출함과 **같은 스프레드시트**(secrets `[sheet] id`)에
+  `구매요청` 탭(워크시트)을 자동 생성해 사용. 서비스 계정이 이미 편집자라 추가 공유·secrets 불필요.
+- 입력: 요청자 + 구매사유 + **품목 표**(`st.data_editor`, 동적 행). 단가×수량=합계, 총액 자동 계산.
+- 저장: **한 번의 요청 = 품목 여러 행**, 같은 `요청ID`(`YYYYMMDD-HHMMSS-이름`)로 묶음.
+  `구글시트에 저장`은 행 append, `엑셀 양식 다운로드`는 첨부 구매요청서와 같은 xlsx 생성(openpyxl).
+- 컬럼 구조가 바뀌면 `purchase_store.py`의 `PURCHASE_HEADER`(시트) / `XLSX_HEADER`(엑셀) 수정.
+- 누적 목록은 요청ID별로 묶어 최근 30건 표시(읽기 전용). 수정·삭제는 시트에서 직접.
+- `requirements.txt`에 `openpyxl` 추가됨(엑셀 생성용).
 
 ## 배포 (Streamlit Cloud)
 
