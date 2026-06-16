@@ -20,6 +20,7 @@ from space_store import (
 from purchase_store import (
     PURCHASE_HEADER, STATUS_DONE, RequestNotFound,
     purchase_rows, add_purchase, build_purchase_xlsx, resolve_purchase,
+    delete_purchase_request, clear_all_purchases, build_purchase_list_xlsx,
 )
 from collab_store import (
     COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status, delete_collab,
@@ -598,11 +599,61 @@ def purchase_page():
     def _show_items(grp):
         df = pd.DataFrame(grp, columns=PURCHASE_HEADER)
         st.dataframe(df[["품명", "품목(상세)", "단가", "수량", "합계",
-                         "구매사유", "비고(구매처)"]],
+                         "구매사유", "비고(구매처)", "요청자"]],
                      hide_index=True, use_container_width=True)
 
     pending = {k: v for k, v in by_req.items() if _req_status(v) != STATUS_DONE}
     done = {k: v for k, v in by_req.items() if _req_status(v) == STATUS_DONE}
+
+    # 누적 리스트 관리 — 엑셀 다운로드 / 선택·전체 삭제
+    st.subheader("📋 누적 리스트 관리")
+    with st.container(border=True):
+        mc1, mc2 = st.columns(2)
+        with mc1:
+            if rows:
+                st.download_button(
+                    "📥 누적 리스트 엑셀 다운로드",
+                    data=build_purchase_list_xlsx(rows),
+                    file_name=f"구매요청_누적_"
+                              f"{datetime.now(KST).strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument."
+                         "spreadsheetml.sheet",
+                    use_container_width=True)
+            else:
+                st.button("📥 누적 리스트 엑셀 다운로드", disabled=True,
+                          use_container_width=True)
+        with mc2:
+            if st.session_state.get("is_admin"):
+                clr = st.checkbox("⚠️ 전체삭제 확인", key="pur_clear_ok")
+                if st.button("🗑️ 누적 전체 삭제 (담당자)", disabled=not (clr and rows),
+                             use_container_width=True):
+                    n = clear_all_purchases()
+                    st.session_state["purchase_flash"] = f"🗑️ 누적 전체 삭제됨 ({n}행)"
+                    st.session_state.pop("pur_clear_ok", None)
+                    st.rerun()
+            else:
+                st.caption("전체 삭제는 담당자(관리자) 로그인에서 가능합니다.")
+
+        if by_req:
+            def _dlabel(rid):
+                g = by_req[rid]
+                return (f"{g[0][1]} · {g[0][2]} — {len(g)}품목 · "
+                        f"{_req_total(g):,}원 [{_req_status(g)}]")
+
+            dsel = st.selectbox("🗑️ 선택 삭제할 요청", sorted(by_req, reverse=True),
+                                index=None, format_func=_dlabel,
+                                placeholder="요청을 선택하세요...", key="pur_del_sel")
+            if dsel and st.checkbox("삭제 확인", key="pur_del_ok"):
+                if st.button("🗑️ 선택한 요청 삭제", type="primary"):
+                    try:
+                        cnt = delete_purchase_request(dsel)
+                        st.session_state["purchase_flash"] = (
+                            f"🗑️ 요청 삭제됨 ({cnt}개 품목)")
+                        for k in ("pur_del_sel", "pur_del_ok"):
+                            st.session_state.pop(k, None)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"삭제 실패: {e}")
 
     # 담당자 전용: 구매완료 처리
     if st.session_state.get("is_admin") and pending:

@@ -110,6 +110,89 @@ def resolve_purchase(req_id: str, processor: str, done_date: str) -> int:
     return len(idxs)
 
 
+def delete_purchase_request(req_id: str) -> int:
+    """요청ID에 해당하는 모든 품목 행 삭제(선택 삭제). 반환: 삭제된 행 수."""
+    ws = _ws()
+    vals = ws.get_all_values()
+    idxs = [i for i, r in enumerate(vals, start=1)
+            if i > 1 and r and r[0] == req_id]
+    for i in reversed(idxs):
+        ws.delete_rows(i)
+    purchase_rows.clear()
+    return len(idxs)
+
+
+def clear_all_purchases() -> int:
+    """누적 리스트 전체 삭제(헤더 1행은 보존). 반환: 삭제된 행 수."""
+    ws = _ws()
+    n = len(ws.get_all_values())
+    if n > 1:
+        ws.delete_rows(2, n)
+    purchase_rows.clear()
+    return max(0, n - 1)
+
+
+# 누적 리스트 엑셀: 요청자 열을 '비고' 옆에 배치 (취합 담당 요청사항)
+LIST_XLSX_HEADER = ["연번", "요청일시", "품명", "품목(상세)", "단가", "수량", "합계",
+                    "구매사유", "비고(구매처)", "요청자", "진행상황", "처리일자", "처리자"]
+
+
+def build_purchase_list_xlsx(rows: list) -> bytes:
+    """누적 구매요청 전체를 엑셀로 생성 (요청자 열은 비고 옆)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+    thin = Side(style="thin", color="999999")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    head_fill = PatternFill("solid", fgColor="D9E1F2")
+    right = Alignment(horizontal="right", vertical="center")
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "구매요청 누적"
+    ws.append(["구매요청 누적 리스트"])
+    ws.append([f"생성일 {datetime.now(KST).strftime('%Y-%m-%d %H:%M')}  ·  "
+               f"총 {len(rows)}개 품목"])
+    ws.append([])
+    ws.append(LIST_XLSX_HEADER)
+    head_row = ws.max_row
+    for c in ws[head_row]:
+        c.font = Font(bold=True)
+        c.fill = head_fill
+        c.border = border
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    total = 0
+    for i, r in enumerate(rows, 1):
+        # r: 요청ID,요청일시,요청자,품명,품목,단가,수량,합계,구매사유,비고,진행,처리일,처리자
+        price = int(r[5] or 0)
+        qty = int(r[6] or 0)
+        sub = int(r[7] or 0)
+        total += sub
+        ws.append([i, r[1], r[3], r[4], price, qty, sub, r[8], r[9], r[2],
+                   r[10], r[11], r[12]])
+    ws.append(["합계", "", "", "", "", "", total, "", "", "", "", "", ""])
+
+    for row in ws.iter_rows(min_row=head_row + 1, max_row=ws.max_row,
+                            min_col=1, max_col=len(LIST_XLSX_HEADER)):
+        for c in row:
+            c.border = border
+            if c.column_letter in ("E", "F", "G"):  # 단가/수량/합계
+                c.alignment = right
+                c.number_format = "#,##0"
+    for c in ws[ws.max_row]:
+        c.font = Font(bold=True)
+
+    widths = {"A": 5, "B": 15, "C": 18, "D": 40, "E": 11, "F": 6, "G": 13,
+              "H": 16, "I": 22, "J": 9, "K": 9, "L": 12, "M": 9}
+    for col, w in widths.items():
+        ws.column_dimensions[col].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def build_purchase_xlsx(requester: str, reason: str, items: list) -> bytes:
     """첨부 구매요청서와 같은 양식의 엑셀 파일(bytes) 생성."""
     from openpyxl import Workbook
