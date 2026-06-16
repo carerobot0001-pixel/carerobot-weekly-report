@@ -155,8 +155,9 @@
 
 - secrets `[google_oauth]`(client_id/client_secret/refresh_token)가 있으면 활성 — `collab_store.drive_enabled()`.
   없으면 자동으로 '링크 직접 붙여넣기'로 폴백(앱 안 죽음).
-- **왜 OAuth인가**: 서비스 계정은 드라이브 저장 불가(quota 0). 그래서 **본인(carerobot0001) 구글계정**을
-  OAuth로 연결해 그 15GB 드라이브에 파일을 만든다. 범위는 `drive.file`(앱이 만든 파일만 접근, 비민감 범위).
+- **왜 OAuth인가**: 서비스 계정은 드라이브 저장 불가(quota 0 — 용량플랜과 무관한 구글 규칙).
+  그래서 **본인(carerobot0001) 구글계정**을 OAuth로 연결해 그 드라이브에 파일을 만든다(구글원 5TB
+  사용 중이라 용량 여유 충분). 범위는 `drive.file`(앱이 만든 파일만 접근, 비민감 범위).
 - **토큰 발급(1회)**: 레포 루트 `get_oauth_token.py` 실행 → 브라우저 인증 → `oauth_secrets_block.txt` 생성
   → 그 내용을 로컬 `secrets.toml` + Streamlit Cloud Secrets에 `[google_oauth]`로 붙여넣기.
   (Google Cloud Console에서 OAuth 동의화면 구성 + 데스크톱 OAuth 클라이언트 생성이 선행. 프로젝트는
