@@ -21,6 +21,9 @@ from purchase_store import (
     PURCHASE_HEADER, STATUS_DONE, RequestNotFound,
     purchase_rows, add_purchase, build_purchase_xlsx, resolve_purchase,
 )
+from collab_store import (
+    COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status,
+)
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -659,6 +662,118 @@ def purchase_page():
             _show_items(grp)
 
 
+def collab_page():
+    """문서 협업 보드 — 구글 문서 링크 + 요청 + 제출현황 (파일은 구글에 보관)."""
+    st.header("📋 문서 협업")
+    st.caption("엑셀·워드·PPT를 여럿이 나눠 작성할 때 — 구글 문서 링크를 올려두면 "
+               "팀원이 각자 자기 부분을 실시간으로 채웁니다. (파일은 구글 문서에 있고, "
+               "여기선 링크·요청·현황만 관리)")
+    _flash("collab_flash")
+
+    with st.expander("➕ 새 협업 요청 등록", expanded=False):
+        with st.expander("❓ 구글 문서 링크 만드는 법 (처음이면 펼쳐보세요)"):
+            st.markdown(
+                "1. **구글 드라이브**(drive.google.com)에 엑셀/PPT/워드 파일 업로드\n"
+                "2. 올린 파일 **우클릭 → 연결 앱 → Google 스프레드시트/슬라이드/문서**로 열기\n"
+                "3. 우측 상단 **[공유]** → '링크가 있는 모든 사용자' → 권한 **편집자**\n"
+                "4. **[링크 복사]**\n"
+                "5. 아래 '문서 링크'에 붙여넣기")
+        cc1, cc2 = st.columns([1, 2])
+        with cc1:
+            requester = st.selectbox("요청자", MEMBER_NAMES, key="collab_requester")
+        with cc2:
+            title = st.text_input("제목", key="collab_title",
+                                  placeholder="예: 6월 결과보고서 분담 작성")
+        link = st.text_input("문서 링크 (구글 시트/문서/슬라이드 URL)",
+                             key="collab_link", placeholder="https://docs.google.com/...")
+        request_text = st.text_area("요청사항 (누가 어느 부분을 작성할지 등)",
+                                    key="collab_request", height=100)
+        rc1, rc2 = st.columns(2)
+        with rc1:
+            deadline = st.date_input("마감일", value=datetime.now(KST).date(),
+                                     key="collab_deadline")
+        with rc2:
+            assignees = st.multiselect("담당자 (선택 — 비우면 전체)", MEMBER_NAMES,
+                                       key="collab_assignees")
+        if st.button("➕ 협업 요청 등록", type="primary", use_container_width=True):
+            if not title.strip() or not link.strip():
+                st.warning("제목과 문서 링크는 필수입니다.")
+            else:
+                try:
+                    add_collab(requester, title.strip(), request_text.strip(),
+                               link.strip(), deadline.strftime("%Y-%m-%d"), assignees)
+                    st.session_state["collab_flash"] = f"✅ 등록 완료 — {title.strip()}"
+                    for k in ("collab_title", "collab_link", "collab_request",
+                              "collab_assignees"):
+                        st.session_state.pop(k, None)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"등록 실패: {e}")
+
+    st.divider()
+    rows = collab_rows()
+    active = [r for r in rows if r[3].strip() and r[9].strip() != "완료"]
+    closed = [r for r in rows if r[9].strip() == "완료"]
+
+    st.subheader(f"🟢 진행중 — {len(active)}건")
+    if not active:
+        st.caption("진행중인 협업 요청이 없습니다.")
+    for r in sorted(active, key=lambda x: x[0], reverse=True):
+        req_id, ts, who, title, req_text, link, dl, assignees, doners, status = r
+        head = f"📄 {title} · {who}" + (f" · 마감 {dl}" if dl.strip() else "")
+        with st.expander(head):
+            if req_text.strip():
+                st.markdown(f"**요청사항**\n\n{req_text}")
+            if link.strip().startswith("http"):
+                st.link_button("🔗 문서 열기 (작성하러 가기)", link,
+                               use_container_width=True)
+            elif link.strip():
+                st.caption(f"링크: {link}")
+            done_list = [n.strip() for n in doners.split(",") if n.strip()]
+            assigned = [n.strip() for n in assignees.split(",")
+                        if n.strip() and n.strip() != "전체"]
+            if assigned:
+                st.caption("제출현황 — " + "  ".join(
+                    (f"✅{n}" if n in done_list else f"⏳{n}") for n in assigned))
+            elif done_list:
+                st.caption("완료: " + ", ".join(done_list))
+            mc1, mc2 = st.columns([2, 1])
+            with mc1:
+                me = st.selectbox("본인 이름", MEMBER_NAMES, key=f"collab_me_{req_id}")
+            with mc2:
+                st.write("")
+                if st.button("✅ 내 부분 완료", key=f"collab_done_{req_id}",
+                             use_container_width=True):
+                    try:
+                        mark_done(req_id, me)
+                        st.session_state["collab_flash"] = f"✅ '{title}' — {me} 완료 표시"
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"실패: {e}")
+            if st.button("🏁 이 요청 마감(완료)", key=f"collab_close_{req_id}"):
+                try:
+                    set_status(req_id, "완료")
+                    st.session_state["collab_flash"] = f"🏁 '{title}' 마감"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"실패: {e}")
+
+    with st.expander(f"✅ 완료된 요청 — {len(closed)}건"):
+        if not closed:
+            st.caption("아직 완료된 요청이 없습니다.")
+        for r in sorted(closed, key=lambda x: x[0], reverse=True)[:30]:
+            req_id, ts, who, title, req_text, link, dl, assignees, doners, status = r
+            st.markdown(f"**{title}** · {who} · {ts}"
+                        + (f"  ·  [🔗 문서]({link})" if link.strip().startswith("http")
+                           else ""))
+            if st.button("↩️ 다시 진행중", key=f"collab_reopen_{req_id}"):
+                try:
+                    set_status(req_id, "진행중")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"실패: {e}")
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
 
@@ -785,7 +900,7 @@ def main():
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
         mode_options = ["업무보고 작성", "🏠 스마트돌봄스페이스", "🛒 구매요청서",
-                        "📚 과거 회의록 열람"]
+                        "📋 문서 협업", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -802,6 +917,8 @@ def main():
         space_page()
     elif mode == "🛒 구매요청서":
         purchase_page()
+    elif mode == "📋 문서 협업":
+        collab_page()
     elif mode == "📚 과거 회의록 열람":
         history_page()
     else:
