@@ -29,6 +29,11 @@ def this_wednesday() -> str:
     return wednesday.strftime("%Y-%m-%d")
 
 
+def wednesday_of(d):
+    """주어진 날짜가 속한 주(월~일)의 수요일 date를 반환 — 작성 주차 보정용."""
+    return d - timedelta(days=d.weekday()) + timedelta(days=2)
+
+
 def wednesday_of_week(week_str: str) -> datetime:
     return datetime.strptime(week_str, "%Y-%m-%d")
 
@@ -73,8 +78,16 @@ def member_page():
     with col1:
         name = st.selectbox("본인 이름", MEMBER_NAMES, key="member_name")
     with col2:
-        week = st.text_input("보고 주차 (수요일 기준)", value=this_wednesday(),
-                             help="예: 2026-04-22")
+        default_wed = datetime.strptime(this_wednesday(), "%Y-%m-%d").date()
+        picked = st.date_input(
+            "보고 주차 (수요일 회의 기준)",
+            value=default_wed,
+            format="YYYY-MM-DD",
+            help="아무 날짜나 골라도 그 주 수요일로 자동 맞춰집니다.",
+        )
+        wed = wednesday_of(picked)
+        week = wed.strftime("%Y-%m-%d")
+        st.caption(f"→ 이 보고는 **{week} (수)** 주차로 저장됩니다.")
 
     member = get_member(name)
     fields = get_fields_for(member)
