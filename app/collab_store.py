@@ -5,9 +5,12 @@
 기존 제출함 스프레드시트의 '문서협업' 탭에 텍스트로 관리한다.
 컬럼이 바뀌면 COLLAB_HEADER만 맞추면 된다.
 """
+import json
 import gspread
 import streamlit as st
 from datetime import datetime
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request, AuthorizedSession
 
 from sheets_store import _get_client, KST
 
@@ -21,6 +24,73 @@ STATUS_CLOSED = "완료"
 
 class RequestNotFound(Exception):
     """해당 요청ID의 행을 시트에서 찾지 못함."""
+
+
+class OAuthNotConfigured(Exception):
+    """secrets에 [google_oauth] 가 없음 — 파일 자동 업로드 비활성."""
+
+
+# 업로드 확장자 → (원본 MIME, 변환될 구글 문서 MIME)
+_CONVERT = {
+    "xlsx": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             "application/vnd.google-apps.spreadsheet"),
+    "xls": ("application/vnd.ms-excel", "application/vnd.google-apps.spreadsheet"),
+    "csv": ("text/csv", "application/vnd.google-apps.spreadsheet"),
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+             "application/vnd.google-apps.document"),
+    "doc": ("application/msword", "application/vnd.google-apps.document"),
+    "pptx": ("application/vnd.openxmlformats-officedocument.presentationml.presentation",
+             "application/vnd.google-apps.presentation"),
+    "ppt": ("application/vnd.ms-powerpoint", "application/vnd.google-apps.presentation"),
+}
+DRIVE_EXTS = list(_CONVERT.keys())
+
+
+def drive_enabled() -> bool:
+    """[google_oauth] secrets가 있으면 파일 업로드→구글문서 자동변환 가능."""
+    try:
+        return "google_oauth" in st.secrets
+    except Exception:
+        return False
+
+
+def _oauth_session():
+    if not drive_enabled():
+        raise OAuthNotConfigured()
+    o = st.secrets["google_oauth"]
+    creds = Credentials(None, refresh_token=o["refresh_token"],
+                        client_id=o["client_id"], client_secret=o["client_secret"],
+                        token_uri="https://oauth2.googleapis.com/token",
+                        scopes=["https://www.googleapis.com/auth/drive.file"])
+    creds.refresh(Request())
+    return AuthorizedSession(creds)
+
+
+def create_drive_doc(file_bytes: bytes, filename: str) -> str:
+    """업로드 파일(엑셀/워드/PPT)을 구글 문서로 변환·생성하고 '링크가 있는 사용자
+    편집' 공유를 건 뒤 편집 링크를 반환. (소유자=연결된 본인 계정, 본인 드라이브에 보관)"""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in _CONVERT:
+        raise ValueError(f"지원하지 않는 형식(.{ext}) — 엑셀·워드·PPT만 됩니다.")
+    src_mime, dst_mime = _CONVERT[ext]
+    name = filename.rsplit(".", 1)[0]
+    sess = _oauth_session()
+    b = "carebotdocboundary"
+    meta = {"name": name, "mimeType": dst_mime}
+    body = (f"--{b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+            + json.dumps(meta) + f"\r\n--{b}\r\nContent-Type: {src_mime}\r\n\r\n"
+            ).encode("utf-8") + file_bytes + f"\r\n--{b}--".encode()
+    r = sess.post("https://www.googleapis.com/upload/drive/v3/files"
+                  "?uploadType=multipart&fields=id,webViewLink",
+                  data=body,
+                  headers={"Content-Type": f"multipart/related; boundary={b}"})
+    r.raise_for_status()
+    info = r.json()
+    fid = info["id"]
+    # 팀원이 편집할 수 있게 '링크가 있는 사용자 편집' 공유
+    sess.post(f"https://www.googleapis.com/drive/v3/files/{fid}/permissions",
+              json={"role": "writer", "type": "anyone"})
+    return info.get("webViewLink") or f"https://drive.google.com/open?id={fid}"
 
 
 @st.cache_resource

@@ -23,6 +23,7 @@ from purchase_store import (
 )
 from collab_store import (
     COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status,
+    drive_enabled, create_drive_doc,
 )
 from hwpx_exporter import build_report
 
@@ -665,27 +666,40 @@ def purchase_page():
 def collab_page():
     """문서 협업 보드 — 구글 문서 링크 + 요청 + 제출현황 (파일은 구글에 보관)."""
     st.header("📋 문서 협업")
-    st.caption("엑셀·워드·PPT를 여럿이 나눠 작성할 때 — 구글 문서 링크를 올려두면 "
-               "팀원이 각자 자기 부분을 실시간으로 채웁니다. (파일은 구글 문서에 있고, "
-               "여기선 링크·요청·현황만 관리)")
+    st.caption("엑셀·워드·PPT를 여럿이 나눠 작성할 때 — 팀원이 각자 자기 부분을 "
+               "구글 문서에서 실시간으로 채웁니다.")
     _flash("collab_flash")
 
     with st.expander("➕ 새 협업 요청 등록", expanded=False):
-        with st.expander("❓ 구글 문서 링크 만드는 법 (처음이면 펼쳐보세요)"):
-            st.markdown(
-                "1. **구글 드라이브**(drive.google.com)에 엑셀/PPT/워드 파일 업로드\n"
-                "2. 올린 파일 **우클릭 → 연결 앱 → Google 스프레드시트/슬라이드/문서**로 열기\n"
-                "3. 우측 상단 **[공유]** → '링크가 있는 모든 사용자' → 권한 **편집자**\n"
-                "4. **[링크 복사]**\n"
-                "5. 아래 '문서 링크'에 붙여넣기")
         cc1, cc2 = st.columns([1, 2])
         with cc1:
             requester = st.selectbox("요청자", MEMBER_NAMES, key="collab_requester")
         with cc2:
             title = st.text_input("제목", key="collab_title",
                                   placeholder="예: 6월 결과보고서 분담 작성")
-        link = st.text_input("문서 링크 (구글 시트/문서/슬라이드 URL)",
-                             key="collab_link", placeholder="https://docs.google.com/...")
+
+        up = None
+        if drive_enabled():
+            st.markdown("**문서 준비** — 파일을 올리면 앱이 구글 문서로 만들어 "
+                        "링크를 자동 생성합니다.")
+            up = st.file_uploader(
+                "파일 올리기 (엑셀·워드·PPT)",
+                type=["xlsx", "xls", "csv", "docx", "doc", "pptx", "ppt"],
+                key="collab_upload")
+            link = st.text_input("또는 이미 만든 구글 문서 링크 붙여넣기 (선택)",
+                                 key="collab_link",
+                                 placeholder="https://docs.google.com/...")
+        else:
+            link = st.text_input("문서 링크 (구글 시트/문서/슬라이드 URL)",
+                                 key="collab_link",
+                                 placeholder="https://docs.google.com/...")
+            with st.expander("❓ 구글 문서 링크 만드는 법"):
+                st.markdown(
+                    "1. **구글 드라이브**(drive.google.com)에 파일 업로드\n"
+                    "2. 우클릭 → 연결 앱 → Google 스프레드시트/슬라이드/문서로 열기\n"
+                    "3. **[공유]** → '링크가 있는 모든 사용자' → 권한 **편집자**\n"
+                    "4. **[링크 복사]** → 위에 붙여넣기")
+
         request_text = st.text_area("요청사항 (누가 어느 부분을 작성할지 등)",
                                     key="collab_request", height=100)
         rc1, rc2 = st.columns(2)
@@ -696,15 +710,21 @@ def collab_page():
             assignees = st.multiselect("담당자 (선택 — 비우면 전체)", MEMBER_NAMES,
                                        key="collab_assignees")
         if st.button("➕ 협업 요청 등록", type="primary", use_container_width=True):
-            if not title.strip() or not link.strip():
-                st.warning("제목과 문서 링크는 필수입니다.")
+            final_link = link.strip()
+            if not title.strip():
+                st.warning("제목을 입력해주세요.")
+            elif up is None and not final_link:
+                st.warning("파일을 올리거나 문서 링크를 입력해주세요.")
             else:
                 try:
+                    if up is not None:
+                        with st.spinner("구글 문서로 변환하는 중..."):
+                            final_link = create_drive_doc(up.getvalue(), up.name)
                     add_collab(requester, title.strip(), request_text.strip(),
-                               link.strip(), deadline.strftime("%Y-%m-%d"), assignees)
+                               final_link, deadline.strftime("%Y-%m-%d"), assignees)
                     st.session_state["collab_flash"] = f"✅ 등록 완료 — {title.strip()}"
                     for k in ("collab_title", "collab_link", "collab_request",
-                              "collab_assignees"):
+                              "collab_assignees", "collab_upload"):
                         st.session_state.pop(k, None)
                     st.rerun()
                 except Exception as e:

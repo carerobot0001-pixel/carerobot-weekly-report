@@ -3,6 +3,12 @@ app/.streamlit/secrets.toml
 app/service_account.json
 **/service_account.json
 
+# OAuth (문서협업 드라이브 연동) — 비밀값/일회용 스크립트
+client_secret*.json
+**/client_secret*.json
+oauth_secrets_block.txt
+get_oauth_token.py
+
 # 테스트/분석용 임시 파일
 app/test_output*.hwpx
 app/_gen_secrets.py

@@ -146,9 +146,24 @@
   앱이 파일을 *만들어 즉시 다운로드*(HWPX 취합본 등)하는 건 저장이 0이라 됨 — '만들기'와 '보관'은 다름.
 - 흐름: 요청자가 구글 문서 만들어 링크 등록(+요청·마감·담당) → 팀원이 보드에서 링크 클릭해 실시간
   편집 → "✅ 내 부분 완료" 체크 → 요청자/누구나 "🏁 마감". 진행중/완료로 목록 분리.
-- 한글(HWP)은 구글이 못 열어 이 방식에서 제외(엑셀·워드·PPT만). 매끄럽게 하려면 OAuth(본인 계정
-  연결)로 앱이 파일 자동 생성하게 업그레이드 가능 — 현재는 보류(설정 부담).
+- 한글(HWP)은 구글이 못 열어 이 방식에서 제외(엑셀·워드·PPT만).
 - 컬럼이 바뀌면 `collab_store.py`의 `COLLAB_HEADER`만 수정. `_ws()`가 헤더 자동 보정.
+
+### OAuth 파일 자동업로드 (2026-06 추가)
+
+요청자가 **파일만 올리면 앱이 구글 문서로 자동 변환·공유·링크생성**까지 함. (링크 직접 붙여넣기도 여전히 가능)
+
+- secrets `[google_oauth]`(client_id/client_secret/refresh_token)가 있으면 활성 — `collab_store.drive_enabled()`.
+  없으면 자동으로 '링크 직접 붙여넣기'로 폴백(앱 안 죽음).
+- **왜 OAuth인가**: 서비스 계정은 드라이브 저장 불가(quota 0). 그래서 **본인(carerobot0001) 구글계정**을
+  OAuth로 연결해 그 15GB 드라이브에 파일을 만든다. 범위는 `drive.file`(앱이 만든 파일만 접근, 비민감 범위).
+- **토큰 발급(1회)**: 레포 루트 `get_oauth_token.py` 실행 → 브라우저 인증 → `oauth_secrets_block.txt` 생성
+  → 그 내용을 로컬 `secrets.toml` + Streamlit Cloud Secrets에 `[google_oauth]`로 붙여넣기.
+  (Google Cloud Console에서 OAuth 동의화면 구성 + 데스크톱 OAuth 클라이언트 생성이 선행. 프로젝트는
+  `molten-guide-469800-e0`. `drive.file`은 비민감이라 '앱 게시'해도 구글 심사 불필요 → 토큰 무기한)
+- `create_drive_doc(file_bytes, filename)`: 확장자로 변환 대상 결정(xlsx→시트, docx→문서, pptx→슬라이드),
+  '링크가 있는 사용자 편집' 공유 후 편집링크 반환. 만든 문서는 본인 드라이브에 **영구 보관**(앱이 안 지움).
+- 비밀파일: `client_secret*.json`, `oauth_secrets_block.txt`, `get_oauth_token.py`는 `.gitignore` 처리됨.
 
 ## 배포 (Streamlit Cloud)
 
