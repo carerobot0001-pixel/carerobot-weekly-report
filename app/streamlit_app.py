@@ -22,7 +22,7 @@ from purchase_store import (
     purchase_rows, add_purchase, build_purchase_xlsx, resolve_purchase,
 )
 from collab_store import (
-    COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status,
+    COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status, delete_collab,
     drive_enabled, create_drive_doc,
 )
 from hwpx_exporter import build_report
@@ -781,6 +781,17 @@ def collab_page():
                     st.rerun()
                 except Exception as e:
                     st.error(f"실패: {e}")
+            st.markdown("---")
+            dok = st.checkbox("삭제 확인", key=f"collab_delok_{req_id}")
+            if st.button("🗑️ 이 요청 삭제", key=f"collab_del_{req_id}",
+                         disabled=not dok):
+                try:
+                    delete_collab(req_id)
+                    st.session_state["collab_flash"] = (
+                        f"🗑️ '{title}' 삭제됨 (구글 문서 원본은 드라이브에 남아있음)")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"삭제 실패: {e}")
 
     with st.expander(f"✅ 완료된 요청 — {len(closed)}건"):
         if not closed:
@@ -793,12 +804,16 @@ def collab_page():
                            else ""))
             if d_done:
                 st.caption("완료: " + ", ".join(d_done))
-            if st.button("↩️ 다시 진행중", key=f"collab_reopen_{req_id}"):
-                try:
-                    set_status(req_id, "진행중")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"실패: {e}")
+            cok = st.checkbox("삭제 확인", key=f"collab_delokc_{req_id}")
+            ccol1, ccol2 = st.columns(2)
+            if ccol1.button("↩️ 다시 진행중", key=f"collab_reopen_{req_id}"):
+                set_status(req_id, "진행중")
+                st.rerun()
+            if ccol2.button("🗑️ 삭제", key=f"collab_delc_{req_id}", disabled=not cok):
+                delete_collab(req_id)
+                st.session_state["collab_flash"] = f"🗑️ '{title}' 삭제됨"
+                st.rerun()
+            st.divider()
 
 
 def admin_page():

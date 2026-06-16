@@ -163,3 +163,11 @@ def set_status(req_id: str, status: str) -> None:
     i, _ = _find_row(ws, req_id)
     ws.update_cell(i, 10, status)  # J열 = 상태
     collab_rows.clear()
+
+
+def delete_collab(req_id: str) -> None:
+    """협업 요청을 보드(시트)에서 삭제. 구글 드라이브의 실제 문서는 건드리지 않음."""
+    ws = _ws()
+    i, _ = _find_row(ws, req_id)
+    ws.delete_rows(i)
+    collab_rows.clear()
