@@ -740,7 +740,14 @@ def collab_page():
         st.caption("진행중인 협업 요청이 없습니다.")
     for r in sorted(active, key=lambda x: x[0], reverse=True):
         req_id, ts, who, title, req_text, link, dl, assignees, doners, status = r
-        head = f"📄 {title} · {who}" + (f" · 마감 {dl}" if dl.strip() else "")
+        done_list = [n.strip() for n in doners.split(",") if n.strip()]
+        assigned = [n.strip() for n in assignees.split(",")
+                    if n.strip() and n.strip() != "전체"]
+        # 담당자 + (담당자가 아니어도 완료한 사람)까지 모두 표시
+        roster = assigned + [n for n in done_list if n not in assigned]
+        cnt = f" · ✅ {len(done_list)}명 완료" if done_list else ""
+        head = (f"📄 {title} · {who}"
+                + (f" · 마감 {dl}" if dl.strip() else "") + cnt)
         with st.expander(head):
             if req_text.strip():
                 st.markdown(f"**요청사항**\n\n{req_text}")
@@ -749,14 +756,11 @@ def collab_page():
                                use_container_width=True)
             elif link.strip():
                 st.caption(f"링크: {link}")
-            done_list = [n.strip() for n in doners.split(",") if n.strip()]
-            assigned = [n.strip() for n in assignees.split(",")
-                        if n.strip() and n.strip() != "전체"]
-            if assigned:
+            if roster:
                 st.caption("제출현황 — " + "  ".join(
-                    (f"✅{n}" if n in done_list else f"⏳{n}") for n in assigned))
-            elif done_list:
-                st.caption("완료: " + ", ".join(done_list))
+                    (f"✅{n}" if n in done_list else f"⏳{n}") for n in roster))
+            else:
+                st.caption("아직 완료 표시한 사람이 없습니다.")
             mc1, mc2 = st.columns([2, 1])
             with mc1:
                 me = st.selectbox("본인 이름", MEMBER_NAMES, key=f"collab_me_{req_id}")
@@ -783,9 +787,12 @@ def collab_page():
             st.caption("아직 완료된 요청이 없습니다.")
         for r in sorted(closed, key=lambda x: x[0], reverse=True)[:30]:
             req_id, ts, who, title, req_text, link, dl, assignees, doners, status = r
+            d_done = [n.strip() for n in doners.split(",") if n.strip()]
             st.markdown(f"**{title}** · {who} · {ts}"
                         + (f"  ·  [🔗 문서]({link})" if link.strip().startswith("http")
                            else ""))
+            if d_done:
+                st.caption("완료: " + ", ".join(d_done))
             if st.button("↩️ 다시 진행중", key=f"collab_reopen_{req_id}"):
                 try:
                     set_status(req_id, "진행중")
