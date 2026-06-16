@@ -670,65 +670,72 @@ def collab_page():
                "구글 문서에서 실시간으로 채웁니다.")
     _flash("collab_flash")
 
-    with st.expander("➕ 새 협업 요청 등록", expanded=False):
-        cc1, cc2 = st.columns([1, 2])
-        with cc1:
-            requester = st.selectbox("요청자", MEMBER_NAMES, key="collab_requester")
-        with cc2:
+    my_name = st.selectbox("👤 내 이름 (요청자·완료체크에 사용)", MEMBER_NAMES,
+                           key="collab_my_name")
+
+    # 등록 폼: 펼침창 대신 토글 버튼 + 컨테이너 (작성 중 새로고침돼도 안 닫히게)
+    open_form = st.session_state.get("collab_show_form", False)
+    if st.button("➖ 등록 폼 닫기" if open_form else "➕ 새 협업 요청 등록",
+                 use_container_width=True):
+        st.session_state["collab_show_form"] = not open_form
+        st.rerun()
+
+    if st.session_state.get("collab_show_form"):
+        with st.container(border=True):
             title = st.text_input("제목", key="collab_title",
                                   placeholder="예: 6월 결과보고서 분담 작성")
-
-        up = None
-        if drive_enabled():
-            st.markdown("**문서 준비** — 파일을 올리면 앱이 구글 문서로 만들어 "
-                        "링크를 자동 생성합니다.")
-            up = st.file_uploader(
-                "파일 올리기 (엑셀·워드·PPT)",
-                type=["xlsx", "xls", "csv", "docx", "doc", "pptx", "ppt"],
-                key="collab_upload")
-            link = st.text_input("또는 이미 만든 구글 문서 링크 붙여넣기 (선택)",
-                                 key="collab_link",
-                                 placeholder="https://docs.google.com/...")
-        else:
-            link = st.text_input("문서 링크 (구글 시트/문서/슬라이드 URL)",
-                                 key="collab_link",
-                                 placeholder="https://docs.google.com/...")
-            with st.expander("❓ 구글 문서 링크 만드는 법"):
-                st.markdown(
-                    "1. **구글 드라이브**(drive.google.com)에 파일 업로드\n"
-                    "2. 우클릭 → 연결 앱 → Google 스프레드시트/슬라이드/문서로 열기\n"
-                    "3. **[공유]** → '링크가 있는 모든 사용자' → 권한 **편집자**\n"
-                    "4. **[링크 복사]** → 위에 붙여넣기")
-
-        request_text = st.text_area("요청사항 (누가 어느 부분을 작성할지 등)",
-                                    key="collab_request", height=100)
-        rc1, rc2 = st.columns(2)
-        with rc1:
-            deadline = st.date_input("마감일", value=datetime.now(KST).date(),
-                                     key="collab_deadline")
-        with rc2:
-            assignees = st.multiselect("담당자 (선택 — 비우면 전체)", MEMBER_NAMES,
-                                       key="collab_assignees")
-        if st.button("➕ 협업 요청 등록", type="primary", use_container_width=True):
-            final_link = link.strip()
-            if not title.strip():
-                st.warning("제목을 입력해주세요.")
-            elif up is None and not final_link:
-                st.warning("파일을 올리거나 문서 링크를 입력해주세요.")
+            up = None
+            if drive_enabled():
+                st.markdown("**문서 준비** — 파일을 올리면 앱이 구글 문서로 만들어 "
+                            "링크를 자동 생성합니다.")
+                up = st.file_uploader(
+                    "파일 올리기 (엑셀·워드·PPT)",
+                    type=["xlsx", "xls", "csv", "docx", "doc", "pptx", "ppt"],
+                    key="collab_upload")
+                link = st.text_input("또는 이미 만든 구글 문서 링크 붙여넣기 (선택)",
+                                     key="collab_link",
+                                     placeholder="https://docs.google.com/...")
             else:
-                try:
-                    if up is not None:
-                        with st.spinner("구글 문서로 변환하는 중..."):
-                            final_link = create_drive_doc(up.getvalue(), up.name)
-                    add_collab(requester, title.strip(), request_text.strip(),
-                               final_link, deadline.strftime("%Y-%m-%d"), assignees)
-                    st.session_state["collab_flash"] = f"✅ 등록 완료 — {title.strip()}"
-                    for k in ("collab_title", "collab_link", "collab_request",
-                              "collab_assignees", "collab_upload"):
-                        st.session_state.pop(k, None)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"등록 실패: {e}")
+                link = st.text_input("문서 링크 (구글 시트/문서/슬라이드 URL)",
+                                     key="collab_link",
+                                     placeholder="https://docs.google.com/...")
+                st.caption("구글 드라이브에 올린 파일을 '연결 앱 → Google 스프레드시트/"
+                           "슬라이드/문서'로 열고 [공유]→'링크가 있는 모든 사용자(편집자)'"
+                           "→ 링크 복사해 붙여넣으세요.")
+
+            request_text = st.text_area("요청사항 (누가 어느 부분을 작성할지 등)",
+                                        key="collab_request", height=100)
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                deadline = st.date_input("마감일", value=datetime.now(KST).date(),
+                                         key="collab_deadline")
+            with rc2:
+                assignees = st.multiselect("담당자 (선택 — 비우면 전체)", MEMBER_NAMES,
+                                           key="collab_assignees")
+            st.caption(f"요청자: **{my_name}** (위 '내 이름'에서 변경)")
+            if st.button("➕ 협업 요청 등록", type="primary",
+                         use_container_width=True):
+                final_link = link.strip()
+                if not title.strip():
+                    st.warning("제목을 입력해주세요.")
+                elif up is None and not final_link:
+                    st.warning("파일을 올리거나 문서 링크를 입력해주세요.")
+                else:
+                    try:
+                        if up is not None:
+                            with st.spinner("구글 문서로 변환하는 중..."):
+                                final_link = create_drive_doc(up.getvalue(), up.name)
+                        add_collab(my_name, title.strip(), request_text.strip(),
+                                   final_link, deadline.strftime("%Y-%m-%d"),
+                                   assignees)
+                        st.session_state["collab_flash"] = f"✅ 등록 완료 — {title.strip()}"
+                        for k in ("collab_title", "collab_link", "collab_request",
+                                  "collab_assignees", "collab_upload"):
+                            st.session_state.pop(k, None)
+                        st.session_state["collab_show_form"] = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"등록 실패: {e}")
 
     st.divider()
     rows = collab_rows()
@@ -746,11 +753,11 @@ def collab_page():
         # 담당자 + (담당자가 아니어도 완료한 사람)까지 모두 표시
         roster = assigned + [n for n in done_list if n not in assigned]
         cnt = f" · ✅ {len(done_list)}명 완료" if done_list else ""
-        head = (f"📄 {title} · {who}"
-                + (f" · 마감 {dl}" if dl.strip() else "") + cnt)
-        with st.expander(head):
+        with st.container(border=True):
+            st.markdown(f"**📄 {title}** · {who}"
+                        + (f" · 마감 {dl}" if dl.strip() else "") + cnt)
             if req_text.strip():
-                st.markdown(f"**요청사항**\n\n{req_text}")
+                st.caption(f"요청사항: {req_text}")
             if link.strip().startswith("http"):
                 st.link_button("🔗 문서 열기 (작성하러 가기)", link,
                                use_container_width=True)
@@ -761,34 +768,31 @@ def collab_page():
                     (f"✅{n}" if n in done_list else f"⏳{n}") for n in roster))
             else:
                 st.caption("아직 완료 표시한 사람이 없습니다.")
-            mc1, mc2 = st.columns([2, 1])
-            with mc1:
-                me = st.selectbox("본인 이름", MEMBER_NAMES, key=f"collab_me_{req_id}")
-            with mc2:
-                st.write("")
-                if st.button("✅ 내 부분 완료", key=f"collab_done_{req_id}",
-                             use_container_width=True):
-                    try:
-                        mark_done(req_id, me)
-                        st.session_state["collab_flash"] = f"✅ '{title}' — {me} 완료 표시"
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"실패: {e}")
-            if st.button("🏁 이 요청 마감(완료)", key=f"collab_close_{req_id}"):
+            bc1, bc2 = st.columns(2)
+            if bc1.button(f"✅ 내 부분 완료 ({my_name})",
+                          key=f"collab_done_{req_id}", use_container_width=True):
+                try:
+                    mark_done(req_id, my_name)
+                    st.session_state["collab_flash"] = f"✅ '{title}' — {my_name} 완료 표시"
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"실패: {e}")
+            if bc2.button("🏁 마감", key=f"collab_close_{req_id}",
+                          use_container_width=True):
                 try:
                     set_status(req_id, "완료")
                     st.session_state["collab_flash"] = f"🏁 '{title}' 마감"
                     st.rerun()
                 except Exception as e:
                     st.error(f"실패: {e}")
-            st.markdown("---")
-            dok = st.checkbox("삭제 확인", key=f"collab_delok_{req_id}")
-            if st.button("🗑️ 이 요청 삭제", key=f"collab_del_{req_id}",
-                         disabled=not dok):
+            dc1, dc2 = st.columns([1, 2])
+            dok = dc1.checkbox("삭제 확인", key=f"collab_delok_{req_id}")
+            if dc2.button("🗑️ 이 요청 삭제", key=f"collab_del_{req_id}",
+                          disabled=not dok, use_container_width=True):
                 try:
                     delete_collab(req_id)
                     st.session_state["collab_flash"] = (
-                        f"🗑️ '{title}' 삭제됨 (구글 문서 원본은 드라이브에 남아있음)")
+                        f"🗑️ '{title}' 삭제됨 (구글 문서 원본은 드라이브에 남음)")
                     st.rerun()
                 except Exception as e:
                     st.error(f"삭제 실패: {e}")
