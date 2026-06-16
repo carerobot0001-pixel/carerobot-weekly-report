@@ -18,7 +18,8 @@ from space_store import (
     faq_rows, add_faq, space_log_rows, add_space_log, resolve_space_log,
 )
 from purchase_store import (
-    PURCHASE_HEADER, purchase_rows, add_purchase, build_purchase_xlsx,
+    PURCHASE_HEADER, STATUS_DONE, RequestNotFound,
+    purchase_rows, add_purchase, build_purchase_xlsx, resolve_purchase,
 )
 from hwpx_exporter import build_report
 
@@ -579,20 +580,83 @@ def purchase_page():
 
     st.divider()
     rows = purchase_rows()
-    # 요청ID 기준으로 묶어서 최근 요청부터 표시
     by_req = {}
     for r in rows:
         by_req.setdefault(r[0], []).append(r)
-    st.subheader(f"📋 누적 구매요청 — {len(by_req)}건 / 품목 {len(rows)}개")
-    for req_id in sorted(by_req, reverse=True)[:30]:
-        grp = by_req[req_id]
-        ts, who = grp[0][1], grp[0][2]
-        gtotal = sum(int(x[7] or 0) for x in grp)
-        with st.expander(f"🧾 {ts} · {who} — {len(grp)}개 품목 · {gtotal:,}원"):
-            df = pd.DataFrame(grp, columns=PURCHASE_HEADER)
-            st.dataframe(df[["품명", "품목(상세)", "단가", "수량", "합계",
-                             "구매사유", "비고(구매처)"]],
-                         hide_index=True, use_container_width=True)
+
+    def _req_status(grp):
+        s = grp[0][10] if len(grp[0]) > 10 else ""
+        return s.strip() or "요청"
+
+    def _req_total(grp):
+        return sum(int(x[7] or 0) for x in grp)
+
+    def _show_items(grp):
+        df = pd.DataFrame(grp, columns=PURCHASE_HEADER)
+        st.dataframe(df[["품명", "품목(상세)", "단가", "수량", "합계",
+                         "구매사유", "비고(구매처)"]],
+                     hide_index=True, use_container_width=True)
+
+    pending = {k: v for k, v in by_req.items() if _req_status(v) != STATUS_DONE}
+    done = {k: v for k, v in by_req.items() if _req_status(v) == STATUS_DONE}
+
+    # 담당자 전용: 구매완료 처리
+    if st.session_state.get("is_admin") and pending:
+        st.subheader("✅ 구매완료 처리 (담당자)")
+
+        def _plabel(rid):
+            g = pending[rid]
+            return f"{g[0][1]} · {g[0][2]} — {len(g)}개 품목 · {_req_total(g):,}원"
+
+        sel = st.selectbox("완료 처리할 요청 선택", sorted(pending, reverse=True),
+                           index=None, format_func=_plabel,
+                           placeholder="요청을 선택하세요...", key="pur_resolve_sel")
+        if sel:
+            rc1, rc2 = st.columns(2)
+            with rc1:
+                processor = st.selectbox("처리자", MEMBER_NAMES, key="pur_processor")
+            with rc2:
+                done_date = st.date_input("처리일자",
+                                          value=datetime.now(KST).date(),
+                                          key="pur_done_date")
+            with st.expander("처리할 품목 미리보기", expanded=True):
+                _show_items(pending[sel])
+            if st.button("✅ 구매완료로 변경", type="primary",
+                         use_container_width=True):
+                try:
+                    cnt = resolve_purchase(sel, processor,
+                                           done_date.strftime("%Y-%m-%d"))
+                    st.session_state["purchase_flash"] = (
+                        f"✅ 구매완료 처리됨 — {_plabel(sel)} (품목 {cnt}개)")
+                    st.session_state.pop("pur_resolve_sel", None)
+                    st.rerun()
+                except RequestNotFound:
+                    purchase_rows.clear()
+                    st.warning("그 사이 목록이 바뀌었습니다. 다시 선택해주세요.")
+                    st.session_state.pop("pur_resolve_sel", None)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"처리 실패: {e}")
+        st.divider()
+
+    st.subheader(f"🟡 처리 대기 — {len(pending)}건")
+    if not pending:
+        st.caption("처리 대기 중인 요청이 없습니다.")
+    for rid in sorted(pending, reverse=True)[:30]:
+        grp = pending[rid]
+        with st.expander(f"🧾 {grp[0][1]} · {grp[0][2]} — {len(grp)}개 품목 · "
+                         f"{_req_total(grp):,}원"):
+            _show_items(grp)
+
+    with st.expander(f"✅ 구매완료 — {len(done)}건"):
+        if not done:
+            st.caption("아직 구매완료된 요청이 없습니다.")
+        for rid in sorted(done, reverse=True)[:50]:
+            grp = done[rid]
+            st.markdown(f"**{grp[0][1]} · {grp[0][2]}** — {len(grp)}개 · "
+                        f"{_req_total(grp):,}원  _(처리: {grp[0][12] or '-'} / "
+                        f"{grp[0][11] or '-'})_")
+            _show_items(grp)
 
 
 def admin_page():
