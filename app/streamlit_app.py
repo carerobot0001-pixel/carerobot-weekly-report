@@ -9,7 +9,10 @@ from team_config import (
     get_member, get_fields_for,
     APP_PASSWORD, ADMIN_PASSWORD,
 )
-from sheets_store import load_week, save_submission, submission_status, FIELD_KEYS, KST
+from sheets_store import (
+    load_week, save_submission, submission_status, weeks_with_counts,
+    FIELD_KEYS, KST,
+)
 from space_store import (
     FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, RowMismatch, sheet_url,
     faq_rows, add_faq, space_log_rows, add_space_log, resolve_space_log,
@@ -190,22 +193,32 @@ def history_page():
     st.header("📚 과거 회의록 열람")
     st.caption("지난 주차들의 팀원 업무보고 내용을 조회합니다 (읽기 전용).")
 
-    default_week = (datetime.now().date() - timedelta(days=7)).strftime("%Y-%m-%d")
-    week = st.text_input(
-        "조회할 주차 (수요일 기준 YYYY-MM-DD)",
-        value=default_week,
-        help="예: 2026-04-15  /  기본값은 지난주 수요일",
-    )
-
-    try:
-        datetime.strptime(week, "%Y-%m-%d")
-    except ValueError:
-        st.error("주차 형식이 잘못되었습니다 (YYYY-MM-DD).")
+    weeks = weeks_with_counts()
+    if not weeks:
+        st.info("📭 아직 저장된 회의록이 없습니다.")
         return
+
+    WD = ["월", "화", "수", "목", "금", "토", "일"]
+
+    def _week_label(item):
+        wk, n = item
+        try:
+            wd = WD[datetime.strptime(wk, "%Y-%m-%d").weekday()]
+        except ValueError:
+            wd = "?"
+        return f"{wk} ({wd}) — {n}명 제출"
+
+    choice = st.selectbox(
+        "조회할 주차 (매주 수요일 회의)",
+        weeks,
+        format_func=_week_label,
+        help="회의록이 저장된 수요일만 최신순으로 표시됩니다.",
+    )
+    week = choice[0]
 
     data = load_week(week)
     if not data:
-        st.info(f"📭 {week} 주차에 저장된 내용이 없습니다. 주차 입력을 확인해주세요.")
+        st.info(f"📭 {week} 주차에 저장된 내용이 없습니다.")
         return
 
     done_names = [n for n in MEMBER_NAMES if n in data]

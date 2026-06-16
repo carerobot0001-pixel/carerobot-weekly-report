@@ -126,6 +126,24 @@ def save_submission(name: str, week: str, values: dict) -> str:
     return "created"
 
 
+def weeks_with_counts() -> list:
+    """제출 데이터가 있는 주차 목록 — [(주차, 제출자수), ...] 최신순(내림차순).
+
+    과거 회의록 드롭다운용. 실제 기록이 있는 주차만 반환하므로 빈 주차나
+    오타 주차를 고를 일이 없다.
+    """
+    records = _fetch_all_values()
+    counts = {}
+    for r in records[1:]:
+        row = _row_to_dict(r)
+        wk = row.get("주차", "").strip()
+        name = row.get("이름", "").strip()
+        if wk and name:
+            counts.setdefault(wk, set()).add(name)
+    pairs = [(wk, len(names)) for wk, names in counts.items()]
+    return sorted(pairs, key=lambda x: x[0], reverse=True)
+
+
 def submission_status(week: str) -> list:
     data = load_week(week)
     out = []
