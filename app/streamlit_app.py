@@ -26,6 +26,9 @@ from collab_store import (
     COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status, delete_collab,
     drive_enabled, create_drive_doc,
 )
+from equip_store import (
+    EQUIP_HEADER, equip_rows, save_all_equipment, build_equip_xlsx,
+)
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -871,6 +874,62 @@ def collab_page():
             st.divider()
 
 
+def equip_page():
+    """장비(기기) 사용현황 — 연구별 필터 조회 + 전체 목록 편집(등록·수정·삭제)."""
+    st.header("🔧 장비 사용현황")
+    st.caption("실증 장비(기기) 사용 현황 대장 — 연구(실증)별로 필터해 보고, 전체 목록을 "
+               "편집할 수 있습니다. ※ 피험자명 등 개인정보 포함 — 팀 내부용입니다.")
+    _flash("equip_flash")
+
+    rows = equip_rows()
+    researches = sorted({r[3] for r in rows if r[3].strip()})
+
+    fc1, fc2 = st.columns([3, 1])
+    with fc1:
+        sel = st.selectbox("연구(실증) 필터", ["전체"] + researches, key="equip_filter")
+    shown = rows if sel == "전체" else [r for r in rows if r[3] == sel]
+    with fc2:
+        st.metric("장비 수", f"{len(shown)} / {len(rows)}")
+
+    if shown:
+        st.dataframe(pd.DataFrame(shown, columns=EQUIP_HEADER),
+                     use_container_width=True, hide_index=True)
+        st.download_button(
+            "📥 엑셀 다운로드 (현재 보기)",
+            data=build_equip_xlsx(shown, sel),
+            file_name=f"장비현황_{sel}_{datetime.now(KST).strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    else:
+        st.caption("표시할 장비가 없습니다.")
+
+    st.divider()
+    ed = st.session_state.get("equip_edit", False)
+    if st.button("✏️ 전체 목록 편집 닫기" if ed else "✏️ 등록·수정·삭제 (전체 목록 편집)",
+                 use_container_width=True):
+        st.session_state["equip_edit"] = not ed
+        st.rerun()
+
+    if st.session_state.get("equip_edit"):
+        with st.container(border=True):
+            st.markdown("표에서 **행 추가(맨 아래 빈 줄)·수정·삭제**(행 왼쪽 체크 후 휴지통) 후 "
+                        "**저장**하세요. 연구·플랫폼명은 기존과 똑같이 적어야 필터가 깔끔합니다.")
+            cur = (pd.DataFrame(rows, columns=EQUIP_HEADER) if rows
+                   else pd.DataFrame([{h: "" for h in EQUIP_HEADER}]))
+            edited = st.data_editor(cur, num_rows="dynamic", height=420,
+                                    use_container_width=True, key="equip_editor")
+            if st.button("💾 전체 저장", type="primary", use_container_width=True):
+                new = edited.fillna("").astype(str)
+                new = new[new["기기명"].str.strip() != ""]
+                new_rows = new[EQUIP_HEADER].values.tolist()
+                try:
+                    n = save_all_equipment(new_rows)
+                    st.session_state["equip_flash"] = f"💾 저장 완료 — 장비 {n}개"
+                    st.session_state.pop("equip_editor", None)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"저장 실패: {e}")
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
 
@@ -997,7 +1056,7 @@ def main():
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
         mode_options = ["업무보고 작성", "🏠 스마트돌봄스페이스", "🛒 구매요청서",
-                        "📋 문서 협업", "📚 과거 회의록 열람"]
+                        "📋 문서 협업", "🔧 장비 사용현황", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -1016,6 +1075,8 @@ def main():
         purchase_page()
     elif mode == "📋 문서 협업":
         collab_page()
+    elif mode == "🔧 장비 사용현황":
+        equip_page()
     elif mode == "📚 과거 회의록 열람":
         history_page()
     else:

@@ -36,6 +36,7 @@
     ├── space_store.py                      ← 스마트돌봄스페이스 외부 시트 연동 (FAQ/관리대장)
     ├── purchase_store.py                   ← 구매요청 시트 누적 + 엑셀 양식 생성
     ├── collab_store.py                     ← 문서 협업 보드 (구글문서 링크+요청+현황)
+    ├── equip_store.py                      ← 장비 사용현황 대장 (연구별 필터+편집)
     ├── hwpx_exporter.py                    ← HWPX 취합본 생성
     ├── requirements.txt                    ← 파이썬 의존성
     ├── SETUP.md                            ← 초기 설치 가이드
@@ -169,6 +170,21 @@
 - `create_drive_doc(file_bytes, filename)`: 확장자로 변환 대상 결정(xlsx→시트, docx→문서, pptx→슬라이드),
   '링크가 있는 사용자 편집' 공유 후 편집링크 반환. 만든 문서는 본인 드라이브에 **영구 보관**(앱이 안 지움).
 - 비밀파일: `client_secret*.json`, `oauth_secrets_block.txt`, `get_oauth_token.py`는 `.gitignore` 처리됨.
+
+## 장비 사용현황 페이지 (2026-06 추가)
+
+사이드바 "🔧 장비 사용현황" 메뉴 — 팀원 누구나. 실증 장비(기기) 사용 대장.
+
+- 코드: `app/equip_store.py` + `streamlit_app.py`의 `equip_page()`
+- 출처: `장비 사용 현황_자동화.xlsx`의 마스터 시트("기기 사용현황"). 엑셀의 **연구별 시트
+  자동분류(수식)** 는 앱에서 **연구 필터 드롭다운**으로 대체 — 마스터 1개만 관리.
+- 데이터: 제출함 스프레드시트의 `장비현황` 탭. `EQUIP_HEADER`(기기명/S/N/자산번호/연구/
+  플랫폼/관련앱계정/피험자명/기간/비고). 초기 32행은 엑셀에서 임포트해둠.
+- **조회**: 연구(실증)별 필터 + 현재 보기 엑셀 다운로드(`build_equip_xlsx`).
+- **편집**: "전체 목록 편집"(토글) → `st.data_editor`(행 추가/수정/삭제) → `save_all_equipment`
+  가 데이터영역을 **통째로 덮어쓰기**(동시편집 시 마지막 저장 우선 — 소규모 운영 적합). 누구나 가능.
+- ⚠️ 피험자명·계정 등 **개인정보 포함** — 팀 로그인 뒤에서만 노출(외부 공개 없음).
+- 컬럼이 바뀌면 `EQUIP_HEADER`만 수정. `_ws()`가 헤더 자동 보정.
 
 ## 배포 (Streamlit Cloud)
 
