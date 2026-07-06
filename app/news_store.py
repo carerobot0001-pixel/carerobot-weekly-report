@@ -4,9 +4,7 @@
 페이지의 og:image를 병렬로 추출(1시간 캐시). 실패해도 빈 목록/무이미지로 폴백.
 키워드가 바뀌면 NEWS_QUERIES만 수정.
 """
-import re
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote
 
 import requests
@@ -24,18 +22,10 @@ NEWS_QUERIES = [
 _UA = {"User-Agent": "Mozilla/5.0"}
 
 
-def _og_image(link: str) -> str:
-    try:
-        a = requests.get(link, timeout=6, headers=_UA)
-        m = re.search(r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"', a.text)
-        return m.group(1) if m else ""
-    except Exception:
-        return ""
-
-
 @st.cache_data(ttl=3600)
 def fetch_news(per_query: int = 2, cap: int = 9) -> list:
-    """[{title, link, source, image}] — 돌봄 우선, 썸네일 포함."""
+    """[{title, link, source}] — 돌봄 우선. (구글뉴스는 기사 사진을 제공 안 해
+    이미지는 생략 — 제목·출처 위주)."""
     seen, out = set(), []
     for q in NEWS_QUERIES:
         try:
@@ -46,6 +36,8 @@ def fetch_news(per_query: int = 2, cap: int = 9) -> list:
             cnt = 0
             for item in root.iter("item"):
                 title = (item.findtext("title") or "").strip()
+                # 제목 끝의 " - 출처" 제거
+                title = title.rsplit(" - ", 1)[0] if " - " in title else title
                 link = (item.findtext("link") or "").strip()
                 src_el = item.find("{*}source")
                 source = src_el.text if src_el is not None else ""
@@ -60,14 +52,4 @@ def fetch_news(per_query: int = 2, cap: int = 9) -> list:
             continue
         if len(out) >= cap:
             break
-    out = out[:cap]
-    # 썸네일 병렬 수집
-    try:
-        with ThreadPoolExecutor(max_workers=6) as ex:
-            imgs = list(ex.map(_og_image, [it["link"] for it in out]))
-        for it, img in zip(out, imgs):
-            it["image"] = img
-    except Exception:
-        for it in out:
-            it["image"] = ""
-    return out
+    return out[:cap]

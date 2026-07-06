@@ -206,15 +206,14 @@ def home_page():
     except Exception:
         news = []
     if news:
-        cols = st.columns(3)
-        for i, it in enumerate(news):
-            with cols[i % 3]:
-                if it.get("image"):
-                    st.image(it["image"], use_container_width=True)
-                st.markdown(f"**[{it['title']}]({it['link']})**")
-                if it.get("source"):
-                    st.caption(it["source"])
-                st.write("")
+        for i in range(0, len(news), 3):
+            cols = st.columns(3)
+            for j, it in enumerate(news[i:i + 3]):
+                with cols[j]:
+                    with st.container(border=True):
+                        st.markdown(f"**[{it['title']}]({it['link']})**")
+                        if it.get("source"):
+                            st.caption(f"📰 {it['source']}")
     else:
         st.caption("뉴스를 불러오지 못했습니다 (잠시 후 새로고침).")
 
