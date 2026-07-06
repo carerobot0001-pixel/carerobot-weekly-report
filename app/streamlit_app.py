@@ -1,6 +1,7 @@
 """돌봄로봇 주간 업무보고 취합 웹앱."""
 import streamlit as st
-from datetime import datetime, timedelta
+import streamlit.components.v1 as components
+from datetime import datetime, timedelta, time
 import pandas as pd
 from pathlib import Path
 
@@ -32,6 +33,10 @@ from equip_store import (
 from visit_store import (
     VISIT_HEADER, visit_rows, add_visit, delete_visit,
     RowMismatch as VisitRowMismatch,
+)
+from calendar_store import (
+    calendar_enabled, embed_url, upcoming_events,
+    add_event, update_event, delete_event, event_view,
 )
 from hwpx_exporter import build_report
 
@@ -1014,6 +1019,129 @@ def equip_page():
                     st.error(f"저장 실패: {e}")
 
 
+def _cal_edit_form(v):
+    eid = v["id"]
+    st.markdown("**✏️ 일정 수정**")
+    title = st.text_input("제목", value=v["title"], key=f"cal_et_title_{eid}")
+    ec1, ec2 = st.columns([2, 1])
+    try:
+        dval = datetime.strptime(v["date"], "%Y-%m-%d").date()
+    except Exception:
+        dval = datetime.now(KST).date()
+    edate = ec1.date_input("날짜", value=dval, key=f"cal_et_date_{eid}")
+    eallday = ec2.checkbox("종일", value=v["all_day"], key=f"cal_et_allday_{eid}")
+
+    def _pt(s, dflt):
+        try:
+            hh, mm = s.split(":")
+            return time(int(hh), int(mm))
+        except Exception:
+            return dflt
+
+    if not eallday:
+        tc1, tc2 = st.columns(2)
+        est = tc1.time_input("시작", value=_pt(v["start_t"], time(9, 0)),
+                             key=f"cal_et_st_{eid}")
+        eet = tc2.time_input("종료", value=_pt(v["end_t"], time(10, 0)),
+                             key=f"cal_et_et_{eid}")
+    edesc = st.text_area("설명", value=v["desc"], key=f"cal_et_desc_{eid}", height=60)
+    if st.button("💾 수정 저장", key=f"cal_et_save_{eid}", type="primary"):
+        try:
+            update_event(eid, title.strip(), edate.strftime("%Y-%m-%d"), eallday,
+                         "09:00" if eallday else est.strftime("%H:%M"),
+                         "10:00" if eallday else eet.strftime("%H:%M"), edesc.strip())
+            st.session_state["cal_flash"] = f"✅ 수정됨 — {title.strip()}"
+            st.session_state.pop(f"cal_edit_{eid}", None)
+            st.rerun()
+        except Exception as ex:
+            st.error(f"수정 실패: {ex}")
+
+
+def calendar_page():
+    """사업단 구글 캘린더 — 월간 임베드 + 다가오는 일정 + 추가/수정/삭제."""
+    st.header("📅 사업단 일정")
+    if not calendar_enabled():
+        st.warning("⚙️ 캘린더가 아직 설정되지 않았습니다 — Streamlit Secrets에 "
+                   "`[calendar]` 섹션(id)을 추가해주세요.")
+        return
+    _flash("cal_flash")
+
+    # st.iframe(신) / components.iframe(구) 버전 호환 (scrolling 인자는 버전차로 생략)
+    _iframe = getattr(st, "iframe", components.iframe)
+    _iframe(embed_url(), height=520)
+    st.caption("↑ 달력이 비어 보이면(구글 로그인·권한 문제), 아래 '다가오는 일정'을 이용하세요.")
+
+    st.divider()
+    open_f = st.session_state.get("cal_show_form", False)
+    if st.button("➖ 등록 폼 닫기" if open_f else "➕ 일정 추가",
+                 use_container_width=True):
+        st.session_state["cal_show_form"] = not open_f
+        st.rerun()
+    if st.session_state.get("cal_show_form"):
+        with st.container(border=True):
+            title = st.text_input("제목", key="cal_add_title",
+                                  placeholder="예: 사업단 정기회의")
+            ac1, ac2 = st.columns([2, 1])
+            adate = ac1.date_input("날짜", value=datetime.now(KST).date(),
+                                   key="cal_add_date")
+            allday = ac2.checkbox("종일", key="cal_add_allday")
+            stime = etime = None
+            if not allday:
+                tc1, tc2 = st.columns(2)
+                stime = tc1.time_input("시작", value=time(9, 0), key="cal_add_st")
+                etime = tc2.time_input("종료", value=time(10, 0), key="cal_add_et")
+            desc = st.text_area("설명 (선택)", key="cal_add_desc", height=70)
+            if st.button("➕ 일정 등록", type="primary", use_container_width=True):
+                if not title.strip():
+                    st.warning("제목을 입력하세요.")
+                else:
+                    try:
+                        add_event(title.strip(), adate.strftime("%Y-%m-%d"), allday,
+                                  "09:00" if allday else stime.strftime("%H:%M"),
+                                  "10:00" if allday else etime.strftime("%H:%M"),
+                                  desc.strip())
+                        st.session_state["cal_flash"] = f"✅ 일정 등록 — {title.strip()}"
+                        for k in ("cal_add_title", "cal_add_desc"):
+                            st.session_state.pop(k, None)
+                        st.session_state["cal_show_form"] = False
+                        st.rerun()
+                    except Exception as ex:
+                        st.error(f"등록 실패: {ex}")
+
+    st.divider()
+    try:
+        events = upcoming_events(days=45)
+    except Exception as ex:
+        st.error(f"일정을 불러오지 못했습니다: {ex}")
+        return
+    st.subheader(f"🗓️ 다가오는 일정 — {len(events)}건")
+    if not events:
+        st.caption("45일 내 일정이 없습니다.")
+    for e in events:
+        v = event_view(e)
+        eid = v["id"]
+        with st.container(border=True):
+            st.markdown(f"**{v['date']}** · {v['when']} — {v['title']}")
+            if v["desc"].strip():
+                st.caption(v["desc"])
+            bc1, bc2, bc3 = st.columns([1, 1, 2])
+            editing = st.session_state.get(f"cal_edit_{eid}", False)
+            if bc1.button("▲ 접기" if editing else "✏️ 수정", key=f"cal_editbtn_{eid}"):
+                st.session_state[f"cal_edit_{eid}"] = not editing
+                st.rerun()
+            delok = bc2.checkbox("삭제확인", key=f"cal_delok_{eid}")
+            if bc3.button("🗑️ 삭제", key=f"cal_del_{eid}", disabled=not delok,
+                          use_container_width=True):
+                try:
+                    delete_event(eid)
+                    st.session_state["cal_flash"] = f"🗑️ 삭제 — {v['title']}"
+                    st.rerun()
+                except Exception as ex:
+                    st.error(f"삭제 실패: {ex}")
+            if st.session_state.get(f"cal_edit_{eid}"):
+                _cal_edit_form(v)
+
+
 def visit_page():
     """실증 방문 일지 — 현장 방문 기록 등록·조회(실증별 필터)·삭제."""
     st.header("📍 실증 방문 일지")
@@ -1236,9 +1364,9 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["🏠 홈", "업무보고 작성", "🏠 스마트돌봄스페이스", "🛒 구매요청서",
-                        "📋 문서 협업", "🔧 장비 사용현황", "📍 실증 방문 일지",
-                        "📚 과거 회의록 열람"]
+        mode_options = ["🏠 홈", "📅 사업단 일정", "업무보고 작성",
+                        "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
+                        "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -1251,6 +1379,8 @@ def main():
 
     if mode == "🏠 홈":
         home_page()
+    elif mode == "📅 사업단 일정":
+        calendar_page()
     elif mode == "업무보고 작성":
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":

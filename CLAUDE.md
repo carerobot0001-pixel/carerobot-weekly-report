@@ -38,6 +38,7 @@
     ├── collab_store.py                     ← 문서 협업 보드 (구글문서 링크+요청+현황)
     ├── equip_store.py                      ← 장비 사용현황 대장 (연구별 필터+편집)
     ├── visit_store.py                      ← 실증 방문 일지 (등록/필터/삭제)
+    ├── calendar_store.py                   ← 사업단 구글캘린더 연동 (조회/추가/수정/삭제)
     ├── hwpx_exporter.py                    ← HWPX 취합본 생성
     ├── requirements.txt                    ← 파이썬 의존성
     ├── SETUP.md                            ← 초기 설치 가이드
@@ -200,6 +201,20 @@
   필터 조회 + 삭제(등록일시 재확인으로 행 밀림 방지). 누구나.
 - 사이드바 메뉴가 8개가 됨 → `streamlit_app.py`가 1000줄 넘음. **페이지 파일 분리 리팩토링**
   하기 좋은 시점(기능 동작엔 문제없음, 유지보수 편의 목적). [[weekly-report-app-roadmap]]
+
+## 사업단 일정 (구글 캘린더 연동, 2026-07 추가)
+
+사이드바 "📅 사업단 일정" — 월간 캘린더 임베드 + 다가오는 일정 조회 + **추가/수정/삭제**.
+
+- 코드: `app/calendar_store.py` + `streamlit_app.py`의 `calendar_page()`
+- **서비스 계정으로 양방향 연동** — 드라이브 파일과 달리 캘린더 이벤트는 서비스 계정이
+  저장/수정 가능(용량 이슈 없음). Calendar API 사용설정 + 대상 캘린더를 서비스 계정에
+  **'일정 변경' 권한으로 공유**해야 함.
+- 캘린더 ID는 secrets `[calendar] id`(공개 레포 대비). 현재 캘린더 = **돌봄로봇중개연구사업단**
+  (`pi7uilph8s...@group.calendar.google.com`). 없으면 페이지에 설정 안내가 뜸.
+- 월간 보기: `st.iframe`(신)/`components.iframe`(구) 버전 호환 처리. 임베드는 구글 로그인·권한
+  있는 사람에게만 보이므로, **API로 읽은 '다가오는 일정' 목록**이 모든 사용자에게 보이는 기본.
+- CRUD: `upcoming_events`(ttl 60s)/`add_event`/`update_event`/`delete_event`. 종일/시간 지정 지원.
 
 ## 배포 (Streamlit Cloud)
 
