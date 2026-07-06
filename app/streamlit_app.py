@@ -166,7 +166,13 @@ def home_page():
     if calendar_enabled():
         _iframe = getattr(st, "iframe", components.iframe)
         _iframe(embed_url(), height=520)
-        st.caption("일정 추가·수정·삭제는 왼쪽 **📅 사업단 일정** 메뉴에서 하세요.")
+        mng = st.session_state.get("home_cal_manage", False)
+        if st.button("➖ 일정 관리 닫기" if mng else "➕ 일정 추가·수정·삭제",
+                     key="home_cal_manage_btn"):
+            st.session_state["home_cal_manage"] = not mng
+            st.rerun()
+        if st.session_state.get("home_cal_manage"):
+            _calendar_manage()
     else:
         st.caption("⚙️ 캘린더 미설정 — Streamlit Secrets에 `[calendar]` id 추가 필요.")
 
@@ -1064,15 +1070,11 @@ def _cal_edit_form(v):
             st.error(f"수정 실패: {ex}")
 
 
-def calendar_page():
-    """사업단 일정 관리 — 추가/수정/삭제 (달력 보기는 🏠 홈 화면 아래)."""
-    st.header("📅 사업단 일정 관리")
+def _calendar_manage():
+    """일정 추가/수정/삭제 UI — 🏠 홈의 달력 아래에서 호출."""
     if not calendar_enabled():
-        st.warning("⚙️ 캘린더가 아직 설정되지 않았습니다 — Streamlit Secrets에 "
-                   "`[calendar]` 섹션(id)을 추가해주세요.")
         return
     _flash("cal_flash")
-    st.caption("일정을 추가·수정·삭제합니다. (월간 달력 보기는 🏠 홈 화면 아래에 있어요)")
 
     open_f = st.session_state.get("cal_show_form", False)
     if st.button("➖ 등록 폼 닫기" if open_f else "➕ 일정 추가",
@@ -1365,7 +1367,7 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["🏠 홈", "📅 사업단 일정", "업무보고 작성",
+        mode_options = ["🏠 홈", "업무보고 작성",
                         "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
@@ -1380,8 +1382,6 @@ def main():
 
     if mode == "🏠 홈":
         home_page()
-    elif mode == "📅 사업단 일정":
-        calendar_page()
     elif mode == "업무보고 작성":
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":
