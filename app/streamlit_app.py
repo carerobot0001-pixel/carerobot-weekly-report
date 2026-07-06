@@ -161,7 +161,14 @@ def home_page():
     if not any_reminder:
         st.success("✅ 급히 챙길 건 없습니다. 다들 잘 하고 있네요!")
 
-    st.caption("↖️ 왼쪽 메뉴에서 각 기능으로 이동하세요.")
+    st.divider()
+    st.subheader("📅 사업단 일정")
+    if calendar_enabled():
+        _iframe = getattr(st, "iframe", components.iframe)
+        _iframe(embed_url(), height=520)
+        st.caption("일정 추가·수정·삭제는 왼쪽 **📅 사업단 일정** 메뉴에서 하세요.")
+    else:
+        st.caption("⚙️ 캘린더 미설정 — Streamlit Secrets에 `[calendar]` id 추가 필요.")
 
 
 def member_page():
@@ -1058,20 +1065,15 @@ def _cal_edit_form(v):
 
 
 def calendar_page():
-    """사업단 구글 캘린더 — 월간 임베드 + 다가오는 일정 + 추가/수정/삭제."""
-    st.header("📅 사업단 일정")
+    """사업단 일정 관리 — 추가/수정/삭제 (달력 보기는 🏠 홈 화면 아래)."""
+    st.header("📅 사업단 일정 관리")
     if not calendar_enabled():
         st.warning("⚙️ 캘린더가 아직 설정되지 않았습니다 — Streamlit Secrets에 "
                    "`[calendar]` 섹션(id)을 추가해주세요.")
         return
     _flash("cal_flash")
+    st.caption("일정을 추가·수정·삭제합니다. (월간 달력 보기는 🏠 홈 화면 아래에 있어요)")
 
-    # st.iframe(신) / components.iframe(구) 버전 호환 (scrolling 인자는 버전차로 생략)
-    _iframe = getattr(st, "iframe", components.iframe)
-    _iframe(embed_url(), height=520)
-    st.caption("↑ 달력이 비어 보이면(구글 로그인·권한 문제), 아래 '다가오는 일정'을 이용하세요.")
-
-    st.divider()
     open_f = st.session_state.get("cal_show_form", False)
     if st.button("➖ 등록 폼 닫기" if open_f else "➕ 일정 추가",
                  use_container_width=True):
@@ -1109,37 +1111,36 @@ def calendar_page():
                         st.error(f"등록 실패: {ex}")
 
     st.divider()
+    st.subheader("✏️ 일정 수정 / 삭제")
     try:
-        events = upcoming_events(days=45)
+        events = upcoming_events(days=60)
     except Exception as ex:
         st.error(f"일정을 불러오지 못했습니다: {ex}")
         return
-    st.subheader(f"🗓️ 다가오는 일정 — {len(events)}건")
     if not events:
-        st.caption("45일 내 일정이 없습니다.")
+        st.caption("다가오는 일정이 없습니다.")
+        return
+    labels = {}
     for e in events:
         v = event_view(e)
-        eid = v["id"]
+        labels[f"{v['date']} · {v['when']} · {v['title']}"] = v
+    sel = st.selectbox("수정·삭제할 일정 선택", list(labels.keys()), index=None,
+                       placeholder="일정을 선택하세요...", key="cal_manage_sel")
+    if sel:
+        v = labels[sel]
         with st.container(border=True):
-            st.markdown(f"**{v['date']}** · {v['when']} — {v['title']}")
-            if v["desc"].strip():
-                st.caption(v["desc"])
-            bc1, bc2, bc3 = st.columns([1, 1, 2])
-            editing = st.session_state.get(f"cal_edit_{eid}", False)
-            if bc1.button("▲ 접기" if editing else "✏️ 수정", key=f"cal_editbtn_{eid}"):
-                st.session_state[f"cal_edit_{eid}"] = not editing
-                st.rerun()
-            delok = bc2.checkbox("삭제확인", key=f"cal_delok_{eid}")
-            if bc3.button("🗑️ 삭제", key=f"cal_del_{eid}", disabled=not delok,
-                          use_container_width=True):
+            _cal_edit_form(v)
+            st.markdown("---")
+            delok = st.checkbox("삭제 확인", key=f"cal_delok_{v['id']}")
+            if st.button("🗑️ 이 일정 삭제", key=f"cal_del_{v['id']}",
+                         disabled=not delok, use_container_width=True):
                 try:
-                    delete_event(eid)
+                    delete_event(v["id"])
                     st.session_state["cal_flash"] = f"🗑️ 삭제 — {v['title']}"
+                    st.session_state.pop("cal_manage_sel", None)
                     st.rerun()
                 except Exception as ex:
                     st.error(f"삭제 실패: {ex}")
-            if st.session_state.get(f"cal_edit_{eid}"):
-                _cal_edit_form(v)
 
 
 def visit_page():
