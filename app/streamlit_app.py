@@ -740,15 +740,18 @@ def collab_page():
                                   placeholder="예: 6월 결과보고서 분담 작성")
             up = None
             if drive_enabled():
-                st.markdown("**문서 준비** — 파일을 올리면 앱이 구글 문서로 만들어 "
-                            "링크를 자동 생성합니다.")
+                st.markdown("**문서 준비** — 엑셀·워드 파일을 올리면 앱이 구글 문서로 "
+                            "만들어 링크를 자동 생성합니다.")
                 up = st.file_uploader(
-                    "파일 올리기 (엑셀·워드·PPT)",
-                    type=["xlsx", "xls", "csv", "docx", "doc", "pptx", "ppt"],
+                    "파일 올리기 (엑셀·워드)",
+                    type=["xlsx", "xls", "csv", "docx", "doc"],
                     key="collab_upload")
-                link = st.text_input("또는 이미 만든 구글 문서 링크 붙여넣기 (선택)",
+                st.caption("📌 **PPT는 여기에 올리지 마세요** — 구글 변환 시 서식이 깨집니다. "
+                           "OneDrive/파워포인트 온라인에서 '편집 링크'를 만들어 아래 칸에 "
+                           "붙여넣으세요.")
+                link = st.text_input("또는 링크 붙여넣기 (구글 문서 / OneDrive PPT 등)",
                                      key="collab_link",
-                                     placeholder="https://docs.google.com/...")
+                                     placeholder="https://…  구글 시트·문서 또는 OneDrive PPT 링크")
             else:
                 link = st.text_input("문서 링크 (구글 시트/문서/슬라이드 URL)",
                                      key="collab_link",
