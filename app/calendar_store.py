@@ -33,8 +33,9 @@ def embed_url() -> str:
     cid = calendar_id()
     if not cid:
         return ""
+    # color=%23D50000 → 기존 캘린더와 같은 빨강(Tomato)로 맞춤
     return (f"https://calendar.google.com/calendar/embed?src={quote(cid)}"
-            "&ctz=Asia%2FSeoul&mode=MONTH")
+            "&ctz=Asia%2FSeoul&mode=MONTH&color=%23D50000")
 
 
 @st.cache_resource
