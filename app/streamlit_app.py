@@ -35,9 +35,10 @@ from visit_store import (
     RowMismatch as VisitRowMismatch,
 )
 from calendar_store import (
-    calendar_enabled, embed_url, upcoming_events,
+    calendar_enabled, embed_url, upcoming_events, today_events,
     add_event, update_event, delete_event, event_view,
 )
+from news_store import fetch_news
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -87,24 +88,27 @@ def auth_gate():
     return False
 
 
+def _goto(page):
+    """홈의 바로가기 버튼용 — 사이드바 메뉴를 page로 바꾸고 재실행."""
+    st.session_state["_nav_to"] = page
+    st.rerun()
+
+
 def home_page():
-    """홈 대시보드 — 팀 현황 한눈에 + 챙길 것(미제출·마감) 리마인더."""
-    st.header("🏠 홈 — 한눈에 보기")
+    """홈 대시보드 — 지표·챙길것(버튼)·오늘 일정·달력·관련 뉴스."""
     today = datetime.now(KST).date()
-    st.caption(f"{today.strftime('%Y-%m-%d')} 기준 팀 현황 요약")
     week = this_wednesday()
+    st.caption(f"📊 팀 현황 · {today.strftime('%Y-%m-%d')} 기준")
 
     status = submission_status(week)
     done = sum(1 for s in status if s["submitted"])
     missing = [s["name"] for s in status if not s["submitted"]]
-
     try:
         open_problems = [r for _, r in space_log_rows()
                          if r[2].strip() and r[6].strip() != "처리완료"]
         n_problems = len(open_problems)
     except Exception:
         n_problems = None
-
     try:
         p_reqs = {}
         for r in purchase_rows():
@@ -113,32 +117,26 @@ def home_page():
                           if (g[0][10].strip() or "요청") != STATUS_DONE)
     except Exception:
         pending_pur = None
-
     try:
         active_collab = [r for r in collab_rows()
                          if r[3].strip() and r[9].strip() != "완료"]
     except Exception:
         active_collab = []
-
     try:
         n_equip = len(equip_rows())
     except Exception:
         n_equip = None
 
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("이번주 보고", f"{done}/{len(status)}")
-    c2.metric("미해결 문제", n_problems if n_problems is not None else "—")
+    c1.metric("이번주 주간보고 제출", f"{done}/{len(status)}")
+    c2.metric("돌봄스페이스 관리대장 미해결",
+              n_problems if n_problems is not None else "—")
     c3.metric("대기 구매요청", pending_pur if pending_pur is not None else "—")
-    c4.metric("진행중 협업", len(active_collab))
+    c4.metric("진행중 문서협업", len(active_collab))
     c5.metric("등록 장비", n_equip if n_equip is not None else "—")
 
     st.divider()
-    st.subheader("🔔 챙길 것")
-    any_reminder = False
-    if missing:
-        st.warning(f"⏳ **주간보고 미제출 {len(missing)}명** ({week}) — "
-                   f"{', '.join(missing)}")
-        any_reminder = True
+    st.subheader("🔔 오늘 챙길 것")
 
     def _pdate(d):
         try:
@@ -146,23 +144,49 @@ def home_page():
         except Exception:
             return None
 
+    any_reminder = False
+    if missing:
+        rc1, rc2 = st.columns([4, 1])
+        rc1.warning(f"⏳ 주간보고 미제출 {len(missing)}명 — {', '.join(missing)}")
+        if rc2.button("→ 작성하러", key="nav_report", use_container_width=True):
+            _goto("업무보고 작성")
+        any_reminder = True
     for r in active_collab:
         dl = _pdate(r[6])
         if dl is None:
             continue
-        if dl < today:
-            st.error(f"🔴 문서협업 마감 지남 — **{r[3]}** (마감 {r[6]} · 요청 {r[2]})")
+        if dl < today or (dl - today).days <= 3:
+            tag = "🔴 마감 지남" if dl < today else f"🟡 마감 D-{(dl - today).days}"
+            rc1, rc2 = st.columns([4, 1])
+            rc1.warning(f"{tag} · 문서협업 '{r[3]}' (마감 {r[6]})")
+            if rc2.button("→ 문서협업", key=f"nav_collab_{r[0]}",
+                          use_container_width=True):
+                _goto("📋 문서 협업")
             any_reminder = True
-        elif (dl - today).days <= 3:
-            st.warning(f"🟡 문서협업 마감 임박 — **{r[3]}** "
-                       f"(마감 {r[6]} · D-{(dl - today).days})")
-            any_reminder = True
-
+    if n_problems:
+        rc1, rc2 = st.columns([4, 1])
+        rc1.info(f"🏠 돌봄스페이스 관리대장 미해결 {n_problems}건")
+        if rc2.button("→ 관리대장", key="nav_space", use_container_width=True):
+            _goto("🏠 스마트돌봄스페이스")
+        any_reminder = True
     if not any_reminder:
-        st.success("✅ 급히 챙길 건 없습니다. 다들 잘 하고 있네요!")
+        st.success("✅ 급히 챙길 건 없습니다.")
+
+    if calendar_enabled():
+        st.subheader("📌 오늘 일정")
+        try:
+            tev = today_events()
+        except Exception:
+            tev = []
+        if tev:
+            for e in tev:
+                v = event_view(e)
+                st.markdown(f"- **{v['when']}** · {v['title']}")
+        else:
+            st.caption("오늘 등록된 일정이 없습니다.")
 
     st.divider()
-    st.subheader("📅 사업단 일정")
+    st.subheader("🗓️ 사업단 일정")
     if calendar_enabled():
         _iframe = getattr(st, "iframe", components.iframe)
         _iframe(embed_url(), height=520)
@@ -175,6 +199,19 @@ def home_page():
             _calendar_manage()
     else:
         st.caption("⚙️ 캘린더 미설정 — Streamlit Secrets에 `[calendar]` id 추가 필요.")
+
+    st.divider()
+    st.subheader("📰 관련 뉴스 · 돌봄로봇·보건복지·AI")
+    try:
+        news = fetch_news()
+    except Exception:
+        news = []
+    if news:
+        for it in news:
+            src = f"  · _{it['source']}_" if it.get("source") else ""
+            st.markdown(f"- [{it['title']}]({it['link']}){src}")
+    else:
+        st.caption("뉴스를 불러오지 못했습니다 (잠시 후 새로고침).")
 
 
 def member_page():
@@ -1372,7 +1409,11 @@ def main():
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
-        mode = st.radio("메뉴", mode_options)
+        # 홈의 바로가기 버튼(_nav_to)이 있으면 그 메뉴로 이동
+        nav = st.session_state.pop("_nav_to", None)
+        if nav and nav in mode_options:
+            st.session_state["main_menu"] = nav
+        mode = st.radio("메뉴", mode_options, key="main_menu")
         st.divider()
         if st.button("로그아웃"):
             for k in ["authed", "is_admin"]:

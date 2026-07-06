@@ -53,6 +53,20 @@ def _cid():
 
 
 @st.cache_data(ttl=60)
+def today_events() -> list:
+    """오늘(00:00~24:00) 일정 목록 (시간순)."""
+    now = datetime.now(KST)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    r = _sess().get(f"{CAL_API}/calendars/{_cid()}/events", params={
+        "timeMin": start.isoformat(), "timeMax": end.isoformat(),
+        "singleEvents": "true", "orderBy": "startTime", "maxResults": 30,
+    })
+    r.raise_for_status()
+    return r.json().get("items", [])
+
+
+@st.cache_data(ttl=60)
 def upcoming_events(days: int = 45, maxn: int = 50) -> list:
     """지금부터 days일 내 일정(시간순). 각 항목: 원본 이벤트 dict."""
     now = datetime.now(KST)
