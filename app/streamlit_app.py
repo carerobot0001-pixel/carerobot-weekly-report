@@ -29,6 +29,10 @@ from collab_store import (
 from equip_store import (
     EQUIP_HEADER, equip_rows, save_all_equipment, build_equip_xlsx,
 )
+from visit_store import (
+    VISIT_HEADER, visit_rows, add_visit, delete_visit,
+    RowMismatch as VisitRowMismatch,
+)
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -76,6 +80,83 @@ def auth_gate():
         else:
             st.error("비밀번호가 올바르지 않습니다.")
     return False
+
+
+def home_page():
+    """홈 대시보드 — 팀 현황 한눈에 + 챙길 것(미제출·마감) 리마인더."""
+    st.header("🏠 홈 — 한눈에 보기")
+    today = datetime.now(KST).date()
+    st.caption(f"{today.strftime('%Y-%m-%d')} 기준 팀 현황 요약")
+    week = this_wednesday()
+
+    status = submission_status(week)
+    done = sum(1 for s in status if s["submitted"])
+    missing = [s["name"] for s in status if not s["submitted"]]
+
+    try:
+        open_problems = [r for _, r in space_log_rows()
+                         if r[2].strip() and r[6].strip() != "처리완료"]
+        n_problems = len(open_problems)
+    except Exception:
+        n_problems = None
+
+    try:
+        p_reqs = {}
+        for r in purchase_rows():
+            p_reqs.setdefault(r[0], []).append(r)
+        pending_pur = sum(1 for g in p_reqs.values()
+                          if (g[0][10].strip() or "요청") != STATUS_DONE)
+    except Exception:
+        pending_pur = None
+
+    try:
+        active_collab = [r for r in collab_rows()
+                         if r[3].strip() and r[9].strip() != "완료"]
+    except Exception:
+        active_collab = []
+
+    try:
+        n_equip = len(equip_rows())
+    except Exception:
+        n_equip = None
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("이번주 보고", f"{done}/{len(status)}")
+    c2.metric("미해결 문제", n_problems if n_problems is not None else "—")
+    c3.metric("대기 구매요청", pending_pur if pending_pur is not None else "—")
+    c4.metric("진행중 협업", len(active_collab))
+    c5.metric("등록 장비", n_equip if n_equip is not None else "—")
+
+    st.divider()
+    st.subheader("🔔 챙길 것")
+    any_reminder = False
+    if missing:
+        st.warning(f"⏳ **주간보고 미제출 {len(missing)}명** ({week}) — "
+                   f"{', '.join(missing)}")
+        any_reminder = True
+
+    def _pdate(d):
+        try:
+            return datetime.strptime(d.strip(), "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    for r in active_collab:
+        dl = _pdate(r[6])
+        if dl is None:
+            continue
+        if dl < today:
+            st.error(f"🔴 문서협업 마감 지남 — **{r[3]}** (마감 {r[6]} · 요청 {r[2]})")
+            any_reminder = True
+        elif (dl - today).days <= 3:
+            st.warning(f"🟡 문서협업 마감 임박 — **{r[3]}** "
+                       f"(마감 {r[6]} · D-{(dl - today).days})")
+            any_reminder = True
+
+    if not any_reminder:
+        st.success("✅ 급히 챙길 건 없습니다. 다들 잘 하고 있네요!")
+
+    st.caption("↖️ 왼쪽 메뉴에서 각 기능으로 이동하세요.")
 
 
 def member_page():
@@ -933,6 +1014,85 @@ def equip_page():
                     st.error(f"저장 실패: {e}")
 
 
+def visit_page():
+    """실증 방문 일지 — 현장 방문 기록 등록·조회(실증별 필터)·삭제."""
+    st.header("📍 실증 방문 일지")
+    st.caption("현장(가정·복지관·병원) 방문 기록을 실증별로 남깁니다.")
+    _flash("visit_flash")
+
+    SITES = ["WIM 장기실증", "광주서구 가정실증", "청양군 사회복지관",
+             "안산시 부곡사회복지관", "병원실증", "서울대병원", "기타(직접 입력)"]
+
+    open_f = st.session_state.get("visit_show_form", False)
+    if st.button("➖ 등록 폼 닫기" if open_f else "➕ 방문 기록 추가",
+                 use_container_width=True):
+        st.session_state["visit_show_form"] = not open_f
+        st.rerun()
+
+    if st.session_state.get("visit_show_form"):
+        with st.container(border=True):
+            vc1, vc2, vc3 = st.columns(3)
+            with vc1:
+                vdate = st.date_input("방문일", value=datetime.now(KST).date(),
+                                      key="visit_date")
+            with vc2:
+                site = st.selectbox("실증", SITES, key="visit_site")
+                if site == "기타(직접 입력)":
+                    site = st.text_input("실증 직접 입력", key="visit_site_custom")
+            with vc3:
+                visitor = st.selectbox("방문자", MEMBER_NAMES, key="visit_visitor")
+            content = st.text_area(
+                "방문내용 (한 일)", key="visit_content", height=90,
+                placeholder="예: 효돌 재설치, 센서 배터리 교체, 대상자 인터뷰")
+            issue = st.text_area("이슈·특이사항 (선택)", key="visit_issue", height=70)
+            if st.button("➕ 기록 저장", type="primary", use_container_width=True):
+                if not (site and content.strip()):
+                    st.warning("실증과 방문내용은 필수입니다.")
+                else:
+                    try:
+                        add_visit(vdate.strftime("%Y-%m-%d"), site, visitor,
+                                  content.strip(), issue.strip())
+                        st.session_state["visit_flash"] = f"✅ 방문 기록 저장 — {site}"
+                        for k in ("visit_content", "visit_issue"):
+                            st.session_state.pop(k, None)
+                        st.session_state["visit_show_form"] = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"저장 실패: {e}")
+
+    st.divider()
+    indexed = visit_rows()
+    sites = sorted({r[1] for _, r in indexed if r[1].strip()})
+    fsel = st.selectbox("실증 필터", ["전체"] + sites, key="visit_filter")
+    shown = [(i, r) for i, r in indexed if fsel == "전체" or r[1] == fsel]
+    shown.sort(key=lambda ir: (ir[1][0], ir[1][5]), reverse=True)  # 방문일 최신순
+    st.subheader(f"📋 방문 기록 — {len(shown)}건")
+    if not shown:
+        st.caption("기록이 없습니다.")
+    for i, r in shown[:50]:
+        with st.container(border=True):
+            st.markdown(f"**{r[0]}** · {r[1]} · {r[2]}")
+            if r[3].strip():
+                st.write(r[3])
+            if r[4].strip():
+                st.caption(f"⚠️ 이슈: {r[4]}")
+            dc1, dc2 = st.columns([1, 3])
+            dok = dc1.checkbox("삭제 확인", key=f"visit_delok_{i}")
+            if dc2.button("🗑️ 삭제", key=f"visit_del_{i}", disabled=not dok):
+                try:
+                    delete_visit(i, r[5])
+                    st.session_state["visit_flash"] = "🗑️ 방문 기록 삭제됨"
+                    st.rerun()
+                except VisitRowMismatch:
+                    visit_rows.clear()
+                    st.warning("그 사이 목록이 바뀌었습니다. 새로고침 후 다시 시도해주세요.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"삭제 실패: {e}")
+    if len(shown) > 50:
+        st.caption(f"…최근 50건만 표시 (전체 {len(shown)}건)")
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
 
@@ -1058,8 +1218,9 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["업무보고 작성", "🏠 스마트돌봄스페이스", "🛒 구매요청서",
-                        "📋 문서 협업", "🔧 장비 사용현황", "📚 과거 회의록 열람"]
+        mode_options = ["🏠 홈", "업무보고 작성", "🏠 스마트돌봄스페이스", "🛒 구매요청서",
+                        "📋 문서 협업", "🔧 장비 사용현황", "📍 실증 방문 일지",
+                        "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
             mode_options.append("담당자 대시보드")
         mode = st.radio("메뉴", mode_options)
@@ -1070,10 +1231,14 @@ def main():
             st.query_params.clear()
             st.rerun()
 
-    if mode == "업무보고 작성":
+    if mode == "🏠 홈":
+        home_page()
+    elif mode == "업무보고 작성":
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":
         space_page()
+    elif mode == "📍 실증 방문 일지":
+        visit_page()
     elif mode == "🛒 구매요청서":
         purchase_page()
     elif mode == "📋 문서 협업":
