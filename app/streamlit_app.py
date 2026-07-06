@@ -151,7 +151,8 @@ def home_page():
     any_reminder = False
     if missing:
         rc1, rc2 = st.columns([4, 1])
-        rc1.warning(f"⏳ 주간보고 미제출 {len(missing)}명 — {', '.join(missing)}")
+        rc1.warning(f"⏳ 주간보고 미제출 {len(missing)}명 "
+                    f"(화요일 17시 마감) — {', '.join(missing)}")
         if rc2.button("→ 작성하러", key="nav_report", use_container_width=True):
             _goto("업무보고 작성")
         any_reminder = True
@@ -167,12 +168,6 @@ def home_page():
                           use_container_width=True):
                 _goto("📋 문서 협업")
             any_reminder = True
-    if n_problems:
-        rc1, rc2 = st.columns([4, 1])
-        rc1.info(f"🏠 돌봄스페이스 관리대장 미해결 {n_problems}건")
-        if rc2.button("→ 관리대장", key="nav_space", use_container_width=True):
-            _goto("🏠 스마트돌봄스페이스")
-        any_reminder = True
     if not any_reminder:
         st.success("✅ 급히 챙길 건 없습니다.")
 
@@ -205,15 +200,21 @@ def home_page():
         st.caption("⚙️ 캘린더 미설정 — Streamlit Secrets에 `[calendar]` id 추가 필요.")
 
     st.divider()
-    st.subheader("📰 관련 뉴스 · 돌봄로봇·보건복지·AI")
+    st.subheader("📰 관련 뉴스 · 돌봄·돌봄로봇·AI")
     try:
         news = fetch_news()
     except Exception:
         news = []
     if news:
-        for it in news:
-            src = f"  · _{it['source']}_" if it.get("source") else ""
-            st.markdown(f"- [{it['title']}]({it['link']}){src}")
+        cols = st.columns(3)
+        for i, it in enumerate(news):
+            with cols[i % 3]:
+                if it.get("image"):
+                    st.image(it["image"], use_container_width=True)
+                st.markdown(f"**[{it['title']}]({it['link']})**")
+                if it.get("source"):
+                    st.caption(it["source"])
+                st.write("")
     else:
         st.caption("뉴스를 불러오지 못했습니다 (잠시 후 새로고침).")
 
