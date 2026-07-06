@@ -39,6 +39,10 @@ from calendar_store import (
     add_event, update_event, delete_event, event_view,
 )
 from news_store import fetch_news
+from common_store import (
+    KEYS as COMMON_KEYS, YONG_MAX, ASSET_MAX,
+    load_common, save_common, build_common_hwpx, build_common_xlsx,
+)
 from hwpx_exporter import build_report
 
 st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
@@ -1182,6 +1186,86 @@ def _calendar_manage():
                     st.error(f"삭제 실패: {ex}")
 
 
+def common_page():
+    """사업단 공통확인사항(최혜민) — 용역·자산구매 표 입력 → 한글/엑셀 생성."""
+    st.header("📑 사업단 공통확인사항")
+    st.caption("본부과제 용역·자산구매 표(실적/계획)를 입력하면 한글/엑셀로 만들어집니다. "
+               "(최혜민 연구원용 — 표 입력 후 저장하고, 한글로 받아 취합본에 넣으세요)")
+    _flash("common_flash")
+
+    saved = load_common()
+
+    def _editor(key, cols, label):
+        st.caption(label)
+        init = saved.get(key) or [[""] * len(cols)]
+        return st.data_editor(
+            pd.DataFrame(init, columns=cols), num_rows="dynamic",
+            use_container_width=True, key=f"ce_{key}")
+
+    st.markdown(f"#### 🔹 본부과제 용역 (최대 {YONG_MAX}행)")
+    yc1, yc2 = st.columns(2)
+    with yc1:
+        y_done = _editor("용역_실적", ["분야", "발주금액", "비고"], "실적")
+    with yc2:
+        y_plan = _editor("용역_계획", ["분야", "발주금액", "비고"], "계획")
+
+    st.markdown(f"#### 🔹 본부과제 자산구매 (최대 {ASSET_MAX}행)")
+    ac1, ac2 = st.columns(2)
+    with ac1:
+        a_done = _editor("자산_실적", ["품명", "수량", "구매금액", "비고"], "실적")
+    with ac2:
+        a_plan = _editor("자산_계획", ["품명", "수량", "구매금액", "비고"], "계획")
+
+    def _rows(df, ncol):
+        out = []
+        for _, r in df.iterrows():
+            vals = [str(r[c]).strip() for c in df.columns]
+            if any(vals):
+                out.append(vals[:ncol])
+        return out
+
+    tables = {
+        "용역_실적": _rows(y_done, 3), "용역_계획": _rows(y_plan, 3),
+        "자산_실적": _rows(a_done, 4), "자산_계획": _rows(a_plan, 4),
+    }
+
+    over = []
+    if max(len(tables["용역_실적"]), len(tables["용역_계획"])) > YONG_MAX:
+        over.append(f"용역 {YONG_MAX}행")
+    if max(len(tables["자산_실적"]), len(tables["자산_계획"])) > ASSET_MAX:
+        over.append(f"자산구매 {ASSET_MAX}행")
+    if over:
+        st.warning(f"⚠️ {', '.join(over)}을 넘는 항목은 한글 표에서 잘립니다 "
+                   "— 알려주시면 표 행을 늘려드릴게요.")
+
+    st.divider()
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button("💾 저장", type="primary", use_container_width=True):
+            try:
+                save_common(tables)
+                st.session_state["common_flash"] = "✅ 저장 완료"
+                st.rerun()
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+    fname = f"사업단_공통확인사항_{datetime.now(KST).strftime('%Y%m%d')}"
+    with b2:
+        try:
+            st.download_button(
+                "📄 한글(HWPX) 다운로드", data=build_common_hwpx(tables),
+                file_name=f"{fname}.hwpx", mime="application/octet-stream",
+                use_container_width=True)
+        except Exception as e:
+            st.error(f"한글 생성 실패: {e}")
+    with b3:
+        st.download_button(
+            "📊 엑셀 다운로드", data=build_common_xlsx(tables),
+            file_name=f"{fname}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True)
+    st.caption("※ 한글 파일은 열어서 표가 잘 나오는지 한 번 확인해주세요 (처음 도입 기능).")
+
+
 def visit_page():
     """실증 방문 일지 — 현장 방문 기록 등록·조회(실증별 필터)·삭제."""
     st.header("📍 실증 방문 일지")
@@ -1404,7 +1488,7 @@ def main():
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["🏠 홈", "업무보고 작성",
+        mode_options = ["🏠 홈", "업무보고 작성", "📑 사업단 공통확인사항",
                         "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
         if st.session_state.get("is_admin"):
@@ -1429,6 +1513,8 @@ def main():
         space_page()
     elif mode == "📍 실증 방문 일지":
         visit_page()
+    elif mode == "📑 사업단 공통확인사항":
+        common_page()
     elif mode == "🛒 구매요청서":
         purchase_page()
     elif mode == "📋 문서 협업":
