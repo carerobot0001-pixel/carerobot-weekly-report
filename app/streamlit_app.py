@@ -11,7 +11,7 @@ from team_config import (
 )
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
-    FIELD_KEYS, KST,
+    build_full_backup_xlsx, FIELD_KEYS, KST,
 )
 from space_store import (
     FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, RowMismatch, sheet_url,
@@ -1095,6 +1095,24 @@ def visit_page():
 
 def admin_page():
     st.header("📊 담당자 대시보드")
+
+    with st.container(border=True):
+        st.markdown("**🗄️ 전체 데이터 백업** — 모든 탭(업무보고·구매요청·문서협업·"
+                    "장비현황·방문일지)을 엑셀 1개로 내려받아 오프라인 보관하세요.")
+        if st.button("🔄 백업 파일 만들기"):
+            try:
+                st.session_state["backup_xlsx"] = build_full_backup_xlsx()
+            except Exception as e:
+                st.error(f"백업 생성 실패: {e}")
+        if st.session_state.get("backup_xlsx"):
+            st.download_button(
+                "📦 전체 데이터 백업 다운로드",
+                data=st.session_state["backup_xlsx"],
+                file_name=f"돌봄로봇_전체백업_{datetime.now(KST).strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True)
+        st.caption("※ 참고: 구글 시트는 자체 **버전 기록**이 있어, 실수로 지우거나 덮어써도 "
+                   "구글시트 '파일 → 버전 기록'에서 과거 상태로 되돌릴 수 있습니다.")
 
     week = st.text_input("조회 주차", value=this_wednesday(),
                          help="예: 2026-04-22 (해당 주 수요일)")

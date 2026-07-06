@@ -3,6 +3,7 @@
 시트 구조:
   A: 이름  B: 주차  C~K: 10개 필드  L: 제출시간
 """
+import io
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone, timedelta
@@ -124,6 +125,30 @@ def save_submission(name: str, week: str, values: dict) -> str:
     ws.append_row(new_row)
     _fetch_all_values.clear()
     return "created"
+
+
+def build_full_backup_xlsx() -> bytes:
+    """제출함 스프레드시트의 모든 탭을 엑셀 1개로 덤프(오프라인 백업용).
+
+    submissions·구매요청·문서협업·장비현황·방문일지 등 모든 워크시트를 그대로
+    각 시트로 저장. 읽기 전용이라 데이터에 영향 없음.
+    """
+    from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
+
+    ss = _get_client().open_by_key(st.secrets["sheet"]["id"])
+    wb = Workbook()
+    wb.remove(wb.active)
+    for sh in ss.worksheets():
+        title = sh.title[:31]  # 엑셀 시트명 31자 제한
+        for bad in r'\/?*[]:':
+            title = title.replace(bad, "_")
+        ws = wb.create_sheet(title=title or "sheet")
+        for row in sh.get_all_values():
+            ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 def weeks_with_counts() -> list:
