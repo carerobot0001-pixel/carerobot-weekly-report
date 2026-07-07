@@ -147,6 +147,14 @@ def _extra_hwpx_block(text: str) -> str:
     )
 
 
+def _extra_cell_text(text: str) -> str:
+    text = str(text).strip()
+    if not text:
+        return ""
+    lines = [x.rstrip() for x in text.splitlines() if x.strip()]
+    return "\n".join(["<湲고??댁슜>"] + lines)
+
+
 def _leaf_tables(xml):
     out = []
     for m in re.finditer(r'<hp:tbl\b', xml):
@@ -218,11 +226,10 @@ def build_common_hwpx(tables: dict) -> bytes:
     ]
     for s, e, new_seg in sorted(edits, key=lambda x: x[0], reverse=True):
         xml = xml[:s] + new_seg + xml[e:]
-    extra_block = _extra_hwpx_block(tables.get(EXTRA_KEY, ""))
-    if extra_block:
-        marker = '<hp:p id="0" paraPrIDRef="25" styleIDRef="0" pageBreak="1" columnBreak="0" merged="0"><hp:run charPrIDRef="11"/><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1100" textheight="1100" baseline="935" spacing="220" horzpos="0" horzsize="78516" flags="393216"/></hp:linesegarray></hp:p>'
-        if marker in xml:
-            xml = xml.replace(marker, extra_block + marker, 1)
+    extra_text = _extra_cell_text(tables.get(EXTRA_KEY, ""))
+    if extra_text:
+        for col in (4, 5):
+            xml = replace_cell(xml, col, 25, extra_text)
 
     files['Contents/section0.xml'] = xml.encode('utf-8')
     if 'Preview/PrvText.txt' in files:
