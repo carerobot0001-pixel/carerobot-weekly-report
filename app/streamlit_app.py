@@ -118,6 +118,16 @@ def home_page():
       div[data-testid="stAlert"] a{font-size:0.85rem;}
       hr{margin:0.45rem 0;}
       div.stButton>button{padding:0.25rem 0.5rem;}
+      /* ⚡ 바로가기 타일 바(네이버 아이콘식) — qbar 컨테이너 안 버튼만 */
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
+        div.stButton>button{
+        border:1px solid #edeff3; border-radius:16px; background:#fff;
+        height:58px; font-size:1.7rem; line-height:1; padding:0;
+        box-shadow:0 1px 3px rgba(0,0,0,.05);
+      }
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
+        div.stButton>button:hover{ border-color:#4C8BF5; background:#F5F9FF; }
+      .qlbl{ text-align:center; font-size:0.72rem; color:#555; margin-top:2px; }
     </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -236,18 +246,27 @@ def home_page():
     c5.metric("등록 장비", n_equip if n_equip is not None else "—")
 
     st.divider()
-    st.markdown("**⚡ 빠른 실행**")
-    q = st.columns(5)
-    if q[0].button("📝 주간보고 작성", use_container_width=True, key="qa_report"):
-        _goto("업무보고 작성")
-    if q[1].button("🛒 구매요청", use_container_width=True, key="qa_purchase"):
-        _goto("🛒 구매요청서")
-    if q[2].button("📋 문서협업", use_container_width=True, key="qa_collab"):
-        _goto("📋 문서 협업")
-    if q[3].button("📍 방문일지", use_container_width=True, key="qa_visit"):
-        _goto("📍 실증 방문 일지")
-    if q[4].button("📑 공통확인", use_container_width=True, key="qa_common"):
-        _goto("📑 사업단 공통확인사항")
+    st.markdown("**⚡ 바로가기**")
+    shortcuts = [
+        ("📝", "주간보고", "업무보고 작성"),
+        ("🛒", "구매요청", "🛒 구매요청서"),
+        ("📋", "문서협업", "📋 문서 협업"),
+        ("📍", "방문일지", "📍 실증 방문 일지"),
+        ("📑", "공통확인", "📑 사업단 공통확인사항"),
+        ("🏠", "스페이스", "🏠 스마트돌봄스페이스"),
+        ("🔧", "장비현황", "🔧 장비 사용현황"),
+        ("📚", "회의록", "📚 과거 회의록 열람"),
+    ]
+    with st.container():
+        st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
+        qcols = st.columns(len(shortcuts))
+        for col, (emoji, label, target) in zip(qcols, shortcuts):
+            with col:
+                if st.button(emoji, key=f"qs_{target}", help=label,
+                             use_container_width=True):
+                    _goto(target)
+                st.markdown(f"<div class='qlbl'>{label}</div>",
+                            unsafe_allow_html=True)
 
     def _pdate(d):
         try:
