@@ -88,6 +88,13 @@ def _goto(page):
     st.rerun()
 
 
+def _me_index(options, default=0):
+    """전역 정체성 me(홈에서 1회 설정)의 options 내 위치. 이름 selectbox 기본값용.
+    me가 없거나 목록에 없으면 default(기본 0=첫 항목, 기존 동작 유지)."""
+    me = st.session_state.get("me")
+    return options.index(me) if me in options else default
+
+
 def home_page():
     """홈 대시보드 — 상단 전체폭 일정 달력 → 좌(공지·바로가기·챙길것·내할일)/우(뉴스)."""
     today = datetime.now(KST).date()
@@ -163,10 +170,7 @@ def home_page():
     ]
 
     # ── 📅 사업단 일정 (맨 위, 전체 폭) + '나는 누구' 1회 설정 ──────────
-    # 접속 후 한 번만 이름을 고르면 세션 내내 유지되고, URL(?me=)로 새로고침에도 복원됨.
-    if "me" not in st.session_state:
-        _qme = st.query_params.get("me")
-        st.session_state["me"] = _qme if _qme in MEMBER_NAMES else None
+    # me는 main()에서 ?me= 로 시드됨. 여기 선택기로 고르면 세션+URL에 유지되고 전 페이지가 사용.
     tc1, tc2 = st.columns([3, 1])
     tc1.markdown("**📅 사업단 일정**")
     _idx = (MEMBER_NAMES.index(st.session_state["me"])
@@ -333,7 +337,8 @@ def member_page():
 def _report_write():
     col1, col2 = st.columns([2, 2])
     with col1:
-        name = st.selectbox("본인 이름", MEMBER_NAMES, key="member_name")
+        name = st.selectbox("본인 이름", MEMBER_NAMES,
+                            index=_me_index(MEMBER_NAMES), key="member_name")
     with col2:
         this_wed = datetime.strptime(this_wednesday(), "%Y-%m-%d").date()
         # 다음 주 1개 + 이번 주 + 지난 10주 (전부 수요일), 날짜 내림차순
@@ -574,7 +579,8 @@ def faq_tab():
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        writer = st.selectbox("작성자", MEMBER_NAMES, key="faq_writer")
+        writer = st.selectbox("작성자", MEMBER_NAMES,
+                              index=_me_index(MEMBER_NAMES), key="faq_writer")
     with c2:
         space = st.selectbox("공간 구분", SPACES, key="faq_space")
         if space == "기타(직접 입력)":
@@ -767,7 +773,8 @@ def purchase_page():
 
     c1, c2 = st.columns([1, 2])
     with c1:
-        requester = st.selectbox("요청자", MEMBER_NAMES, key="pur_requester")
+        requester = st.selectbox("요청자", MEMBER_NAMES,
+                                 index=_me_index(MEMBER_NAMES), key="pur_requester")
     with c2:
         reason = st.text_input("구매사유", value="돌봄로봇 실증연구", key="pur_reason")
 
@@ -972,7 +979,7 @@ def collab_page():
     _flash("collab_flash")
 
     my_name = st.selectbox("👤 내 이름 (요청자·완료체크에 사용)", MEMBER_NAMES,
-                           key="collab_my_name")
+                           index=_me_index(MEMBER_NAMES), key="collab_my_name")
 
     # 등록 폼: 펼침창 대신 토글 버튼 + 컨테이너 (작성 중 새로고침돼도 안 닫히게)
     open_form = st.session_state.get("collab_show_form", False)
@@ -1399,7 +1406,8 @@ def visit_page():
                 if site == "기타(직접 입력)":
                     site = st.text_input("실증 직접 입력", key="visit_site_custom")
             with vc3:
-                visitor = st.selectbox("방문자", MEMBER_NAMES, key="visit_visitor")
+                visitor = st.selectbox("방문자", MEMBER_NAMES,
+                               index=_me_index(MEMBER_NAMES), key="visit_visitor")
             content = st.text_area(
                 "방문내용 (한 일)", key="visit_content", height=90,
                 placeholder="예: 효돌 재설치, 센서 배터리 교체, 대상자 인터뷰")
@@ -1460,6 +1468,7 @@ def _notice_manage():
     except Exception:
         ntc = []
     nauth = st.selectbox("작성자", NOTICE_AUTHORS + ["직접 입력"],
+                         index=_me_index(NOTICE_AUTHORS + ["직접 입력"]),
                          key="adm_notice_author")
     if nauth == "직접 입력":
         nauth = (st.text_input("작성자 직접 입력",
@@ -1633,6 +1642,11 @@ def _report_collect():
 def main():
     if not auth_gate():
         return
+
+    # 전역 정체성 me: ?me=로 새로고침에도 복원 → 어느 페이지에서 접속해도 이름 기본값으로 사용
+    if "me" not in st.session_state:
+        _q = st.query_params.get("me")
+        st.session_state["me"] = _q if _q in MEMBER_NAMES else None
 
     # 전체 페이지 여백 축소 — layout=wide 기본 상단·좌우 패딩이 커서 화면이 비어 보임
     st.markdown("""<style>
