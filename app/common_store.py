@@ -49,7 +49,7 @@ def load_common() -> dict:
             continue
         r = (list(r) + [""] * 6)[:6]
         key = f"{r[0]}_{r[1]}"
-        if key in out:
+        if key in KEYS:
             out[key].append(r[2:6])
         elif key == EXTRA_KEY:
             out[EXTRA_KEY] = r[2]
