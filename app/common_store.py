@@ -7,7 +7,6 @@
 import io
 import re
 import zipfile
-from html import escape
 from pathlib import Path
 
 import gspread
@@ -130,22 +129,6 @@ def _fill_asset(seg, items):
     return seg
 
 
-def _extra_paragraph(text: str) -> str:
-    text = str(text).strip()
-    if not text:
-        return ""
-    lines = [x.strip() for x in text.splitlines() if x.strip()]
-    body = " / ".join(lines)
-    return (
-        '<hp:p id="2147483648" paraPrIDRef="21" styleIDRef="0" pageBreak="0" '
-        'columnBreak="0" merged="0"><hp:run charPrIDRef="0">'
-        f'<hp:t>기타내용: {escape(body)}</hp:t>'
-        '</hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" '
-        'vertsize="1000" textheight="1000" baseline="850" spacing="100" '
-        'horzpos="0" horzsize="50000" flags="393216"/></hp:linesegarray></hp:p>'
-    )
-
-
 def build_common_hwpx(tables: dict) -> bytes:
     """빈 표 템플릿에 4개 표를 채워 한글(HWPX) 생성."""
     data = TEMPLATE.read_bytes()
@@ -169,9 +152,6 @@ def build_common_hwpx(tables: dict) -> bytes:
     ]
     for s, e, new_seg in sorted(edits, key=lambda x: x[0], reverse=True):
         xml = xml[:s] + new_seg + xml[e:]
-    extra = _extra_paragraph(tables.get(EXTRA_KEY, ""))
-    if extra:
-        xml = xml.replace("</hs:sec>", extra + "</hs:sec>")
 
     files['Contents/section0.xml'] = xml.encode('utf-8')
     buf = io.BytesIO()

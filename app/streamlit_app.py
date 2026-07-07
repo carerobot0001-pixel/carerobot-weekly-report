@@ -1342,6 +1342,7 @@ def common_page():
         placeholder="표로 나누기 어려운 공통 확인사항을 자유롭게 입력하세요.",
         key="ce_extra_text",
     )
+    st.caption("기타내용은 저장 및 엑셀 다운로드에 포함됩니다. 한글(HWPX)은 업무망 호환을 위해 표 영역만 생성합니다.")
 
     def _rows(df, ncol):
         out = []
