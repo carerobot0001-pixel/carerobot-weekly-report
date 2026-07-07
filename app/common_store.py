@@ -89,6 +89,32 @@ def _fmt(n: int) -> str:
     return f"{n:,}" if n else ""
 
 
+def _preview_text(tables: dict) -> str:
+    lines = ["<사업단 공통확인사항>"]
+
+    def block(title, header, items, max_rows):
+        lines.append(f"<{title}>")
+        lines.append("<" + "><".join(header) + ">")
+        for i, item in enumerate(items[:max_rows], 1):
+            vals = [str(x).strip() for x in item]
+            if any(vals):
+                lines.append(f"<{i}><" + "><".join(vals) + ">")
+
+    block("본부과제 용역 - 실적", ["분야", "발주금액", "비고"],
+          tables.get("용역_실적", []), HWPX_YONG_MAX)
+    block("본부과제 용역 - 계획", ["분야", "발주금액", "비고"],
+          tables.get("용역_계획", []), HWPX_YONG_MAX)
+    block("본부과제 자산구매 - 실적", ["품명", "수량", "구매금액", "비고"],
+          tables.get("자산_실적", []), HWPX_ASSET_MAX)
+    block("본부과제 자산구매 - 계획", ["품명", "수량", "구매금액", "비고"],
+          tables.get("자산_계획", []), HWPX_ASSET_MAX)
+    extra = str(tables.get(EXTRA_KEY, "")).strip()
+    if extra:
+        lines.append("<기타내용>")
+        lines.extend(extra.splitlines())
+    return "\r\n".join(lines) + "\r\n"
+
+
 def _leaf_tables(xml):
     out = []
     for m in re.finditer(r'<hp:tbl\b', xml):
@@ -156,6 +182,8 @@ def build_common_hwpx(tables: dict) -> bytes:
         xml = xml[:s] + new_seg + xml[e:]
 
     files['Contents/section0.xml'] = xml.encode('utf-8')
+    if 'Preview/PrvText.txt' in files:
+        files['Preview/PrvText.txt'] = _preview_text(tables).encode('utf-8')
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w') as zout:
         for n in order:
