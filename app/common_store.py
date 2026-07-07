@@ -1,12 +1,13 @@
 """사업단 공통확인사항(최혜민) — 표 4개 저장 + 취합본 표 채워 한글/엑셀 생성.
 
-표: 본부과제 용역(분야·발주금액·비고, 최대 5행) / 자산구매(품명·수량·구매금액·비고,
-최대 10행), 각각 실적/계획. 취합본의 '빈 표 템플릿'(개인정보 제거본)의 리프 표에
+표: 본부과제 용역(분야·발주금액·비고, 최대 6행) / 자산구매(품명·수량·구매금액·비고,
+최대 12행), 각각 실적/계획. 취합본의 '빈 표 템플릿'(개인정보 제거본)의 리프 표에
 셀을 채워 한글을 만든다(검증된 replace_cell 방식). 엑셀 출력도 제공.
 """
 import io
 import re
 import zipfile
+from html import escape
 from pathlib import Path
 
 import gspread
@@ -19,8 +20,9 @@ from datetime import datetime
 COMMON_WS_TITLE = "공통확인사항"
 COMMON_HEADER = ["종류", "구분", "내용1", "내용2", "내용3", "내용4"]
 KEYS = ["용역_실적", "용역_계획", "자산_실적", "자산_계획"]
-YONG_MAX = 5
-ASSET_MAX = 10
+EXTRA_KEY = "기타_내용"
+YONG_MAX = 6
+ASSET_MAX = 12
 TEMPLATE = Path(__file__).resolve().parent.parent / "사업단_공통확인사항_템플릿.hwpx"
 
 
@@ -41,6 +43,7 @@ def load_common() -> dict:
     """저장된 4개 표를 dict로. 각 값은 항목 리스트(리스트의 리스트)."""
     vals = _ws().get_all_values()
     out = {k: [] for k in KEYS}
+    out[EXTRA_KEY] = ""
     for r in vals[1:]:
         if not any(c.strip() for c in r):
             continue
@@ -48,6 +51,8 @@ def load_common() -> dict:
         key = f"{r[0]}_{r[1]}"
         if key in out:
             out[key].append(r[2:6])
+        elif key == EXTRA_KEY:
+            out[EXTRA_KEY] = r[2]
     return out
 
 
@@ -61,6 +66,9 @@ def save_common(tables: dict) -> None:
             item = (list(item) + [""] * 4)[:4]
             if any(str(x).strip() for x in item):
                 rows.append([종류, 구분] + [str(x).strip() for x in item])
+    extra = str(tables.get(EXTRA_KEY, "")).strip()
+    if extra:
+        rows.append(["기타", "내용", extra, "", "", ""])
     n = len(ws.get_all_values())
     if n > 1:
         ws.delete_rows(2, n)
@@ -102,7 +110,7 @@ def _fill_yong(seg, items):
         seg = replace_cell(seg, 2, r, _fmt(_num(발주)) if str(발주).strip() else "")
         seg = replace_cell(seg, 3, r, str(비고))
         total += _num(발주)
-    seg = replace_cell(seg, 2, 6, _fmt(total))
+    seg = replace_cell(seg, 2, YONG_MAX + 1, _fmt(total))
     return seg
 
 
@@ -118,8 +126,24 @@ def _fill_asset(seg, items):
         seg = replace_cell(seg, 3, r, _fmt(_num(구매)) if str(구매).strip() else "")
         seg = replace_cell(seg, 4, r, str(비고))
         total += _num(구매)
-    seg = replace_cell(seg, 3, 11, _fmt(total))
+    seg = replace_cell(seg, 3, ASSET_MAX + 1, _fmt(total))
     return seg
+
+
+def _extra_paragraph(text: str) -> str:
+    text = str(text).strip()
+    if not text:
+        return ""
+    lines = [x.strip() for x in text.splitlines() if x.strip()]
+    body = " / ".join(lines)
+    return (
+        '<hp:p id="2147483648" paraPrIDRef="21" styleIDRef="0" pageBreak="0" '
+        'columnBreak="0" merged="0"><hp:run charPrIDRef="0">'
+        f'<hp:t>기타내용: {escape(body)}</hp:t>'
+        '</hp:run><hp:linesegarray><hp:lineseg textpos="0" vertpos="0" '
+        'vertsize="1000" textheight="1000" baseline="850" spacing="100" '
+        'horzpos="0" horzsize="50000" flags="393216"/></hp:linesegarray></hp:p>'
+    )
 
 
 def build_common_hwpx(tables: dict) -> bytes:
@@ -145,6 +169,9 @@ def build_common_hwpx(tables: dict) -> bytes:
     ]
     for s, e, new_seg in sorted(edits, key=lambda x: x[0], reverse=True):
         xml = xml[:s] + new_seg + xml[e:]
+    extra = _extra_paragraph(tables.get(EXTRA_KEY, ""))
+    if extra:
+        xml = xml.replace("</hs:sec>", extra + "</hs:sec>")
 
     files['Contents/section0.xml'] = xml.encode('utf-8')
     buf = io.BytesIO()
@@ -208,6 +235,11 @@ def build_common_xlsx(tables: dict) -> bytes:
           tables.get("자산_실적", []), True)
     block("<본부과제 자산구매> — 계획", ["품명", "수량", "구매금액", "비고"],
           tables.get("자산_계획", []), True)
+    extra = str(tables.get(EXTRA_KEY, "")).strip()
+    if extra:
+        ws.append(["기타내용"])
+        ws.append([extra])
+        ws[ws.max_row][0].alignment = Alignment(wrap_text=True, vertical="top")
     for col, w in {"A": 6, "B": 40, "C": 14, "D": 14, "E": 16}.items():
         ws.column_dimensions[col].width = w
     buf = io.BytesIO()

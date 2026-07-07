@@ -42,7 +42,7 @@ from news_store import fetch_news, fetch_section, NEWS_SECTIONS
 from notice_store import (notices, add_notice, delete_notice,
                           is_expired, sweep_expired)
 from common_store import (
-    KEYS as COMMON_KEYS, YONG_MAX, ASSET_MAX,
+    KEYS as COMMON_KEYS, EXTRA_KEY, YONG_MAX, ASSET_MAX,
     load_common, save_common, build_common_hwpx, build_common_xlsx,
 )
 from hwpx_exporter import build_report
@@ -1334,6 +1334,15 @@ def common_page():
     with ac2:
         a_plan = _editor("자산_계획", ["품명", "수량", "구매금액", "비고"], "계획")
 
+    st.markdown("#### 🔹 기타내용")
+    extra_text = st.text_area(
+        "표 외 공통확인사항",
+        value=str(saved.get(EXTRA_KEY, "")),
+        height=130,
+        placeholder="표로 나누기 어려운 공통 확인사항을 자유롭게 입력하세요.",
+        key="ce_extra_text",
+    )
+
     def _rows(df, ncol):
         out = []
         for _, r in df.iterrows():
@@ -1345,6 +1354,7 @@ def common_page():
     tables = {
         "용역_실적": _rows(y_done, 3), "용역_계획": _rows(y_plan, 3),
         "자산_실적": _rows(a_done, 4), "자산_계획": _rows(a_plan, 4),
+        EXTRA_KEY: extra_text,
     }
 
     over = []
