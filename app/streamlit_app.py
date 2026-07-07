@@ -224,9 +224,9 @@ def home_page():
             st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
             for i in range(0, len(shortcuts), 4):
                 rcols = st.columns(4)
-                for col, (emoji, label, target) in zip(rcols, shortcuts[i:i + 4]):
+                for j, (col, (emoji, label, target)) in enumerate(zip(rcols, shortcuts[i:i + 4])):
                     # 이모지  \n라벨 : 두 칸+줄바꿈 = 마크다운/평문 모두에서 줄바꿈 보장
-                    if col.button(f"{emoji}  \n{label}", key=f"qs_{target}",
+                    if col.button(f"{emoji}  \n{label}", key=f"qs_{i + j}_{target}",
                                   use_container_width=True):
                         _goto(target)
 
