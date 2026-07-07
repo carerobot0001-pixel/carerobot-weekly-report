@@ -1315,6 +1315,7 @@ def common_page():
     def _editor(key, cols, label):
         st.caption(label)
         init = saved.get(key) or [[""] * len(cols)]
+        init = [(list(row) + [""] * len(cols))[:len(cols)] for row in init]
         return st.data_editor(
             pd.DataFrame(init, columns=cols), num_rows="dynamic",
             use_container_width=True, key=f"ce_{key}")
