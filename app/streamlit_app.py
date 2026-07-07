@@ -131,12 +131,19 @@ def home_page():
     </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
+
+    def _pdate(d):
+        try:
+            return datetime.strptime(d.strip(), "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    # ── 데이터 로드(컬럼 배치 전에 미리) ─────────────────────────────
     try:
         active_collab = [r for r in collab_rows()
                          if r[3].strip() and r[9].strip() != "완료"]
     except Exception:
         active_collab = []
-
     # 만료된 공지 자동정리(세션당 1회 — 만료일 기준이라 외부상태 의존 없이 안전)
     if not st.session_state.get("_notice_swept"):
         st.session_state["_notice_swept"] = True
@@ -144,77 +151,10 @@ def home_page():
             sweep_expired(today_str)
         except Exception:
             pass
-
-    # === 📌 공지사항 ===
     try:
         ntc = notices()
     except Exception:
         ntc = []
-    for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
-        if is_expired(r, today_str):
-            continue  # 만료일 지난 공지는 숨김(정리 전이어도)
-        exp_md = f"　·　🗓️ ~{r[3]}까지" if r[3].strip() else ""
-        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}")
-    # 문서협업 자동 공지 — 진행중 협업을 공지처럼 표시, 제출현황 체크,
-    # 완료·삭제되면 자동으로 사라짐(별도 저장·삭제 없음)
-    for r in active_collab:
-        doners = [x.strip() for x in r[8].split(",") if x.strip()]
-        assignees = [x.strip() for x in r[7].split(",")
-                     if x.strip() and x.strip() != "전체"]
-        if assignees:
-            remain = [a for a in assignees if a not in doners]
-            prog = f"{len(doners)}/{len(assignees)}명 제출"
-            prog += (f" · 남은 사람: {', '.join(remain)}" if remain
-                     else " · ✅ 전원 제출")
-        else:
-            prog = (f"제출 {len(doners)}명: {', '.join(doners)}"
-                    if doners else "아직 제출자 없음")
-        link = r[5].strip()
-        linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
-        dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
-        st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
-
-    if st.session_state.get("is_admin"):
-        mgmt = st.session_state.get("home_notice_mgmt", False)
-        if st.button("▲ 공지 관리 닫기" if mgmt else "📌 공지 등록/관리",
-                     key="home_notice_btn"):
-            st.session_state["home_notice_mgmt"] = not mgmt
-            st.rerun()
-        if st.session_state.get("home_notice_mgmt"):
-            with st.container(border=True):
-                nauth = st.selectbox("작성자", NOTICE_AUTHORS + ["직접 입력"],
-                                     key="home_notice_author")
-                if nauth == "직접 입력":
-                    nauth = (st.text_input("작성자 직접 입력",
-                                           key="home_notice_author_custom").strip()
-                             or "담당자")
-                ntext = st.text_input("새 공지 내용", key="home_notice_text",
-                                      placeholder="예: 이번주 회의는 목요일 15시로 변경")
-                use_exp = st.checkbox("표시 종료일 지정 (그날 이후 자동삭제)",
-                                      key="home_notice_useexp")
-                exp_str = ""
-                if use_exp:
-                    d = st.date_input("이 날까지만 표시", value=today,
-                                      key="home_notice_exp")
-                    exp_str = d.strftime("%Y-%m-%d")
-                if st.button("➕ 공지 등록", key="home_notice_add"):
-                    if ntext.strip():
-                        add_notice(nauth, ntext.strip(), exp_str)
-                        st.session_state.pop("home_notice_text", None)
-                        st.rerun()
-                st.caption("📋 문서협업은 진행중이면 공지에 자동으로 뜨고 "
-                           "완료·삭제 시 사라집니다(별도 등록 불필요).")
-                for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
-                    exp_tag = f"  ~{r[3]}" if r[3].strip() else ""
-                    dc1, dc2 = st.columns([5, 1])
-                    dc1.caption(f"• {r[2]}  ({r[0]}{exp_tag})")
-                    if dc2.button("🗑️", key=f"ndel_{_idx}"):
-                        try:
-                            delete_notice(_idx, r[0])
-                        except Exception:
-                            notices.clear()
-                        st.rerun()
-
     status = submission_status(week)
     done = sum(1 for s in status if s["submitted"])
     missing = [s["name"] for s in status if not s["submitted"]]
@@ -237,16 +177,6 @@ def home_page():
     except Exception:
         n_equip = None
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("이번주 주간보고 제출", f"{done}/{len(status)}")
-    c2.metric("돌봄스페이스 관리대장 미해결",
-              n_problems if n_problems is not None else "—")
-    c3.metric("대기 구매요청", pending_pur if pending_pur is not None else "—")
-    c4.metric("진행중 문서협업", len(active_collab))
-    c5.metric("등록 장비", n_equip if n_equip is not None else "—")
-
-    st.divider()
-    st.markdown("**⚡ 바로가기**")
     shortcuts = [
         ("📝", "주간보고", "업무보고 작성"),
         ("🛒", "구매요청", "🛒 구매요청서"),
@@ -257,27 +187,98 @@ def home_page():
         ("🔧", "장비현황", "🔧 장비 사용현황"),
         ("📚", "회의록", "📚 과거 회의록 열람"),
     ]
-    with st.container():
-        st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
-        qcols = st.columns(len(shortcuts))
-        for col, (emoji, label, target) in zip(qcols, shortcuts):
-            with col:
-                if st.button(emoji, key=f"qs_{target}", help=label,
-                             use_container_width=True):
-                    _goto(target)
-                st.markdown(f"<div class='qlbl'>{label}</div>",
-                            unsafe_allow_html=True)
 
-    def _pdate(d):
-        try:
-            return datetime.strptime(d.strip(), "%Y-%m-%d").date()
-        except Exception:
-            return None
-
-    st.divider()
-    left, right = st.columns([1.15, 1])
+    # ── 좌: 공지·지표·바로가기·챙길것·내할일 / 우: 일정·뉴스만 ──────────
+    left, right = st.columns([1.55, 1])
 
     with left:
+        # 📌 공지사항
+        for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+            if is_expired(r, today_str):
+                continue  # 만료일 지난 공지는 숨김(정리 전이어도)
+            exp_md = f"　·　🗓️ ~{r[3]}까지" if r[3].strip() else ""
+            st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}")
+        # 문서협업 자동 공지 — 진행중 협업을 공지처럼(제출현황 체크), 완료·삭제 시 자동 소멸
+        for r in active_collab:
+            doners = [x.strip() for x in r[8].split(",") if x.strip()]
+            assignees = [x.strip() for x in r[7].split(",")
+                         if x.strip() and x.strip() != "전체"]
+            if assignees:
+                remain = [a for a in assignees if a not in doners]
+                prog = f"{len(doners)}/{len(assignees)}명 제출"
+                prog += (f" · 남은 사람: {', '.join(remain)}" if remain
+                         else " · ✅ 전원 제출")
+            else:
+                prog = (f"제출 {len(doners)}명: {', '.join(doners)}"
+                        if doners else "아직 제출자 없음")
+            link = r[5].strip()
+            linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
+            dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
+            st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
+
+        if st.session_state.get("is_admin"):
+            mgmt = st.session_state.get("home_notice_mgmt", False)
+            if st.button("▲ 공지 관리 닫기" if mgmt else "📌 공지 등록/관리",
+                         key="home_notice_btn"):
+                st.session_state["home_notice_mgmt"] = not mgmt
+                st.rerun()
+            if st.session_state.get("home_notice_mgmt"):
+                with st.container(border=True):
+                    nauth = st.selectbox("작성자", NOTICE_AUTHORS + ["직접 입력"],
+                                         key="home_notice_author")
+                    if nauth == "직접 입력":
+                        nauth = (st.text_input("작성자 직접 입력",
+                                 key="home_notice_author_custom").strip()
+                                 or "담당자")
+                    ntext = st.text_input("새 공지 내용", key="home_notice_text",
+                                          placeholder="예: 이번주 회의 목요일 15시로 변경")
+                    use_exp = st.checkbox("표시 종료일 지정 (그날 이후 자동삭제)",
+                                          key="home_notice_useexp")
+                    exp_str = ""
+                    if use_exp:
+                        d = st.date_input("이 날까지만 표시", value=today,
+                                          key="home_notice_exp")
+                        exp_str = d.strftime("%Y-%m-%d")
+                    if st.button("➕ 공지 등록", key="home_notice_add"):
+                        if ntext.strip():
+                            add_notice(nauth, ntext.strip(), exp_str)
+                            st.session_state.pop("home_notice_text", None)
+                            st.rerun()
+                    st.caption("📋 문서협업은 진행중이면 공지에 자동으로 뜨고 "
+                               "완료·삭제 시 사라집니다(별도 등록 불필요).")
+                    for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+                        exp_tag = f"  ~{r[3]}" if r[3].strip() else ""
+                        dc1, dc2 = st.columns([5, 1])
+                        dc1.caption(f"• {r[2]}  ({r[0]}{exp_tag})")
+                        if dc2.button("🗑️", key=f"ndel_{_idx}"):
+                            try:
+                                delete_notice(_idx, r[0])
+                            except Exception:
+                                notices.clear()
+                            st.rerun()
+
+        # 📊 지표(콤팩트 라벨)
+        mc = st.columns(5)
+        mc[0].metric("주간보고", f"{done}/{len(status)}")
+        mc[1].metric("관리대장", n_problems if n_problems is not None else "—")
+        mc[2].metric("구매대기", pending_pur if pending_pur is not None else "—")
+        mc[3].metric("문서협업", len(active_collab))
+        mc[4].metric("장비", n_equip if n_equip is not None else "—")
+
+        # ⚡ 바로가기 타일(4개 × 2줄)
+        st.markdown("**⚡ 바로가기**")
+        with st.container():
+            st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
+            for i in range(0, len(shortcuts), 4):
+                rcols = st.columns(4)
+                for col, (emoji, label, target) in zip(rcols, shortcuts[i:i + 4]):
+                    with col:
+                        if st.button(emoji, key=f"qs_{target}", help=label,
+                                     use_container_width=True):
+                            _goto(target)
+                        st.markdown(f"<div class='qlbl'>{label}</div>",
+                                    unsafe_allow_html=True)
+
         st.markdown("**🔔 오늘 챙길 것**")
         any_reminder = False
         if missing:
@@ -330,7 +331,7 @@ def home_page():
                               label_visibility="collapsed", key="home_cal_mode")
             mode = {"주간": "WEEK", "월간": "MONTH", "일정목록": "AGENDA"}[mlabel]
             _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url(mode), height=440)
+            _iframe(embed_url(mode), height=460)
         else:
             st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
