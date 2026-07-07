@@ -150,6 +150,9 @@ FIELD_LABELS = {
 
 MEMBER_NAMES = [m["name"] for m in TEAM_MEMBERS]
 
+# 공지 작성자 후보 (상급자 + 연구원 10명). 홈 공지 등록 시 선택.
+NOTICE_AUTHORS = ["송원경 과장", "임명준 연구관", "이정아 연구사"] + MEMBER_NAMES
+
 
 def get_member(name):
     for m in TEAM_MEMBERS:
