@@ -41,13 +41,15 @@ DEFAULT_LINESEG = (
 
 
 def make_paragraph_xml(text: str, char_pr_id: str = CHARPR_BLACK,
+                       para_pr_id: str = "27",
+                       style_id: str = "0",
                        is_first: bool = True,
                        lineseg_xml: str = DEFAULT_LINESEG) -> str:
     """단순 하드코딩된 <hp:p> 블록 생성. lineseg 는 셀별로 바꿀 수 있음."""
     escaped = html.escape(_sanitize_for_hwpx(text))
     pid = "2147483648" if is_first else "0"
     return (
-        f'<hp:p id="{pid}" paraPrIDRef="27" styleIDRef="0" '
+        f'<hp:p id="{pid}" paraPrIDRef="{para_pr_id}" styleIDRef="{style_id}" '
         f'pageBreak="0" columnBreak="0" merged="0">'
         f'<hp:run charPrIDRef="{char_pr_id}"><hp:t>{escaped}</hp:t></hp:run>'
         f'{lineseg_xml}</hp:p>'
@@ -55,11 +57,15 @@ def make_paragraph_xml(text: str, char_pr_id: str = CHARPR_BLACK,
 
 
 def make_cell_content(text: str, char_pr_id: str = CHARPR_BLACK,
+                      para_pr_id: str = "27",
+                      style_id: str = "0",
                       lineseg_xml: str = DEFAULT_LINESEG) -> str:
     """여러 줄 텍스트를 여러 <hp:p> 문단으로 변환."""
     lines = (text or "").splitlines() or [""]
     return "".join(
         make_paragraph_xml(line, char_pr_id=char_pr_id,
+                           para_pr_id=para_pr_id,
+                           style_id=style_id,
                            is_first=(i == 0), lineseg_xml=lineseg_xml)
         for i, line in enumerate(lines)
     )
@@ -112,6 +118,30 @@ def extract_cell_lineseg(xml: str, col: int, row: int, nth: int = 0) -> str:
     return lineseg
 
 
+def _extract_cell_paragraph_attrs(xml: str, col: int, row: int, nth: int = 0) -> tuple[str, str]:
+    """셀 첫 문단의 paraPrIDRef/styleIDRef를 재사용해 원본 서식을 최대한 유지."""
+    start, end = find_cell_sublist(xml, col, row, nth=nth)
+    if start is None:
+        return "27", "0"
+    content = xml[start:end]
+    m = re.search(r'<hp:p\b[^>]*paraPrIDRef="(\d+)"[^>]*styleIDRef="(\d+)"', content)
+    if not m:
+        return "27", "0"
+    return m.group(1), m.group(2)
+
+
+def _extract_cell_charpr(xml: str, col: int, row: int, nth: int = 0) -> str:
+    """셀 첫 run의 charPrIDRef를 재사용해 글자 크기/폰트를 원본과 맞춘다."""
+    start, end = find_cell_sublist(xml, col, row, nth=nth)
+    if start is None:
+        return CHARPR_BLACK
+    content = xml[start:end]
+    m = re.search(r'<hp:run\b[^>]*charPrIDRef="(\d+)"', content)
+    if not m:
+        return CHARPR_BLACK
+    return m.group(1)
+
+
 def find_cell_sublist(xml, col, row, nth=0):
     """nth번째로 나타나는 cellAddr col=col row=row 셀의 subList 내부 영역 반환."""
     addr_str = f'cellAddr colAddr="{col}" rowAddr="{row}"'
@@ -141,9 +171,13 @@ def replace_cell(xml, col, row, text, override_color_id=None, nth=0):
     start, end = find_cell_sublist(xml, col, row, nth=nth)
     if start is None:
         return xml
-    char_pr = override_color_id if override_color_id is not None else CHARPR_BLACK
+    para_pr, style_id = _extract_cell_paragraph_attrs(xml, col, row, nth=nth)
+    base_char_pr = _extract_cell_charpr(xml, col, row, nth=nth)
+    char_pr = override_color_id if override_color_id is not None else base_char_pr
     lineseg = extract_cell_lineseg(xml, col, row, nth=nth)
     new_content = make_cell_content(text, char_pr_id=char_pr,
+                                    para_pr_id=para_pr,
+                                    style_id=style_id,
                                     lineseg_xml=lineseg)
     return xml[:start] + new_content + xml[end:]
 
