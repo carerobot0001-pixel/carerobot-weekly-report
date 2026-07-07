@@ -163,7 +163,7 @@ def home_page():
         ("🛒", "구매요청", "🛒 구매요청서"),
         ("📋", "문서협업", "📋 문서 협업"),
         ("📍", "방문일지", "📍 실증 방문 일지"),
-        ("📑", "공통확인", "📑 사업단 공통확인사항"),
+        ("📑", "공통확인", "📝 업무보고 작성·취합"),
         ("🏠", "스페이스", "🏠 스마트돌봄스페이스"),
         ("🔧", "장비현황", "🔧 장비 사용현황"),
         ("📚", "회의록", "📚 과거 회의록 열람"),
@@ -327,11 +327,14 @@ def home_page():
 
 def member_page():
     st.header("✍️ 업무보고 작성 · 취합")
-    tab_write, tab_collect = st.tabs(["✍️ 내 보고 작성", "📊 제출현황 · 취합본 생성"])
+    tab_write, tab_collect, tab_common = st.tabs(
+        ["✍️ 내 보고 작성", "📊 제출현황 · 취합본 생성", "📑 사업단 공통확인사항"])
     with tab_write:
         _report_write()
     with tab_collect:
         _report_collect()
+    with tab_common:
+        common_page()
 
 
 def _report_write():
@@ -1657,7 +1660,7 @@ def main():
     </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
-        mode_options = ["🏠 홈", "📝 업무보고 작성·취합", "📑 사업단 공통확인사항",
+        mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
                         "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
         # 홈의 바로가기 버튼(_nav_to)이 있으면 그 메뉴로 이동
@@ -1679,8 +1682,6 @@ def main():
         space_page()
     elif mode == "📍 실증 방문 일지":
         visit_page()
-    elif mode == "📑 사업단 공통확인사항":
-        common_page()
     elif mode == "🛒 구매요청서":
         purchase_page()
     elif mode == "📋 문서 협업":
