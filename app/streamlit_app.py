@@ -43,6 +43,7 @@ from notice_store import (notices, add_notice, delete_notice,
                           is_expired, sweep_expired)
 from common_store import (
     KEYS as COMMON_KEYS, EXTRA_KEY, YONG_MAX, ASSET_MAX,
+    HWPX_YONG_MAX, HWPX_ASSET_MAX,
     load_common, save_common, build_common_hwpx, build_common_xlsx,
 )
 from hwpx_exporter import build_report
@@ -1366,6 +1367,14 @@ def common_page():
     if over:
         st.warning(f"⚠️ {', '.join(over)}을 넘는 항목은 한글 표에서 잘립니다 "
                    "— 알려주시면 표 행을 늘려드릴게요.")
+    hwpx_over = []
+    if max(len(tables["용역_실적"]), len(tables["용역_계획"])) > HWPX_YONG_MAX:
+        hwpx_over.append(f"용역 {HWPX_YONG_MAX}행 초과분")
+    if max(len(tables["자산_실적"]), len(tables["자산_계획"])) > HWPX_ASSET_MAX:
+        hwpx_over.append(f"자산구매 {HWPX_ASSET_MAX}행 초과분")
+    if hwpx_over:
+        st.info(f"업무망 호환을 위해 한글(HWPX)은 {', '.join(hwpx_over)}을 제외하고 생성합니다. "
+                "전체 입력 내용은 엑셀 다운로드에 포함됩니다.")
 
     st.divider()
     b1, b2, b3 = st.columns(3)

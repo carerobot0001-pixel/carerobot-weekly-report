@@ -22,6 +22,8 @@ KEYS = ["용역_실적", "용역_계획", "자산_실적", "자산_계획"]
 EXTRA_KEY = "기타_내용"
 YONG_MAX = 6
 ASSET_MAX = 12
+HWPX_YONG_MAX = 5
+HWPX_ASSET_MAX = 10
 TEMPLATE = Path(__file__).resolve().parent.parent / "사업단_공통확인사항_템플릿.hwpx"
 
 
@@ -100,7 +102,7 @@ def _leaf_tables(xml):
 
 def _fill_yong(seg, items):
     total = 0
-    for i in range(YONG_MAX):
+    for i in range(HWPX_YONG_MAX):
         r = i + 1
         분야, 발주, 비고 = ((list(items[i]) + ["", "", ""])[:3]
                           if i < len(items) else ("", "", ""))
@@ -109,13 +111,13 @@ def _fill_yong(seg, items):
         seg = replace_cell(seg, 2, r, _fmt(_num(발주)) if str(발주).strip() else "")
         seg = replace_cell(seg, 3, r, str(비고))
         total += _num(발주)
-    seg = replace_cell(seg, 2, YONG_MAX + 1, _fmt(total))
+    seg = replace_cell(seg, 2, HWPX_YONG_MAX + 1, _fmt(total))
     return seg
 
 
 def _fill_asset(seg, items):
     total = 0
-    for i in range(ASSET_MAX):
+    for i in range(HWPX_ASSET_MAX):
         r = i + 1
         품명, 수량, 구매, 비고 = ((list(items[i]) + ["", "", "", ""])[:4]
                               if i < len(items) else ("", "", "", ""))
@@ -125,7 +127,7 @@ def _fill_asset(seg, items):
         seg = replace_cell(seg, 3, r, _fmt(_num(구매)) if str(구매).strip() else "")
         seg = replace_cell(seg, 4, r, str(비고))
         total += _num(구매)
-    seg = replace_cell(seg, 3, ASSET_MAX + 1, _fmt(total))
+    seg = replace_cell(seg, 3, HWPX_ASSET_MAX + 1, _fmt(total))
     return seg
 
 
