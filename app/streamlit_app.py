@@ -89,7 +89,7 @@ def _goto(page):
 
 
 def home_page():
-    """홈 대시보드 — 지표·챙길것(버튼)·오늘 일정·달력·관련 뉴스."""
+    """홈 대시보드 — 상단 전체폭 일정 달력 → 좌(공지·바로가기·챙길것·내할일)/우(뉴스)."""
     today = datetime.now(KST).date()
     now = datetime.now(KST)
     week = this_wednesday()
@@ -162,8 +162,20 @@ def home_page():
         ("📚", "회의록", "📚 과거 회의록 열람"),
     ]
 
-    # ── 좌: 공지·지표·바로가기·챙길것·내할일 / 우: 일정·뉴스만 ──────────
-    left, right = st.columns([1.55, 1])
+    # ── 📅 사업단 일정 (맨 위, 전체 폭) ──────────────────────────────
+    st.markdown("**📅 사업단 일정**")
+    if calendar_enabled():
+        mlabel = st.radio("보기", ["주간", "월간", "일정목록"], horizontal=True,
+                          label_visibility="collapsed", key="home_cal_mode")
+        mode = {"주간": "WEEK", "월간": "MONTH", "일정목록": "AGENDA"}[mlabel]
+        _iframe = getattr(st, "iframe", components.iframe)
+        _iframe(embed_url(mode), height=520)
+    else:
+        st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
+
+    st.divider()
+    # ── 좌: 공지·바로가기·챙길것·내할일 / 우: 뉴스 ──────────
+    left, right = st.columns([1.7, 1])
 
     with left:
         # 📌 공지사항
@@ -249,16 +261,6 @@ def home_page():
             st.success(f"✅ {my} 님, 할 일 없어요!")
 
     with right:
-        st.markdown("**📅 사업단 일정**")
-        if calendar_enabled():
-            mlabel = st.radio("보기", ["주간", "월간", "일정목록"], horizontal=True,
-                              label_visibility="collapsed", key="home_cal_mode")
-            mode = {"주간": "WEEK", "월간": "MONTH", "일정목록": "AGENDA"}[mlabel]
-            _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url(mode), height=460)
-        else:
-            st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
-
         st.markdown("**📰 관련 뉴스**")
         tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
         for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
