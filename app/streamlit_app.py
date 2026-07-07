@@ -38,8 +38,9 @@ from calendar_store import (
     calendar_enabled, embed_url, upcoming_events, today_events,
     add_event, update_event, delete_event, event_view,
 )
-from news_store import fetch_news
-from notice_store import notices, add_notice, delete_notice
+from news_store import fetch_news, fetch_section, NEWS_SECTIONS
+from notice_store import (notices, add_notice, delete_notice,
+                          is_expired, sweep_expired)
 from common_store import (
     KEYS as COMMON_KEYS, YONG_MAX, ASSET_MAX,
     load_common, save_common, build_common_hwpx, build_common_xlsx,
@@ -106,13 +107,63 @@ def home_page():
     week = this_wednesday()
     st.caption(f"📊 팀 현황 · {today.strftime('%Y-%m-%d')} 기준")
 
+    # 홈 전용 컴팩트 스타일(폰트·여백 축소). 다른 페이지엔 주입 안 됨(홈 렌더 시에만).
+    st.markdown("""<style>
+      [data-testid="stMetricValue"]{font-size:1.45rem;}
+      [data-testid="stMetricLabel"] p{font-size:0.7rem;}
+      div[data-testid="stVerticalBlock"]{gap:0.5rem;}
+      div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
+      div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
+      div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
+      div[data-testid="stAlert"] a{font-size:0.85rem;}
+      hr{margin:0.45rem 0;}
+      div.stButton>button{padding:0.25rem 0.5rem;}
+    </style>""", unsafe_allow_html=True)
+
+    today_str = today.strftime("%Y-%m-%d")
+    try:
+        active_collab = [r for r in collab_rows()
+                         if r[3].strip() and r[9].strip() != "완료"]
+    except Exception:
+        active_collab = []
+
+    # 만료된 공지 자동정리(세션당 1회 — 만료일 기준이라 외부상태 의존 없이 안전)
+    if not st.session_state.get("_notice_swept"):
+        st.session_state["_notice_swept"] = True
+        try:
+            sweep_expired(today_str)
+        except Exception:
+            pass
+
     # === 📌 공지사항 ===
     try:
         ntc = notices()
     except Exception:
         ntc = []
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
-        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}")
+        if is_expired(r, today_str):
+            continue  # 만료일 지난 공지는 숨김(정리 전이어도)
+        exp_md = f"　·　🗓️ ~{r[3]}까지" if r[3].strip() else ""
+        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}")
+    # 문서협업 자동 공지 — 진행중 협업을 공지처럼 표시, 제출현황 체크,
+    # 완료·삭제되면 자동으로 사라짐(별도 저장·삭제 없음)
+    for r in active_collab:
+        doners = [x.strip() for x in r[8].split(",") if x.strip()]
+        assignees = [x.strip() for x in r[7].split(",")
+                     if x.strip() and x.strip() != "전체"]
+        if assignees:
+            remain = [a for a in assignees if a not in doners]
+            prog = f"{len(doners)}/{len(assignees)}명 제출"
+            prog += (f" · 남은 사람: {', '.join(remain)}" if remain
+                     else " · ✅ 전원 제출")
+        else:
+            prog = (f"제출 {len(doners)}명: {', '.join(doners)}"
+                    if doners else "아직 제출자 없음")
+        link = r[5].strip()
+        linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
+        dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
+        st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
+
     if st.session_state.get("is_admin"):
         mgmt = st.session_state.get("home_notice_mgmt", False)
         if st.button("▲ 공지 관리 닫기" if mgmt else "📌 공지 등록/관리",
@@ -129,14 +180,24 @@ def home_page():
                              or "담당자")
                 ntext = st.text_input("새 공지 내용", key="home_notice_text",
                                       placeholder="예: 이번주 회의는 목요일 15시로 변경")
+                use_exp = st.checkbox("표시 종료일 지정 (그날 이후 자동삭제)",
+                                      key="home_notice_useexp")
+                exp_str = ""
+                if use_exp:
+                    d = st.date_input("이 날까지만 표시", value=today,
+                                      key="home_notice_exp")
+                    exp_str = d.strftime("%Y-%m-%d")
                 if st.button("➕ 공지 등록", key="home_notice_add"):
                     if ntext.strip():
-                        add_notice(nauth, ntext.strip())
+                        add_notice(nauth, ntext.strip(), exp_str)
                         st.session_state.pop("home_notice_text", None)
                         st.rerun()
+                st.caption("📋 문서협업은 진행중이면 공지에 자동으로 뜨고 "
+                           "완료·삭제 시 사라집니다(별도 등록 불필요).")
                 for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+                    exp_tag = f"  ~{r[3]}" if r[3].strip() else ""
                     dc1, dc2 = st.columns([5, 1])
-                    dc1.caption(f"• {r[2]}  ({r[0]})")
+                    dc1.caption(f"• {r[2]}  ({r[0]}{exp_tag})")
                     if dc2.button("🗑️", key=f"ndel_{_idx}"):
                         try:
                             delete_notice(_idx, r[0])
@@ -161,11 +222,6 @@ def home_page():
                           if (g[0][10].strip() or "요청") != STATUS_DONE)
     except Exception:
         pending_pur = None
-    try:
-        active_collab = [r for r in collab_rows()
-                         if r[3].strip() and r[9].strip() != "완료"]
-    except Exception:
-        active_collab = []
     try:
         n_equip = len(equip_rows())
     except Exception:
@@ -200,10 +256,10 @@ def home_page():
             return None
 
     st.divider()
-    left, right = st.columns(2)
+    left, right = st.columns([1.15, 1])
 
     with left:
-        st.subheader("🔔 오늘 챙길 것")
+        st.markdown("**🔔 오늘 챙길 것**")
         any_reminder = False
         if missing:
             wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
@@ -249,48 +305,41 @@ def home_page():
             st.success(f"✅ {my} 님, 할 일 없어요!")
 
     with right:
-        st.subheader("📅 다가오는 일정")
+        st.markdown("**📅 사업단 일정**")
         if calendar_enabled():
-            try:
-                ev = upcoming_events(days=7)
-            except Exception:
-                ev = []
-            if ev:
-                for e in ev[:8]:
-                    v = event_view(e)
-                    st.markdown(f"- **{v['date'][5:]}** {v['when']} · {v['title']}")
-            else:
-                st.caption("이번주(7일 내) 일정이 없습니다.")
+            mlabel = st.radio("보기", ["주간", "월간", "일정목록"], horizontal=True,
+                              label_visibility="collapsed", key="home_cal_mode")
+            mode = {"주간": "WEEK", "월간": "MONTH", "일정목록": "AGENDA"}[mlabel]
+            _iframe = getattr(st, "iframe", components.iframe)
+            _iframe(embed_url(mode), height=440)
         else:
-            st.caption("캘린더 미설정")
+            st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
-        st.subheader("📰 관련 뉴스")
-        try:
-            news = fetch_news()
-        except Exception:
-            news = []
-        if news:
-            for it in news[:6]:
-                src = f" · {it['source']}" if it.get("source") else ""
-                st.markdown(f"- [{it['title']}]({it['link']}){src}")
-        else:
-            st.caption("뉴스를 불러오지 못했습니다.")
+        st.markdown("**📰 관련 뉴스**")
+        tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
+        for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
+            with tab:
+                try:
+                    items = fetch_section(queries)
+                except Exception:
+                    items = []
+                if items:
+                    for it in items:
+                        src = f" · {it['source']}" if it.get("source") else ""
+                        st.markdown(f"- [{it['title']}]({it['link']}){src}")
+                else:
+                    st.caption("불러오지 못했어요 (잠시 후 새로고침).")
 
-    # === 🗓️ 월간 달력 (기본 접힘) ===
-    st.divider()
+    # === 🗓️ 일정 추가·수정·삭제 (기본 접힘, 전체 폭) ===
     if calendar_enabled():
+        st.divider()
         cal_open = st.session_state.get("home_cal_open", False)
-        if st.button("🗓️ 월간 달력 닫기" if cal_open
-                     else "🗓️ 월간 달력 + 일정 추가·수정·삭제 (펼치기)",
+        if st.button("➖ 일정 관리 닫기" if cal_open else "➕ 일정 추가·수정·삭제",
                      key="home_cal_open_btn", use_container_width=True):
             st.session_state["home_cal_open"] = not cal_open
             st.rerun()
         if st.session_state.get("home_cal_open"):
-            _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url(), height=520)
             _calendar_manage()
-    else:
-        st.caption("⚙️ 캘린더 미설정 — Streamlit Secrets에 `[calendar]` id 추가 필요.")
 
 
 def member_page():

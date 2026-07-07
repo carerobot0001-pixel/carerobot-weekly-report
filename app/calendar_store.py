@@ -29,13 +29,14 @@ def calendar_enabled() -> bool:
     return bool(calendar_id())
 
 
-def embed_url() -> str:
+def embed_url(mode: str = "MONTH") -> str:
     cid = calendar_id()
     if not cid:
         return ""
-    # color=%23D50000 → 기존 캘린더와 같은 빨강(Tomato)로 맞춤
+    # mode: MONTH / WEEK / AGENDA(일정목록). color=%23D50000 → 기존 캘린더와 같은 빨강
+    mode = mode.upper() if mode.upper() in ("MONTH", "WEEK", "AGENDA") else "MONTH"
     return (f"https://calendar.google.com/calendar/embed?src={quote(cid)}"
-            "&ctz=Asia%2FSeoul&mode=MONTH&color=%23D50000")
+            f"&ctz=Asia%2FSeoul&mode={mode}&color=%23D50000")
 
 
 @st.cache_resource
