@@ -25,6 +25,7 @@ ASSET_MAX = 12
 HWPX_YONG_MAX = 5
 HWPX_ASSET_MAX = 10
 TEMPLATE = Path(__file__).resolve().parent.parent / "사업단_공통확인사항_템플릿.hwpx"
+COMMON_BODY_CHARPR = "34"
 
 
 @st.cache_resource
@@ -146,9 +147,9 @@ def _fill_yong(seg, items):
         분야, 발주, 비고 = ((list(items[i]) + ["", "", ""])[:3]
                           if i < len(items) else ("", "", ""))
         seg = replace_cell(seg, 0, r, str(r) if str(분야).strip() else "")
-        seg = replace_cell(seg, 1, r, str(분야))
+        seg = replace_cell(seg, 1, r, str(분야), override_color_id=COMMON_BODY_CHARPR)
         seg = replace_cell(seg, 2, r, _fmt(_num(발주)) if str(발주).strip() else "")
-        seg = replace_cell(seg, 3, r, str(비고))
+        seg = replace_cell(seg, 3, r, str(비고), override_color_id=COMMON_BODY_CHARPR)
         total += _num(발주)
     seg = replace_cell(seg, 2, HWPX_YONG_MAX + 1, _fmt(total))
     return seg
@@ -162,10 +163,10 @@ def _fill_asset(seg, items):
         품명, 수량, 구매, 비고 = ((list(items[i]) + ["", "", "", ""])[:4]
                               if i < len(items) else ("", "", "", ""))
         seg = replace_cell(seg, 0, r, str(r) if str(품명).strip() else "")
-        seg = replace_cell(seg, 1, r, str(품명))
+        seg = replace_cell(seg, 1, r, str(품명), override_color_id=COMMON_BODY_CHARPR)
         seg = replace_cell(seg, 2, r, str(수량))
         seg = replace_cell(seg, 3, r, _fmt(_num(구매)) if str(구매).strip() else "")
-        seg = replace_cell(seg, 4, r, str(비고))
+        seg = replace_cell(seg, 4, r, str(비고), override_color_id=COMMON_BODY_CHARPR)
         total += _num(구매)
     seg = replace_cell(seg, 3, HWPX_ASSET_MAX + 1, _fmt(total))
     return seg
