@@ -51,7 +51,9 @@ def load_common() -> dict:
         r = (list(r) + [""] * 6)[:6]
         key = f"{r[0]}_{r[1]}"
         if key in KEYS:
-            out[key].append(r[2:6])
+            item = r[2:6]
+            if not _is_total_row(item):
+                out[key].append(item)
         elif key == EXTRA_KEY:
             out[EXTRA_KEY] = r[2]
     return out
@@ -65,7 +67,7 @@ def save_common(tables: dict) -> None:
         종류, 구분 = key.split("_")
         for item in tables.get(key, []):
             item = (list(item) + [""] * 4)[:4]
-            if any(str(x).strip() for x in item):
+            if any(str(x).strip() for x in item) and not _is_total_row(item):
                 rows.append([종류, 구분] + [str(x).strip() for x in item])
     extra = str(tables.get(EXTRA_KEY, "")).strip()
     if extra:
@@ -89,10 +91,20 @@ def _fmt(n: int) -> str:
     return f"{n:,}" if n else ""
 
 
+def _is_total_row(item) -> bool:
+    vals = [str(x).strip().replace(" ", "") for x in (list(item) + [""])]
+    return vals[0] in ("합계", "총계")
+
+
+def _data_rows(items):
+    return [list(item) for item in items if not _is_total_row(item)]
+
+
 def _preview_text(tables: dict) -> str:
     lines = ["<사업단 공통확인사항>"]
 
     def block(title, header, items, max_rows):
+        items = _data_rows(items)
         lines.append(f"<{title}>")
         lines.append("<" + "><".join(header) + ">")
         for i, item in enumerate(items[:max_rows], 1):
@@ -127,6 +139,7 @@ def _leaf_tables(xml):
 
 
 def _fill_yong(seg, items):
+    items = _data_rows(items)
     total = 0
     for i in range(HWPX_YONG_MAX):
         r = i + 1
@@ -142,6 +155,7 @@ def _fill_yong(seg, items):
 
 
 def _fill_asset(seg, items):
+    items = _data_rows(items)
     total = 0
     for i in range(HWPX_ASSET_MAX):
         r = i + 1
@@ -214,6 +228,7 @@ def build_common_xlsx(tables: dict) -> bytes:
     ws.title = "사업단 공통확인사항"
 
     def block(title, header, items, is_asset):
+        items = _data_rows(items)
         ws.append([title])
         ws.append(["연번"] + header)
         hr = ws.max_row
