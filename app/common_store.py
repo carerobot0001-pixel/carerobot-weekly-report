@@ -21,6 +21,9 @@ COMMON_WS_TITLE = "공통확인사항"
 COMMON_HEADER = ["종류", "구분", "내용1", "내용2", "내용3", "내용4"]
 KEYS = ["용역_실적", "용역_계획", "자산_실적", "자산_계획"]
 EXTRA_KEY = "기타_내용"
+EXTRA_DONE_KEY = "기타_실적"
+EXTRA_PLAN_KEY = "기타_계획"
+EXTRA_KEYS = [EXTRA_DONE_KEY, EXTRA_PLAN_KEY]
 YONG_MAX = 6
 ASSET_MAX = 12
 HWPX_YONG_MAX = 5
@@ -47,6 +50,8 @@ def load_common() -> dict:
     vals = _ws().get_all_values()
     out = {k: [] for k in KEYS}
     out[EXTRA_KEY] = ""
+    out[EXTRA_DONE_KEY] = ""
+    out[EXTRA_PLAN_KEY] = ""
     for r in vals[1:]:
         if not any(c.strip() for c in r):
             continue
@@ -58,6 +63,16 @@ def load_common() -> dict:
                 out[key].append(item)
         elif key == EXTRA_KEY:
             out[EXTRA_KEY] = r[2]
+        elif key == EXTRA_DONE_KEY:
+            out[EXTRA_DONE_KEY] = r[2]
+        elif key == EXTRA_PLAN_KEY:
+            out[EXTRA_PLAN_KEY] = r[2]
+    legacy = out[EXTRA_KEY]
+    if legacy:
+        if not out[EXTRA_DONE_KEY]:
+            out[EXTRA_DONE_KEY] = legacy
+        if not out[EXTRA_PLAN_KEY]:
+            out[EXTRA_PLAN_KEY] = legacy
     return out
 
 
@@ -71,9 +86,12 @@ def save_common(tables: dict) -> None:
             item = (list(item) + [""] * 4)[:4]
             if any(str(x).strip() for x in item) and not _is_total_row(item):
                 rows.append([종류, 구분] + [str(x).strip() for x in item])
-    extra = str(tables.get(EXTRA_KEY, "")).strip()
-    if extra:
-        rows.append(["기타", "내용", extra, "", "", ""])
+    extra_done = str(tables.get(EXTRA_DONE_KEY, tables.get(EXTRA_KEY, ""))).strip()
+    extra_plan = str(tables.get(EXTRA_PLAN_KEY, tables.get(EXTRA_KEY, ""))).strip()
+    if extra_done:
+        rows.append(["\uae30\ud0c0", "\uc2e4\uc801", extra_done, "", "", ""])
+    if extra_plan:
+        rows.append(["\uae30\ud0c0", "\uacc4\ud68d", extra_plan, "", "", ""])
     n = len(ws.get_all_values())
     if n > 1:
         ws.delete_rows(2, n)
@@ -122,10 +140,11 @@ def _preview_text(tables: dict) -> str:
           tables.get("자산_실적", []), HWPX_ASSET_MAX)
     block("본부과제 자산구매 - 계획", ["품명", "수량", "구매금액", "비고"],
           tables.get("자산_계획", []), HWPX_ASSET_MAX)
-    extra = str(tables.get(EXTRA_KEY, "")).strip()
-    if extra:
-        lines.append("<기타내용>")
-        lines.extend(extra.splitlines())
+    for title, key in [("\uae30\ud0c0\ub0b4\uc6a9 - \uc2e4\uc801", EXTRA_DONE_KEY), ("\uae30\ud0c0\ub0b4\uc6a9 - \uacc4\ud68d", EXTRA_PLAN_KEY)]:
+        extra = str(tables.get(key, tables.get(EXTRA_KEY, ""))).strip()
+        if extra:
+            lines.append(f"<{title}>")
+            lines.extend(extra.splitlines())
     return "\r\n".join(lines) + "\r\n"
 
 
@@ -226,10 +245,12 @@ def build_common_hwpx(tables: dict) -> bytes:
     ]
     for s, e, new_seg in sorted(edits, key=lambda x: x[0], reverse=True):
         xml = xml[:s] + new_seg + xml[e:]
-    extra_text = _extra_cell_text(tables.get(EXTRA_KEY, ""))
-    if extra_text:
-        for col in (4, 5):
-            xml = replace_cell(xml, col, 25, extra_text)
+    extra_done = _extra_cell_text(tables.get(EXTRA_DONE_KEY, tables.get(EXTRA_KEY, "")))
+    extra_plan = _extra_cell_text(tables.get(EXTRA_PLAN_KEY, tables.get(EXTRA_KEY, "")))
+    if extra_done:
+        xml = replace_cell(xml, 4, 25, extra_done)
+    if extra_plan:
+        xml = replace_cell(xml, 5, 25, extra_plan)
 
     files['Contents/section0.xml'] = xml.encode('utf-8')
     if 'Preview/PrvText.txt' in files:
@@ -296,11 +317,12 @@ def build_common_xlsx(tables: dict) -> bytes:
           tables.get("자산_실적", []), True)
     block("<본부과제 자산구매> — 계획", ["품명", "수량", "구매금액", "비고"],
           tables.get("자산_계획", []), True)
-    extra = str(tables.get(EXTRA_KEY, "")).strip()
-    if extra:
-        ws.append(["기타내용"])
-        ws.append([extra])
-        ws[ws.max_row][0].alignment = Alignment(wrap_text=True, vertical="top")
+    for title, key in [("\uae30\ud0c0\ub0b4\uc6a9 (\uc2e4\uc801)", EXTRA_DONE_KEY), ("\uae30\ud0c0\ub0b4\uc6a9 (\uacc4\ud68d)", EXTRA_PLAN_KEY)]:
+        extra = str(tables.get(key, tables.get(EXTRA_KEY, ""))).strip()
+        if extra:
+            ws.append([title])
+            ws.append([extra])
+            ws[ws.max_row][0].alignment = Alignment(wrap_text=True, vertical="top")
     for col, w in {"A": 6, "B": 40, "C": 14, "D": 14, "E": 16}.items():
         ws.column_dimensions[col].width = w
     buf = io.BytesIO()
