@@ -162,8 +162,20 @@ def home_page():
         ("📚", "회의록", "📚 과거 회의록 열람"),
     ]
 
-    # ── 📅 사업단 일정 (맨 위, 전체 폭) ──────────────────────────────
-    st.markdown("**📅 사업단 일정**")
+    # ── 📅 사업단 일정 (맨 위, 전체 폭) + '나는 누구' 1회 설정 ──────────
+    # 접속 후 한 번만 이름을 고르면 세션 내내 유지되고, URL(?me=)로 새로고침에도 복원됨.
+    if "me" not in st.session_state:
+        _qme = st.query_params.get("me")
+        st.session_state["me"] = _qme if _qme in MEMBER_NAMES else None
+    tc1, tc2 = st.columns([3, 1])
+    tc1.markdown("**📅 사업단 일정**")
+    _idx = (MEMBER_NAMES.index(st.session_state["me"])
+            if st.session_state.get("me") in MEMBER_NAMES else None)
+    _me_sel = tc2.selectbox("나는", MEMBER_NAMES, index=_idx, placeholder="나는 누구?",
+                            label_visibility="collapsed", key="me_widget")
+    st.session_state["me"] = _me_sel
+    if _me_sel and st.query_params.get("me") != _me_sel:
+        st.query_params["me"] = _me_sel
     if calendar_enabled():
         # 주간/월간/일정 전환은 임베드 달력 우측 상단 자체 버튼 사용(앱 라디오는 중복이라 제거).
         # 기본 월간(MONTH).
@@ -241,23 +253,25 @@ def home_page():
         if not any_reminder:
             st.success("✅ 급히 챙길 건 없습니다.")
 
-        st.markdown("**🙋 내 할 일**")
-        my = st.selectbox("내 이름", MEMBER_NAMES, key="home_my_name",
-                          label_visibility="collapsed")
-        todos = []
-        if not next((s["submitted"] for s in status if s["name"] == my), False):
-            todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
-        for r in active_collab:
-            assignees = [x.strip() for x in r[7].split(",")
-                         if x.strip() and x.strip() != "전체"]
-            doners = [x.strip() for x in r[8].split(",")]
-            if my in assignees and my not in doners:
-                todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
-        if todos:
-            for t in todos:
-                st.warning(t)
+        my = st.session_state.get("me")
+        st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
+        if not my:
+            st.caption("👆 상단 '나는 누구?'에서 이름을 먼저 선택하세요.")
         else:
-            st.success(f"✅ {my} 님, 할 일 없어요!")
+            todos = []
+            if not next((s["submitted"] for s in status if s["name"] == my), False):
+                todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
+            for r in active_collab:
+                assignees = [x.strip() for x in r[7].split(",")
+                             if x.strip() and x.strip() != "전체"]
+                doners = [x.strip() for x in r[8].split(",")]
+                if my in assignees and my not in doners:
+                    todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
+            if todos:
+                for t in todos:
+                    st.warning(t)
+            else:
+                st.success(f"✅ {my} 님, 할 일 없어요!")
 
     with right:
         st.markdown("**📰 관련 뉴스**")
