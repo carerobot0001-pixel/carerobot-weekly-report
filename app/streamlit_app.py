@@ -118,16 +118,21 @@ def home_page():
       div[data-testid="stAlert"] a{font-size:0.85rem;}
       hr{margin:0.45rem 0;}
       div.stButton>button{padding:0.25rem 0.5rem;}
-      /* ⚡ 바로가기 타일 바(네이버 아이콘식) — qbar 컨테이너 안 버튼만 */
+      /* ⚡ 바로가기 타일(아이콘+라벨을 한 버튼에) — qbar 컨테이너 안 버튼만 */
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button{
-        border:1px solid #edeff3; border-radius:16px; background:#fff;
-        height:58px; font-size:1.7rem; line-height:1; padding:0;
-        box-shadow:0 1px 3px rgba(0,0,0,.05);
+        white-space:pre-line; min-height:58px; line-height:1.5; font-size:0.9rem;
+        color:#444; border:1px solid #e6e9ef; border-radius:14px; background:#fff;
+        padding:6px 2px; box-shadow:0 1px 3px rgba(0,0,0,.05);
       }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
+        div.stButton>button p{ white-space:pre-line; line-height:1.5; margin:0; }
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
+        div.stButton>button::first-line,
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
+        div.stButton>button p::first-line{ font-size:1.5rem; }
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button:hover{ border-color:#4C8BF5; background:#F5F9FF; }
-      .qlbl{ text-align:center; font-size:0.72rem; color:#555; margin-top:2px; }
     </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -215,47 +220,7 @@ def home_page():
             linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
             dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
             st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
-
-        if st.session_state.get("is_admin"):
-            mgmt = st.session_state.get("home_notice_mgmt", False)
-            if st.button("▲ 공지 관리 닫기" if mgmt else "📌 공지 등록/관리",
-                         key="home_notice_btn"):
-                st.session_state["home_notice_mgmt"] = not mgmt
-                st.rerun()
-            if st.session_state.get("home_notice_mgmt"):
-                with st.container(border=True):
-                    nauth = st.selectbox("작성자", NOTICE_AUTHORS + ["직접 입력"],
-                                         key="home_notice_author")
-                    if nauth == "직접 입력":
-                        nauth = (st.text_input("작성자 직접 입력",
-                                 key="home_notice_author_custom").strip()
-                                 or "담당자")
-                    ntext = st.text_input("새 공지 내용", key="home_notice_text",
-                                          placeholder="예: 이번주 회의 목요일 15시로 변경")
-                    use_exp = st.checkbox("표시 종료일 지정 (그날 이후 자동삭제)",
-                                          key="home_notice_useexp")
-                    exp_str = ""
-                    if use_exp:
-                        d = st.date_input("이 날까지만 표시", value=today,
-                                          key="home_notice_exp")
-                        exp_str = d.strftime("%Y-%m-%d")
-                    if st.button("➕ 공지 등록", key="home_notice_add"):
-                        if ntext.strip():
-                            add_notice(nauth, ntext.strip(), exp_str)
-                            st.session_state.pop("home_notice_text", None)
-                            st.rerun()
-                    st.caption("📋 문서협업은 진행중이면 공지에 자동으로 뜨고 "
-                               "완료·삭제 시 사라집니다(별도 등록 불필요).")
-                    for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
-                        exp_tag = f"  ~{r[3]}" if r[3].strip() else ""
-                        dc1, dc2 = st.columns([5, 1])
-                        dc1.caption(f"• {r[2]}  ({r[0]}{exp_tag})")
-                        if dc2.button("🗑️", key=f"ndel_{_idx}"):
-                            try:
-                                delete_notice(_idx, r[0])
-                            except Exception:
-                                notices.clear()
-                            st.rerun()
+        # 공지 등록/관리는 담당자 대시보드로 이동(홈은 표시만) — _notice_manage()
 
         # 📊 지표(콤팩트 라벨)
         mc = st.columns(5)
@@ -265,19 +230,17 @@ def home_page():
         mc[3].metric("문서협업", len(active_collab))
         mc[4].metric("장비", n_equip if n_equip is not None else "—")
 
-        # ⚡ 바로가기 타일(4개 × 2줄)
+        # ⚡ 바로가기 타일(4개 × 2줄) — 아이콘+라벨을 한 버튼에(겹침 방지)
         st.markdown("**⚡ 바로가기**")
         with st.container():
             st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
             for i in range(0, len(shortcuts), 4):
                 rcols = st.columns(4)
                 for col, (emoji, label, target) in zip(rcols, shortcuts[i:i + 4]):
-                    with col:
-                        if st.button(emoji, key=f"qs_{target}", help=label,
-                                     use_container_width=True):
-                            _goto(target)
-                        st.markdown(f"<div class='qlbl'>{label}</div>",
-                                    unsafe_allow_html=True)
+                    # 이모지  \n라벨 : 두 칸+줄바꿈 = 마크다운/평문 모두에서 줄바꿈 보장
+                    if col.button(f"{emoji}  \n{label}", key=f"qs_{target}",
+                                  use_container_width=True):
+                        _goto(target)
 
         st.markdown("**🔔 오늘 챙길 것**")
         any_reminder = False
@@ -1489,8 +1452,52 @@ def visit_page():
         st.caption(f"…최근 50건만 표시 (전체 {len(shown)}건)")
 
 
+def _notice_manage():
+    """공지 등록/관리 — 담당자 대시보드에서 호출(홈은 표시만)."""
+    today = datetime.now(KST).date()
+    try:
+        ntc = notices()
+    except Exception:
+        ntc = []
+    nauth = st.selectbox("작성자", NOTICE_AUTHORS + ["직접 입력"],
+                         key="adm_notice_author")
+    if nauth == "직접 입력":
+        nauth = (st.text_input("작성자 직접 입력",
+                 key="adm_notice_author_custom").strip() or "담당자")
+    ntext = st.text_input("새 공지 내용", key="adm_notice_text",
+                          placeholder="예: 이번주 회의 목요일 15시로 변경")
+    use_exp = st.checkbox("표시 종료일 지정 (그날 이후 자동삭제)", key="adm_notice_useexp")
+    exp_str = ""
+    if use_exp:
+        d = st.date_input("이 날까지만 표시", value=today, key="adm_notice_exp")
+        exp_str = d.strftime("%Y-%m-%d")
+    if st.button("➕ 공지 등록", key="adm_notice_add"):
+        if ntext.strip():
+            add_notice(nauth, ntext.strip(), exp_str)
+            st.session_state.pop("adm_notice_text", None)
+            st.rerun()
+    st.caption("📋 문서협업은 진행중이면 홈 공지에 자동으로 뜨고 완료·삭제 시 사라집니다"
+               "(별도 등록 불필요).")
+    if ntc:
+        st.markdown("**현재 공지**")
+    for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+        exp_tag = f"  ~{r[3]}" if r[3].strip() else ""
+        dc1, dc2 = st.columns([5, 1])
+        dc1.caption(f"• {r[2]}  ({r[1]} · {r[0]}{exp_tag})")
+        if dc2.button("🗑️", key=f"adm_ndel_{_idx}"):
+            try:
+                delete_notice(_idx, r[0])
+            except Exception:
+                notices.clear()
+            st.rerun()
+
+
 def admin_page():
     st.header("📊 담당자 대시보드")
+
+    with st.container(border=True):
+        st.markdown("**📌 공지 등록 / 관리** — 홈 상단(공지사항)에 표시됩니다.")
+        _notice_manage()
 
     with st.container(border=True):
         st.markdown("**🗄️ 전체 데이터 백업** — 모든 탭(업무보고·구매요청·문서협업·"
@@ -1629,6 +1636,14 @@ def admin_page():
 def main():
     if not auth_gate():
         return
+
+    # 전체 페이지 여백 축소 — layout=wide 기본 상단·좌우 패딩이 커서 화면이 비어 보임
+    st.markdown("""<style>
+      .block-container,
+      [data-testid="stMainBlockContainer"]{
+        padding-top:2.2rem;padding-bottom:2rem;
+        padding-left:2.4rem;padding-right:2.4rem;}
+    </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
         st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
