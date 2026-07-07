@@ -161,26 +161,7 @@ def home_page():
     except Exception:
         ntc = []
     status = submission_status(week)
-    done = sum(1 for s in status if s["submitted"])
     missing = [s["name"] for s in status if not s["submitted"]]
-    try:
-        open_problems = [r for _, r in space_log_rows()
-                         if r[2].strip() and r[6].strip() != "처리완료"]
-        n_problems = len(open_problems)
-    except Exception:
-        n_problems = None
-    try:
-        p_reqs = {}
-        for r in purchase_rows():
-            p_reqs.setdefault(r[0], []).append(r)
-        pending_pur = sum(1 for g in p_reqs.values()
-                          if (g[0][10].strip() or "요청") != STATUS_DONE)
-    except Exception:
-        pending_pur = None
-    try:
-        n_equip = len(equip_rows())
-    except Exception:
-        n_equip = None
 
     shortcuts = [
         ("📝", "주간보고", "업무보고 작성"),
@@ -221,14 +202,6 @@ def home_page():
             dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
             st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
         # 공지 등록/관리는 담당자 대시보드로 이동(홈은 표시만) — _notice_manage()
-
-        # 📊 지표(콤팩트 라벨)
-        mc = st.columns(5)
-        mc[0].metric("주간보고", f"{done}/{len(status)}")
-        mc[1].metric("관리대장", n_problems if n_problems is not None else "—")
-        mc[2].metric("구매대기", pending_pur if pending_pur is not None else "—")
-        mc[3].metric("문서협업", len(active_collab))
-        mc[4].metric("장비", n_equip if n_equip is not None else "—")
 
         # ⚡ 바로가기 타일(4개 × 2줄) — 아이콘+라벨을 한 버튼에(겹침 방지)
         st.markdown("**⚡ 바로가기**")
