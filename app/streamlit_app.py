@@ -165,11 +165,10 @@ def home_page():
     # ── 📅 사업단 일정 (맨 위, 전체 폭) ──────────────────────────────
     st.markdown("**📅 사업단 일정**")
     if calendar_enabled():
-        mlabel = st.radio("보기", ["주간", "월간", "일정목록"], horizontal=True,
-                          label_visibility="collapsed", key="home_cal_mode")
-        mode = {"주간": "WEEK", "월간": "MONTH", "일정목록": "AGENDA"}[mlabel]
+        # 주간/월간/일정 전환은 임베드 달력 우측 상단 자체 버튼 사용(앱 라디오는 중복이라 제거).
+        # 기본 월간(MONTH).
         _iframe = getattr(st, "iframe", components.iframe)
-        _iframe(embed_url(mode), height=520)
+        _iframe(embed_url("MONTH"), height=520)
     else:
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
