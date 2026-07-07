@@ -172,5 +172,6 @@ def get_fields_for(member):
     return [f for f in order if f in member["cells"]]
 
 
+# 단일 비밀번호(담당자/팀원 구분 없음). 모든 팀원이 이 비밀번호로 로그인하고
+# 모든 기능(공지·백업·취합본 생성·구매 완료처리 등)을 사용.
 APP_PASSWORD = "carerobot"
-ADMIN_PASSWORD = "carerobot-admin"

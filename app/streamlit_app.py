@@ -8,7 +8,7 @@ from pathlib import Path
 from team_config import (
     TEAM_MEMBERS, MEMBER_NAMES, FIELD_LABELS, NOTICE_AUTHORS,
     get_member, get_fields_for,
-    APP_PASSWORD, ADMIN_PASSWORD,
+    APP_PASSWORD,
 )
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
@@ -62,16 +62,10 @@ def wednesday_of_week(week_str: str) -> datetime:
 
 
 def auth_gate():
-    # URL 쿼리 파라미터로 로그인 유지 (새로고침 대응)
+    # URL 쿼리 파라미터로 로그인 유지 (새로고침 대응). 담당자/팀원 구분 없이 단일 비밀번호.
     qp = st.query_params
-    if not st.session_state.get("authed"):
-        token = qp.get("auth")
-        if token == "team":
-            st.session_state["authed"] = True
-            st.session_state["is_admin"] = False
-        elif token == "admin":
-            st.session_state["authed"] = True
-            st.session_state["is_admin"] = True
+    if not st.session_state.get("authed") and qp.get("auth") == "team":
+        st.session_state["authed"] = True
 
     if st.session_state.get("authed"):
         return True
@@ -81,13 +75,7 @@ def auth_gate():
     if st.button("입장"):
         if pw == APP_PASSWORD:
             st.session_state["authed"] = True
-            st.session_state["is_admin"] = False
             st.query_params["auth"] = "team"
-            st.rerun()
-        elif pw == ADMIN_PASSWORD:
-            st.session_state["authed"] = True
-            st.session_state["is_admin"] = True
-            st.query_params["auth"] = "admin"
             st.rerun()
         else:
             st.error("비밀번호가 올바르지 않습니다.")
@@ -164,7 +152,7 @@ def home_page():
     missing = [s["name"] for s in status if not s["submitted"]]
 
     shortcuts = [
-        ("📝", "주간보고", "업무보고 작성"),
+        ("📝", "주간보고", "📝 업무보고 작성·취합"),
         ("🛒", "구매요청", "🛒 구매요청서"),
         ("📋", "문서협업", "📋 문서 협업"),
         ("📍", "방문일지", "📍 실증 방문 일지"),
@@ -201,7 +189,7 @@ def home_page():
             linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
             dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
             st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
-        # 공지 등록/관리는 담당자 대시보드로 이동(홈은 표시만) — _notice_manage()
+        # 공지 등록/관리는 홈 하단 토글(_notice_manage) — 여기(좌측 상단)선 표시만
 
         # ⚡ 바로가기 타일(4개 × 2줄) — 아이콘+라벨을 한 버튼에(겹침 방지)
         st.markdown("**⚡ 바로가기**")
@@ -297,10 +285,37 @@ def home_page():
         if st.session_state.get("home_cal_open"):
             _calendar_manage()
 
+    # === 📌 공지 등록/관리 · 🗄️ 전체 백업 (기본 접힘, 전체 폭, 누구나) ===
+    st.divider()
+    bc1, bc2 = st.columns(2)
+    n_open = st.session_state.get("home_notice_open", False)
+    if bc1.button("➖ 공지 관리 닫기" if n_open else "📌 공지 등록/관리",
+                  key="home_notice_open_btn", use_container_width=True):
+        st.session_state["home_notice_open"] = not n_open
+        st.rerun()
+    b_open = st.session_state.get("home_backup_open", False)
+    if bc2.button("➖ 백업 닫기" if b_open else "🗄️ 전체 데이터 백업",
+                  key="home_backup_open_btn", use_container_width=True):
+        st.session_state["home_backup_open"] = not b_open
+        st.rerun()
+    if st.session_state.get("home_notice_open"):
+        with st.container(border=True):
+            _notice_manage()
+    if st.session_state.get("home_backup_open"):
+        with st.container(border=True):
+            _backup_section()
+
 
 def member_page():
-    st.header("✍️ 업무보고 작성")
+    st.header("✍️ 업무보고 작성 · 취합")
+    tab_write, tab_collect = st.tabs(["✍️ 내 보고 작성", "📊 제출현황 · 취합본 생성"])
+    with tab_write:
+        _report_write()
+    with tab_collect:
+        _report_collect()
 
+
+def _report_write():
     col1, col2 = st.columns([2, 2])
     with col1:
         name = st.selectbox("본인 이름", MEMBER_NAMES, key="member_name")
@@ -846,16 +861,13 @@ def purchase_page():
                 st.button("📥 누적 리스트 엑셀 다운로드", disabled=True,
                           use_container_width=True)
         with mc2:
-            if st.session_state.get("is_admin"):
-                clr = st.checkbox("⚠️ 전체삭제 확인", key="pur_clear_ok")
-                if st.button("🗑️ 누적 전체 삭제 (담당자)", disabled=not (clr and rows),
-                             use_container_width=True):
-                    n = clear_all_purchases()
-                    st.session_state["purchase_flash"] = f"🗑️ 누적 전체 삭제됨 ({n}행)"
-                    st.session_state.pop("pur_clear_ok", None)
-                    st.rerun()
-            else:
-                st.caption("전체 삭제는 담당자(관리자) 로그인에서 가능합니다.")
+            clr = st.checkbox("⚠️ 전체삭제 확인", key="pur_clear_ok")
+            if st.button("🗑️ 누적 전체 삭제", disabled=not (clr and rows),
+                         use_container_width=True):
+                n = clear_all_purchases()
+                st.session_state["purchase_flash"] = f"🗑️ 누적 전체 삭제됨 ({n}행)"
+                st.session_state.pop("pur_clear_ok", None)
+                st.rerun()
 
         if by_req:
             def _dlabel(rid):
@@ -878,9 +890,9 @@ def purchase_page():
                     except Exception as e:
                         st.error(f"삭제 실패: {e}")
 
-    # 담당자 전용: 구매완료 처리
-    if st.session_state.get("is_admin") and pending:
-        st.subheader("✅ 구매완료 처리 (담당자)")
+    # 구매완료 처리 (누구나)
+    if pending:
+        st.subheader("✅ 구매완료 처리")
 
         def _plabel(rid):
             g = pending[rid]
@@ -1426,7 +1438,7 @@ def visit_page():
 
 
 def _notice_manage():
-    """공지 등록/관리 — 담당자 대시보드에서 호출(홈은 표시만)."""
+    """공지 등록/관리 — 홈 하단 토글에서 호출(누구나). 공지 표시는 홈 좌측 상단."""
     today = datetime.now(KST).date()
     try:
         ntc = notices()
@@ -1465,32 +1477,29 @@ def _notice_manage():
             st.rerun()
 
 
-def admin_page():
-    st.header("📊 담당자 대시보드")
+def _backup_section():
+    """전체 데이터 백업 — 홈에서 호출(누구나)."""
+    st.markdown("**🗄️ 전체 데이터 백업** — 모든 탭(업무보고·구매요청·문서협업·"
+                "장비현황·방문일지)을 엑셀 1개로 내려받아 오프라인 보관하세요.")
+    if st.button("🔄 백업 파일 만들기", key="home_backup_make"):
+        try:
+            st.session_state["backup_xlsx"] = build_full_backup_xlsx()
+        except Exception as e:
+            st.error(f"백업 생성 실패: {e}")
+    if st.session_state.get("backup_xlsx"):
+        st.download_button(
+            "📦 전체 데이터 백업 다운로드",
+            data=st.session_state["backup_xlsx"],
+            file_name=f"돌봄로봇_전체백업_{datetime.now(KST).strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True)
+    st.caption("※ 참고: 구글 시트는 자체 **버전 기록**이 있어, 실수로 지우거나 덮어써도 "
+               "구글시트 '파일 → 버전 기록'에서 과거 상태로 되돌릴 수 있습니다.")
 
-    with st.container(border=True):
-        st.markdown("**📌 공지 등록 / 관리** — 홈 상단(공지사항)에 표시됩니다.")
-        _notice_manage()
 
-    with st.container(border=True):
-        st.markdown("**🗄️ 전체 데이터 백업** — 모든 탭(업무보고·구매요청·문서협업·"
-                    "장비현황·방문일지)을 엑셀 1개로 내려받아 오프라인 보관하세요.")
-        if st.button("🔄 백업 파일 만들기"):
-            try:
-                st.session_state["backup_xlsx"] = build_full_backup_xlsx()
-            except Exception as e:
-                st.error(f"백업 생성 실패: {e}")
-        if st.session_state.get("backup_xlsx"):
-            st.download_button(
-                "📦 전체 데이터 백업 다운로드",
-                data=st.session_state["backup_xlsx"],
-                file_name=f"돌봄로봇_전체백업_{datetime.now(KST).strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True)
-        st.caption("※ 참고: 구글 시트는 자체 **버전 기록**이 있어, 실수로 지우거나 덮어써도 "
-                   "구글시트 '파일 → 버전 기록'에서 과거 상태로 되돌릴 수 있습니다.")
-
-    week = st.text_input("조회 주차", value=this_wednesday(),
+def _report_collect():
+    """제출 현황 + 미리보기 + HWPX 취합본 생성 (구 담당자 대시보드에서 이동, 누구나)."""
+    week = st.text_input("조회 주차", value=this_wednesday(), key="collect_week",
                          help="예: 2026-04-22 (해당 주 수요일)")
 
     status = submission_status(week)
@@ -1619,12 +1628,9 @@ def main():
     </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
-        st.caption(f"접속 모드: {'관리자' if st.session_state.get('is_admin') else '팀원'}")
-        mode_options = ["🏠 홈", "업무보고 작성", "📑 사업단 공통확인사항",
+        mode_options = ["🏠 홈", "📝 업무보고 작성·취합", "📑 사업단 공통확인사항",
                         "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
-        if st.session_state.get("is_admin"):
-            mode_options.append("담당자 대시보드")
         # 홈의 바로가기 버튼(_nav_to)이 있으면 그 메뉴로 이동
         nav = st.session_state.pop("_nav_to", None)
         if nav and nav in mode_options:
@@ -1632,14 +1638,13 @@ def main():
         mode = st.radio("메뉴", mode_options, key="main_menu")
         st.divider()
         if st.button("로그아웃"):
-            for k in ["authed", "is_admin"]:
-                st.session_state.pop(k, None)
+            st.session_state.pop("authed", None)
             st.query_params.clear()
             st.rerun()
 
     if mode == "🏠 홈":
         home_page()
-    elif mode == "업무보고 작성":
+    elif mode == "📝 업무보고 작성·취합":
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":
         space_page()
@@ -1653,10 +1658,8 @@ def main():
         collab_page()
     elif mode == "🔧 장비 사용현황":
         equip_page()
-    elif mode == "📚 과거 회의록 열람":
-        history_page()
     else:
-        admin_page()
+        history_page()
 
 
 if __name__ == "__main__":
