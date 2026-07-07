@@ -39,6 +39,7 @@ from calendar_store import (
     add_event, update_event, delete_event, event_view,
 )
 from news_store import fetch_news
+from notice_store import notices, add_notice, delete_notice
 from common_store import (
     KEYS as COMMON_KEYS, YONG_MAX, ASSET_MAX,
     load_common, save_common, build_common_hwpx, build_common_xlsx,
@@ -101,8 +102,41 @@ def _goto(page):
 def home_page():
     """홈 대시보드 — 지표·챙길것(버튼)·오늘 일정·달력·관련 뉴스."""
     today = datetime.now(KST).date()
+    now = datetime.now(KST)
     week = this_wednesday()
     st.caption(f"📊 팀 현황 · {today.strftime('%Y-%m-%d')} 기준")
+
+    # === 📌 공지사항 ===
+    try:
+        ntc = notices()
+    except Exception:
+        ntc = []
+    for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}")
+    if st.session_state.get("is_admin"):
+        mgmt = st.session_state.get("home_notice_mgmt", False)
+        if st.button("▲ 공지 관리 닫기" if mgmt else "📌 공지 등록/관리",
+                     key="home_notice_btn"):
+            st.session_state["home_notice_mgmt"] = not mgmt
+            st.rerun()
+        if st.session_state.get("home_notice_mgmt"):
+            with st.container(border=True):
+                ntext = st.text_input("새 공지 내용", key="home_notice_text",
+                                      placeholder="예: 이번주 회의는 목요일 15시로 변경")
+                if st.button("➕ 공지 등록", key="home_notice_add"):
+                    if ntext.strip():
+                        add_notice("담당자", ntext.strip())
+                        st.session_state.pop("home_notice_text", None)
+                        st.rerun()
+                for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+                    dc1, dc2 = st.columns([5, 1])
+                    dc1.caption(f"• {r[2]}  ({r[0]})")
+                    if dc2.button("🗑️", key=f"ndel_{_idx}"):
+                        try:
+                            delete_notice(_idx, r[0])
+                        except Exception:
+                            notices.clear()
+                        st.rerun()
 
     status = submission_status(week)
     done = sum(1 for s in status if s["submitted"])
@@ -140,6 +174,20 @@ def home_page():
     c5.metric("등록 장비", n_equip if n_equip is not None else "—")
 
     st.divider()
+    st.markdown("**⚡ 빠른 실행**")
+    q = st.columns(5)
+    if q[0].button("📝 주간보고 작성", use_container_width=True, key="qa_report"):
+        _goto("업무보고 작성")
+    if q[1].button("🛒 구매요청", use_container_width=True, key="qa_purchase"):
+        _goto("🛒 구매요청서")
+    if q[2].button("📋 문서협업", use_container_width=True, key="qa_collab"):
+        _goto("📋 문서 협업")
+    if q[3].button("📍 방문일지", use_container_width=True, key="qa_visit"):
+        _goto("📍 실증 방문 일지")
+    if q[4].button("📑 공통확인", use_container_width=True, key="qa_common"):
+        _goto("📑 사업단 공통확인사항")
+
+    st.divider()
     st.subheader("🔔 오늘 챙길 것")
 
     def _pdate(d):
@@ -150,9 +198,18 @@ def home_page():
 
     any_reminder = False
     if missing:
+        # 주간보고 마감(전날 화요일 17시) 카운트다운
+        wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
+        deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
+        delta = deadline - now
+        if delta.total_seconds() < 0:
+            dtxt = "🔴 마감 지남 (화 17시)"
+        elif delta.days == 0:
+            dtxt = f"⏰ 오늘 마감! (화 17시·{int(delta.total_seconds() // 3600)}시간 남음)"
+        else:
+            dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
         rc1, rc2 = st.columns([4, 1])
-        rc1.warning(f"⏳ 주간보고 미제출 {len(missing)}명 "
-                    f"(화요일 17시 마감) — {', '.join(missing)}")
+        rc1.warning(f"주간보고 {dtxt} · 미제출 {len(missing)}명 — {', '.join(missing)}")
         if rc2.button("→ 작성하러", key="nav_report", use_container_width=True):
             _goto("업무보고 작성")
         any_reminder = True
@@ -170,6 +227,25 @@ def home_page():
             any_reminder = True
     if not any_reminder:
         st.success("✅ 급히 챙길 건 없습니다.")
+
+    # === 🙋 내 할 일 (개인별) ===
+    st.divider()
+    st.subheader("🙋 내 할 일")
+    my = st.selectbox("내 이름", MEMBER_NAMES, key="home_my_name")
+    todos = []
+    if not next((s["submitted"] for s in status if s["name"] == my), False):
+        todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
+    for r in active_collab:
+        assignees = [x.strip() for x in r[7].split(",")
+                     if x.strip() and x.strip() != "전체"]
+        doners = [x.strip() for x in r[8].split(",")]
+        if my in assignees and my not in doners:
+            todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
+    if todos:
+        for t in todos:
+            st.warning(t)
+    else:
+        st.success(f"✅ {my} 님, 지금 할 일이 없습니다!")
 
     if calendar_enabled():
         st.subheader("📌 오늘 일정")
