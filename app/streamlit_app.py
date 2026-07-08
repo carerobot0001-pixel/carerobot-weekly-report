@@ -280,6 +280,14 @@ def home_page():
                         d = _pdate(v["date"])
                         if d is None or not (today <= d <= today + timedelta(days=6)):
                             continue
+                        haystack = " ".join([
+                            str(e.get("summary", "") or ""),
+                            str(e.get("description", "") or ""),
+                            str(v.get("title", "") or ""),
+                            str(v.get("desc", "") or ""),
+                        ])
+                        if my not in haystack:
+                            continue
                         sched_items.append(f"📅 {v['date']} {v['when']} - {v['title']}")
                 except Exception:
                     sched_items = []
