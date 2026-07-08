@@ -171,7 +171,7 @@ def _extra_cell_text(text: str) -> str:
     if not text:
         return ""
     lines = [x.rstrip() for x in text.splitlines() if x.strip()]
-    return "\n".join(["<湲고??댁슜>"] + lines)
+    return "\n".join(["<기타내용>"] + lines)
 
 
 def _leaf_tables(xml):
