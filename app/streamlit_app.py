@@ -1305,10 +1305,11 @@ def _calendar_manage():
 
 
 def common_page():
-    """사업단 공통확인사항(최혜민) — 용역·자산구매 표 입력 → 한글/엑셀 생성."""
+    """사업단 공통확인사항(최혜민) 입력 및 한글/엑셀 생성."""
     st.header("📑 사업단 공통확인사항")
-    st.caption("본부과제 용역·자산구매 표(실적/계획)를 입력하면 한글/엑셀로 만들어집니다. "
-               "(최혜민 연구원용 — 표 입력 후 저장하고, 한글로 받아 취합본에 넣으세요)")
+    st.caption(
+        "본부과제 용역·자산구매 실적/계획을 입력하면 한글(HWPX)과 엑셀 파일로 만들 수 있습니다."
+    )
     _flash("common_flash")
 
     saved = load_common()
@@ -1318,8 +1319,11 @@ def common_page():
         init = saved.get(key) or [[""] * len(cols)]
         init = [(list(row) + [""] * len(cols))[:len(cols)] for row in init]
         return st.data_editor(
-            pd.DataFrame(init, columns=cols), num_rows="dynamic",
-            use_container_width=True, key=f"ce_{key}")
+            pd.DataFrame(init, columns=cols),
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"ce_{key}",
+        )
 
     st.markdown(f"#### 🔹 본부과제 용역 (최대 {YONG_MAX}행)")
     yc1, yc2 = st.columns(2)
@@ -1335,25 +1339,25 @@ def common_page():
     with ac2:
         a_plan = _editor("자산_계획", ["품명", "수량", "구매금액", "비고"], "계획")
 
-    st.markdown("#### \U0001f539 \uae30\ud0c0\ub0b4\uc6a9")
+    st.markdown("#### 🔹 기타내용")
     ec1, ec2 = st.columns(2)
     with ec1:
         extra_done_text = st.text_area(
-            "\uc2e4\uc801 \uce78 \uae30\ud0c0\ub0b4\uc6a9",
+            "실적 칸 기타내용",
             value=str(saved.get(EXTRA_DONE_KEY, saved.get(EXTRA_KEY, ""))),
             height=130,
-            placeholder="\uc2e4\uc801 \uce78\uc5d0 \ub123\uc744 \uae30\ud0c0\ub0b4\uc6a9\uc744 \uc785\ub825\ud558\uc138\uc694.",
+            placeholder="실적 칸에 넣을 기타내용을 입력하세요.",
             key="ce_extra_done_text",
         )
     with ec2:
         extra_plan_text = st.text_area(
-            "\uacc4\ud68d \uce78 \uae30\ud0c0\ub0b4\uc6a9",
+            "계획 칸 기타내용",
             value=str(saved.get(EXTRA_PLAN_KEY, saved.get(EXTRA_KEY, ""))),
             height=130,
-            placeholder="\uacc4\ud68d \uce78\uc5d0 \ub123\uc744 \uae30\ud0c0\ub0b4\uc6a9\uc744 \uc785\ub825\ud558\uc138\uc694.",
+            placeholder="계획 칸에 넣을 기타내용을 입력하세요.",
             key="ce_extra_plan_text",
         )
-    st.caption("기타내용은 저장 및 엑셀 다운로드에 포함됩니다. 한글(HWPX)은 업무망 호환을 위해 표 영역만 생성합니다.")
+    st.caption("기타내용은 저장 및 엑셀 다운로드에 포함됩니다. 한글(HWPX)도 좌우 칸에 각각 반영됩니다.")
 
     def _rows(df, ncol):
         out = []
@@ -1364,8 +1368,10 @@ def common_page():
         return out
 
     tables = {
-        "용역_실적": _rows(y_done, 3), "용역_계획": _rows(y_plan, 3),
-        "자산_실적": _rows(a_done, 4), "자산_계획": _rows(a_plan, 4),
+        "용역_실적": _rows(y_done, 3),
+        "용역_계획": _rows(y_plan, 3),
+        "자산_실적": _rows(a_done, 4),
+        "자산_계획": _rows(a_plan, 4),
         EXTRA_DONE_KEY: extra_done_text,
         EXTRA_PLAN_KEY: extra_plan_text,
     }
@@ -1376,16 +1382,21 @@ def common_page():
     if max(len(tables["자산_실적"]), len(tables["자산_계획"])) > ASSET_MAX:
         over.append(f"자산구매 {ASSET_MAX}행")
     if over:
-        st.warning(f"⚠️ {', '.join(over)}을 넘는 항목은 한글 표에서 잘립니다 "
-                   "— 알려주시면 표 행을 늘려드릴게요.")
+        st.warning(
+            f"현재 {', '.join(over)}를 넘는 항목은 한글 표에 모두 담기지 않을 수 있습니다. "
+            "행 수를 줄이거나 엑셀 다운로드도 함께 사용해주세요."
+        )
+
     hwpx_over = []
     if max(len(tables["용역_실적"]), len(tables["용역_계획"])) > HWPX_YONG_MAX:
         hwpx_over.append(f"용역 {HWPX_YONG_MAX}행 초과분")
     if max(len(tables["자산_실적"]), len(tables["자산_계획"])) > HWPX_ASSET_MAX:
         hwpx_over.append(f"자산구매 {HWPX_ASSET_MAX}행 초과분")
     if hwpx_over:
-        st.info(f"업무망 호환을 위해 한글(HWPX)은 {', '.join(hwpx_over)}을 제외하고 생성합니다. "
-                "전체 입력 내용은 엑셀 다운로드에 포함됩니다.")
+        st.info(
+            f"업무망 호환을 위해 한글(HWPX)은 {', '.join(hwpx_over)}을 제외하고 생성합니다. "
+            "전체 입력 내용은 엑셀 다운로드에 포함됩니다."
+        )
 
     st.divider()
     b1, b2, b3 = st.columns(3)
@@ -1393,27 +1404,32 @@ def common_page():
         if st.button("💾 저장", type="primary", use_container_width=True):
             try:
                 save_common(tables)
-                st.session_state["common_flash"] = "✅ 저장 완료"
+                st.session_state["common_flash"] = "저장 완료"
                 st.rerun()
             except Exception as e:
                 st.error(f"저장 실패: {e}")
+
     fname = f"사업단_공통확인사항_{datetime.now(KST).strftime('%Y%m%d')}"
     with b2:
         try:
             st.download_button(
-                "📄 한글(HWPX) 다운로드", data=build_common_hwpx(tables),
-                file_name=f"{fname}.hwpx", mime="application/octet-stream",
-                use_container_width=True)
+                "📄 한글(HWPX) 다운로드",
+                data=build_common_hwpx(tables),
+                file_name=f"{fname}.hwpx",
+                mime="application/octet-stream",
+                use_container_width=True,
+            )
         except Exception as e:
-            st.error(f"한글 생성 실패: {e}")
+            st.error(f"한글(HWPX) 생성 실패: {e}")
     with b3:
         st.download_button(
-            "📊 엑셀 다운로드", data=build_common_xlsx(tables),
+            "📊 엑셀 다운로드",
+            data=build_common_xlsx(tables),
             file_name=f"{fname}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True)
-    st.caption("※ 한글 파일은 열어서 표가 잘 나오는지 한 번 확인해주세요 (처음 도입 기능).")
-
+            use_container_width=True,
+        )
+    st.caption("한글 파일을 열어서 표가 잘 나오는지 한 번 확인해주세요.")
 
 def visit_page():
     """실증 방문 일지 — 현장 방문 기록 등록·조회(실증별 필터)·삭제."""
