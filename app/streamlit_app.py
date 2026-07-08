@@ -97,7 +97,7 @@ def _me_index(options, default=0):
 
 
 def home_page():
-    """홈 대시보드 — 상단 전체폭 일정 달력 → 좌(공지·바로가기·챙길것·내할일)/우(뉴스)."""
+    """홈 대시보드 — 상단(나는 누구·공지·오늘 챙길 것·내 할 일) → 일정 달력 → 바로가기(작게) → 뉴스."""
     today = datetime.now(KST).date()
     now = datetime.now(KST)
     week = this_wednesday()
@@ -114,19 +114,19 @@ def home_page():
       div[data-testid="stAlert"] a{font-size:0.85rem;}
       hr{margin:0.45rem 0;}
       div.stButton>button{padding:0.25rem 0.5rem;}
-      /* ⚡ 바로가기 타일(아이콘+라벨을 한 버튼에) — qbar 컨테이너 안 버튼만 */
+      /* ⚡ 바로가기 타일(아이콘+라벨 한 버튼) — 작게, 한 줄. qbar 컨테이너 안 버튼만 */
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button{
-        white-space:pre-line; min-height:58px; line-height:1.5; font-size:0.9rem;
-        color:#444; border:1px solid #e6e9ef; border-radius:14px; background:#fff;
-        padding:6px 2px; box-shadow:0 1px 3px rgba(0,0,0,.05);
+        white-space:pre-line; min-height:40px; line-height:1.25; font-size:0.62rem;
+        color:#555; border:1px solid #e9ecf1; border-radius:9px; background:#fff;
+        padding:3px 1px; box-shadow:none;
       }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p{ white-space:pre-line; line-height:1.5; margin:0; }
+        div.stButton>button p{ white-space:pre-line; line-height:1.25; margin:0; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button::first-line,
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p::first-line{ font-size:1.5rem; }
+        div.stButton>button p::first-line{ font-size:1.05rem; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button:hover{ border-color:#4C8BF5; background:#F5F9FF; }
     </style>""", unsafe_allow_html=True)
@@ -170,168 +170,164 @@ def home_page():
         ("📚", "회의록", "📚 과거 회의록 열람"),
     ]
 
-    # ── 📅 사업단 일정 (맨 위, 전체 폭) + '나는 누구' 1회 설정 ──────────
-    # me는 main()에서 ?me= 로 시드됨. 여기 선택기로 고르면 세션+URL에 유지되고 전 페이지가 사용.
-    tc1, tc2 = st.columns([3, 1])
-    tc1.markdown("**📅 사업단 일정**")
-    _idx = (USER_NAMES.index(st.session_state["me"])
-            if st.session_state.get("me") in USER_NAMES else None)
-    _me_sel = tc2.selectbox("나는", USER_NAMES, index=_idx, placeholder="나는 누구?",
-                            label_visibility="collapsed", key="me_widget")
+    # ── 🙋 나는 누구 (맨 위, 1회 설정) — main()에서 ?me=로 시드, 여기서 고르면 세션+URL 유지 ──
+    pcol, _psp = st.columns([1.3, 3])
+    with pcol:
+        _midx = (USER_NAMES.index(st.session_state["me"])
+                 if st.session_state.get("me") in USER_NAMES else None)
+        _me_sel = st.selectbox("🙋 나는 누구?", USER_NAMES, index=_midx,
+                               placeholder="이름 선택", key="me_widget")
     st.session_state["me"] = _me_sel
     if _me_sel and st.query_params.get("me") != _me_sel:
         st.query_params["me"] = _me_sel
+
+    # 📌 공지사항 (표시만 — 등록/관리는 홈 하단 토글)
+    for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
+        if is_expired(r, today_str):
+            continue  # 만료일 지난 공지는 숨김(정리 전이어도)
+        exp_md = f"　·　🗓️ ~{r[3]}까지" if r[3].strip() else ""
+        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}")
+    # 문서협업 자동 공지 — 진행중 협업을 공지처럼(제출현황 체크), 완료·삭제 시 자동 소멸
+    for r in active_collab:
+        doners = [x.strip() for x in r[8].split(",") if x.strip()]
+        assignees = [x.strip() for x in r[7].split(",")
+                     if x.strip() and x.strip() != "전체"]
+        if assignees:
+            remain = [a for a in assignees if a not in doners]
+            prog = f"{len(doners)}/{len(assignees)}명 제출"
+            prog += (f" · 남은 사람: {', '.join(remain)}" if remain
+                     else " · ✅ 전원 제출")
+        else:
+            prog = (f"제출 {len(doners)}명: {', '.join(doners)}"
+                    if doners else "아직 제출자 없음")
+        link = r[5].strip()
+        linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
+        dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
+        st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
+
+    # 🔔 오늘 챙길 것
+    st.markdown("**🔔 오늘 챙길 것**")
+    any_reminder = False
+    if missing:
+        wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
+        deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
+        delta = deadline - now
+        if delta.total_seconds() < 0:
+            dtxt = "🔴 마감 지남 (화 17시)"
+        elif delta.days == 0:
+            dtxt = (f"⏰ 오늘 마감! (화 17시·"
+                    f"{int(delta.total_seconds() // 3600)}시간 남음)")
+        else:
+            dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
+        st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
+                   f"{', '.join(missing)}")
+        any_reminder = True
+    for r in active_collab:
+        dl = _pdate(r[6])
+        if dl is None:
+            continue
+        if dl < today or (dl - today).days <= 3:
+            tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
+            st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
+            any_reminder = True
+    if not any_reminder:
+        st.success("✅ 급히 챙길 건 없습니다.")
+
+    # 🙋 내 할 일 (+ 7일 일정)
+    my = st.session_state.get("me")
+    st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
+    if not my:
+        st.caption("👆 위 '나는 누구?'에서 이름을 먼저 선택하세요.")
+    else:
+        todos = []
+        if not next((s["submitted"] for s in status if s["name"] == my), False):
+            todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
+        for r in active_collab:
+            assignees = [x.strip() for x in r[7].split(",")
+                         if x.strip() and x.strip() != "전체"]
+            doners = [x.strip() for x in r[8].split(",")]
+            if my in assignees and my not in doners:
+                todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
+        sched_items = []
+        common_sched_items = []
+        if calendar_enabled():
+            try:
+                for e in upcoming_events(days=7, maxn=20):
+                    v = event_view(e)
+                    d = _pdate(v["date"])
+                    if d is None or not (today <= d <= today + timedelta(days=6)):
+                        continue
+                    haystack = " ".join([
+                        str(e.get("summary", "") or ""),
+                        str(e.get("description", "") or ""),
+                        str(v.get("title", "") or ""),
+                        str(v.get("desc", "") or ""),
+                    ])
+                    item_text = f"📅 {v['date']} {v['when']} - {v['title']}"
+                    if my in haystack:
+                        sched_items.append(item_text)
+                        continue
+                    if not any(name in haystack for name in USER_NAMES):
+                        common_sched_items.append(item_text)
+            except Exception:
+                sched_items = []
+                common_sched_items = []
+
+        if sched_items:
+            st.markdown("**7일 내 내 일정**")
+            for item in sched_items:
+                st.info(item)
+        else:
+            st.caption("7일 내 내 일정이 없습니다.")
+
+        if common_sched_items:
+            st.markdown("**7일 내 공통 일정**")
+            for item in common_sched_items:
+                st.info(item)
+
+        if todos:
+            for t in todos:
+                st.warning(t)
+        elif not sched_items and not common_sched_items:
+            st.success(f"✅ {my} 님, 할 일 없어요!")
+        else:
+            st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 관련 일정만 표시했습니다.")
+
+    # ── 📅 사업단 일정 (달력, 전체 폭) ─────────────────────────
+    st.divider()
+    st.markdown("**📅 사업단 일정**")
     if calendar_enabled():
-        # 주간/월간/일정 전환은 임베드 달력 우측 상단 자체 버튼 사용(앱 라디오는 중복이라 제거).
-        # 기본 월간(MONTH).
+        # 주간/월간/일정 전환은 임베드 달력 우측 상단 자체 버튼 사용. 기본 월간.
         _iframe = getattr(st, "iframe", components.iframe)
         _iframe(embed_url("MONTH"), height=520)
     else:
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
-    st.divider()
-    # ── 좌: 공지·바로가기·챙길것·내할일 / 우: 뉴스 ──────────
-    left, right = st.columns([1.7, 1])
+    # ── ⚡ 바로가기 (작게, 한 줄) ─────────────────────────────
+    st.markdown("**⚡ 바로가기**")
+    with st.container():
+        st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
+        qcols = st.columns(len(shortcuts))
+        for j, (col, (emoji, label, target)) in enumerate(zip(qcols, shortcuts)):
+            if col.button(f"{emoji}  \n{label}", key=f"qs_{j}_{target}",
+                          use_container_width=True):
+                _goto(target)
 
-    with left:
-        # 📌 공지사항
-        for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
-            if is_expired(r, today_str):
-                continue  # 만료일 지난 공지는 숨김(정리 전이어도)
-            exp_md = f"　·　🗓️ ~{r[3]}까지" if r[3].strip() else ""
-            st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}")
-        # 문서협업 자동 공지 — 진행중 협업을 공지처럼(제출현황 체크), 완료·삭제 시 자동 소멸
-        for r in active_collab:
-            doners = [x.strip() for x in r[8].split(",") if x.strip()]
-            assignees = [x.strip() for x in r[7].split(",")
-                         if x.strip() and x.strip() != "전체"]
-            if assignees:
-                remain = [a for a in assignees if a not in doners]
-                prog = f"{len(doners)}/{len(assignees)}명 제출"
-                prog += (f" · 남은 사람: {', '.join(remain)}" if remain
-                         else " · ✅ 전원 제출")
+    # ── 📰 관련 뉴스 (전체 폭) ────────────────────────────────
+    st.markdown("**📰 관련 뉴스**")
+    tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
+    for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
+        with tab:
+            try:
+                items = fetch_section(queries)
+            except Exception:
+                items = []
+            if items:
+                for it in items:
+                    src = f" · {it['source']}" if it.get("source") else ""
+                    st.markdown(f"- [{it['title']}]({it['link']}){src}")
             else:
-                prog = (f"제출 {len(doners)}명: {', '.join(doners)}"
-                        if doners else "아직 제출자 없음")
-            link = r[5].strip()
-            linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
-            dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
-            st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
-        # 공지 등록/관리는 홈 하단 토글(_notice_manage) — 여기(좌측 상단)선 표시만
-
-        # ⚡ 바로가기 타일(4개 × 2줄) — 아이콘+라벨을 한 버튼에(겹침 방지)
-        st.markdown("**⚡ 바로가기**")
-        with st.container():
-            st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
-            for i in range(0, len(shortcuts), 4):
-                rcols = st.columns(4)
-                for j, (col, (emoji, label, target)) in enumerate(zip(rcols, shortcuts[i:i + 4])):
-                    # 이모지  \n라벨 : 두 칸+줄바꿈 = 마크다운/평문 모두에서 줄바꿈 보장
-                    if col.button(f"{emoji}  \n{label}", key=f"qs_{i + j}_{target}",
-                                  use_container_width=True):
-                        _goto(target)
-
-        st.markdown("**🔔 오늘 챙길 것**")
-        any_reminder = False
-        if missing:
-            wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
-            deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
-            delta = deadline - now
-            if delta.total_seconds() < 0:
-                dtxt = "🔴 마감 지남 (화 17시)"
-            elif delta.days == 0:
-                dtxt = (f"⏰ 오늘 마감! (화 17시·"
-                        f"{int(delta.total_seconds() // 3600)}시간 남음)")
-            else:
-                dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
-            st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
-                       f"{', '.join(missing)}")
-            any_reminder = True
-        for r in active_collab:
-            dl = _pdate(r[6])
-            if dl is None:
-                continue
-            if dl < today or (dl - today).days <= 3:
-                tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
-                st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
-                any_reminder = True
-        if not any_reminder:
-            st.success("✅ 급히 챙길 건 없습니다.")
-
-        my = st.session_state.get("me")
-        st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
-        if not my:
-            st.caption("👆 상단 '나는 누구?'에서 이름을 먼저 선택하세요.")
-        else:
-            todos = []
-            if not next((s["submitted"] for s in status if s["name"] == my), False):
-                todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
-            for r in active_collab:
-                assignees = [x.strip() for x in r[7].split(",")
-                             if x.strip() and x.strip() != "전체"]
-                doners = [x.strip() for x in r[8].split(",")]
-                if my in assignees and my not in doners:
-                    todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
-            sched_items = []
-            common_sched_items = []
-            if calendar_enabled():
-                try:
-                    for e in upcoming_events(days=7, maxn=20):
-                        v = event_view(e)
-                        d = _pdate(v["date"])
-                        if d is None or not (today <= d <= today + timedelta(days=6)):
-                            continue
-                        haystack = " ".join([
-                            str(e.get("summary", "") or ""),
-                            str(e.get("description", "") or ""),
-                            str(v.get("title", "") or ""),
-                            str(v.get("desc", "") or ""),
-                        ])
-                        item_text = f"📅 {v['date']} {v['when']} - {v['title']}"
-                        if my in haystack:
-                            sched_items.append(item_text)
-                            continue
-                        if not any(name in haystack for name in USER_NAMES):
-                            common_sched_items.append(item_text)
-                except Exception:
-                    sched_items = []
-                    common_sched_items = []
-
-            if sched_items:
-                st.markdown("**7일 내 내 일정**")
-                for item in sched_items:
-                    st.info(item)
-            else:
-                st.caption("7일 내 내 일정이 없습니다.")
-
-            if common_sched_items:
-                st.markdown("**7일 내 공통 일정**")
-                for item in common_sched_items:
-                    st.info(item)
-
-            if todos:
-                for t in todos:
-                    st.warning(t)
-            elif not sched_items and not common_sched_items:
-                st.success(f"✅ {my} 님, 할 일 없어요!")
-            else:
-                st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 관련 일정만 표시했습니다.")
-
-    with right:
-        st.markdown("**📰 관련 뉴스**")
-        tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
-        for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
-            with tab:
-                try:
-                    items = fetch_section(queries)
-                except Exception:
-                    items = []
-                if items:
-                    for it in items:
-                        src = f" · {it['source']}" if it.get("source") else ""
-                        st.markdown(f"- [{it['title']}]({it['link']}){src}")
-                else:
-                    st.caption("불러오지 못했어요 (잠시 후 새로고침).")
+                st.caption("불러오지 못했어요 (잠시 후 새로고침).")
 
     # === 🗓️ 일정 추가·수정·삭제 (기본 접힘, 전체 폭) ===
     if calendar_enabled():
