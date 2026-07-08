@@ -151,7 +151,21 @@ FIELD_LABELS = {
 MEMBER_NAMES = [m["name"] for m in TEAM_MEMBERS]
 
 # 공지 작성자 후보 (상급자 + 연구원 10명). 홈 공지 등록 시 선택.
-NOTICE_AUTHORS = ["송원경 과장", "임명준 연구관", "이정아 연구사"] + MEMBER_NAMES
+EXTRA_USER_NAMES = ["송원경 과장", "임명준 연구관", "이정아 연구사", "이진규 연구사"]
+
+
+def _unique_names(names):
+    seen = set()
+    out = []
+    for name in names:
+        if name and name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+USER_NAMES = _unique_names(EXTRA_USER_NAMES + MEMBER_NAMES)
+NOTICE_AUTHORS = USER_NAMES
 
 
 def get_member(name):

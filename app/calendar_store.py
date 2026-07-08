@@ -71,9 +71,10 @@ def today_events() -> list:
 def upcoming_events(days: int = 45, maxn: int = 50) -> list:
     """지금부터 days일 내 일정(시간순). 각 항목: 원본 이벤트 dict."""
     now = datetime.now(KST)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     r = _sess().get(f"{CAL_API}/calendars/{_cid()}/events", params={
-        "timeMin": now.isoformat(),
-        "timeMax": (now + timedelta(days=days)).isoformat(),
+        "timeMin": start.isoformat(),
+        "timeMax": (start + timedelta(days=days)).isoformat(),
         "singleEvents": "true", "orderBy": "startTime", "maxResults": maxn,
     })
     r.raise_for_status()

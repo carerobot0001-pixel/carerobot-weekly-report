@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 
 from team_config import (
-    TEAM_MEMBERS, MEMBER_NAMES, FIELD_LABELS, NOTICE_AUTHORS,
+    TEAM_MEMBERS, MEMBER_NAMES, USER_NAMES, FIELD_LABELS, NOTICE_AUTHORS,
     get_member, get_fields_for,
     APP_PASSWORD,
 )
@@ -174,9 +174,9 @@ def home_page():
     # me는 main()에서 ?me= 로 시드됨. 여기 선택기로 고르면 세션+URL에 유지되고 전 페이지가 사용.
     tc1, tc2 = st.columns([3, 1])
     tc1.markdown("**📅 사업단 일정**")
-    _idx = (MEMBER_NAMES.index(st.session_state["me"])
-            if st.session_state.get("me") in MEMBER_NAMES else None)
-    _me_sel = tc2.selectbox("나는", MEMBER_NAMES, index=_idx, placeholder="나는 누구?",
+    _idx = (USER_NAMES.index(st.session_state["me"])
+            if st.session_state.get("me") in USER_NAMES else None)
+    _me_sel = tc2.selectbox("나는", USER_NAMES, index=_idx, placeholder="나는 누구?",
                             label_visibility="collapsed", key="me_widget")
     st.session_state["me"] = _me_sel
     if _me_sel and st.query_params.get("me") != _me_sel:
@@ -272,11 +272,32 @@ def home_page():
                 doners = [x.strip() for x in r[8].split(",")]
                 if my in assignees and my not in doners:
                     todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
+            sched_items = []
+            if calendar_enabled():
+                try:
+                    for e in upcoming_events(days=7, maxn=20):
+                        v = event_view(e)
+                        d = _pdate(v["date"])
+                        if d is None or not (today <= d <= today + timedelta(days=6)):
+                            continue
+                        sched_items.append(f"📅 {v['date']} {v['when']} - {v['title']}")
+                except Exception:
+                    sched_items = []
+
+            if sched_items:
+                st.markdown("**7일 내 일정**")
+                for item in sched_items:
+                    st.info(item)
+            else:
+                st.caption("7일 내 등록된 일정이 없습니다.")
+
             if todos:
                 for t in todos:
                     st.warning(t)
-            else:
+            elif not sched_items:
                 st.success(f"✅ {my} 님, 할 일 없어요!")
+            else:
+                st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 7일 내 일정만 표시했습니다.")
 
     with right:
         st.markdown("**📰 관련 뉴스**")
@@ -583,8 +604,8 @@ def faq_tab():
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        writer = st.selectbox("작성자", MEMBER_NAMES,
-                              index=_me_index(MEMBER_NAMES), key="faq_writer")
+        writer = st.selectbox("작성자", USER_NAMES,
+                              index=_me_index(USER_NAMES), key="faq_writer")
     with c2:
         space = st.selectbox("공간 구분", SPACES, key="faq_space")
         if space == "기타(직접 입력)":
@@ -652,7 +673,7 @@ def space_log_tab():
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        finder = st.selectbox("발견자", MEMBER_NAMES, key="log_finder")
+        finder = st.selectbox("발견자", USER_NAMES, key="log_finder")
     with c2:
         locs = st.multiselect("위치 (복수 선택 가능)",
                               ["1차", "2차", "3차", "4차", "목욕", "공통"],
@@ -716,7 +737,7 @@ def space_log_tab():
             ri, rr = labels[sel]
             rc1, rc2 = st.columns(2)
             with rc1:
-                fixer = st.selectbox("조치자 (본인 이름)", MEMBER_NAMES,
+                fixer = st.selectbox("조치자 (본인 이름)", USER_NAMES,
                                      key="resolve_fixer")
             with rc2:
                 fixed_date = st.date_input("조치일자",
@@ -777,8 +798,8 @@ def purchase_page():
 
     c1, c2 = st.columns([1, 2])
     with c1:
-        requester = st.selectbox("요청자", MEMBER_NAMES,
-                                 index=_me_index(MEMBER_NAMES), key="pur_requester")
+        requester = st.selectbox("요청자", USER_NAMES,
+                                 index=_me_index(USER_NAMES), key="pur_requester")
     with c2:
         reason = st.text_input("구매사유", value="돌봄로봇 실증연구", key="pur_reason")
 
@@ -930,7 +951,7 @@ def purchase_page():
         if sel:
             rc1, rc2 = st.columns(2)
             with rc1:
-                processor = st.selectbox("처리자", MEMBER_NAMES, key="pur_processor")
+                processor = st.selectbox("처리자", USER_NAMES, key="pur_processor")
             with rc2:
                 done_date = st.date_input("처리일자",
                                           value=datetime.now(KST).date(),
@@ -982,8 +1003,8 @@ def collab_page():
                "구글 문서에서 실시간으로 채웁니다.")
     _flash("collab_flash")
 
-    my_name = st.selectbox("👤 내 이름 (요청자·완료체크에 사용)", MEMBER_NAMES,
-                           index=_me_index(MEMBER_NAMES), key="collab_my_name")
+    my_name = st.selectbox("👤 내 이름 (요청자·완료체크에 사용)", USER_NAMES,
+                           index=_me_index(USER_NAMES), key="collab_my_name")
 
     # 등록 폼: 펼침창 대신 토글 버튼 + 컨테이너 (작성 중 새로고침돼도 안 닫히게)
     open_form = st.session_state.get("collab_show_form", False)
@@ -1025,7 +1046,7 @@ def collab_page():
                 deadline = st.date_input("마감일", value=datetime.now(KST).date(),
                                          key="collab_deadline")
             with rc2:
-                assignees = st.multiselect("담당자 (선택 — 비우면 전체)", MEMBER_NAMES,
+                assignees = st.multiselect("담당자 (선택 — 비우면 전체)", USER_NAMES,
                                            key="collab_assignees")
             st.caption(f"요청자: **{my_name}** (위 '내 이름'에서 변경)")
             if st.button("➕ 협업 요청 등록", type="primary",
@@ -1457,8 +1478,8 @@ def visit_page():
                 if site == "기타(직접 입력)":
                     site = st.text_input("실증 직접 입력", key="visit_site_custom")
             with vc3:
-                visitor = st.selectbox("방문자", MEMBER_NAMES,
-                               index=_me_index(MEMBER_NAMES), key="visit_visitor")
+                visitor = st.selectbox("방문자", USER_NAMES,
+                               index=_me_index(USER_NAMES), key="visit_visitor")
             content = st.text_area(
                 "방문내용 (한 일)", key="visit_content", height=90,
                 placeholder="예: 효돌 재설치, 센서 배터리 교체, 대상자 인터뷰")
@@ -1697,7 +1718,7 @@ def main():
     # 전역 정체성 me: ?me=로 새로고침에도 복원 → 어느 페이지에서 접속해도 이름 기본값으로 사용
     if "me" not in st.session_state:
         _q = st.query_params.get("me")
-        st.session_state["me"] = _q if _q in MEMBER_NAMES else None
+        st.session_state["me"] = _q if _q in USER_NAMES else None
 
     # 전체 페이지 여백 축소 — layout=wide 기본 상단·좌우 패딩이 커서 화면이 비어 보임
     st.markdown("""<style>
