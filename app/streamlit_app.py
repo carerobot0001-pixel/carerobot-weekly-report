@@ -273,6 +273,7 @@ def home_page():
                 if my in assignees and my not in doners:
                     todos.append(f"📋 문서협업 '{r[3]}' — 내 부분 미완료")
             sched_items = []
+            common_sched_items = []
             if calendar_enabled():
                 try:
                     for e in upcoming_events(days=7, maxn=20):
@@ -286,26 +287,35 @@ def home_page():
                             str(v.get("title", "") or ""),
                             str(v.get("desc", "") or ""),
                         ])
-                        if my not in haystack:
+                        item_text = f"📅 {v['date']} {v['when']} - {v['title']}"
+                        if my in haystack:
+                            sched_items.append(item_text)
                             continue
-                        sched_items.append(f"📅 {v['date']} {v['when']} - {v['title']}")
+                        if not any(name in haystack for name in USER_NAMES):
+                            common_sched_items.append(item_text)
                 except Exception:
                     sched_items = []
+                    common_sched_items = []
 
             if sched_items:
-                st.markdown("**7일 내 일정**")
+                st.markdown("**7일 내 내 일정**")
                 for item in sched_items:
                     st.info(item)
             else:
-                st.caption("7일 내 등록된 일정이 없습니다.")
+                st.caption("7일 내 내 일정이 없습니다.")
+
+            if common_sched_items:
+                st.markdown("**7일 내 공통 일정**")
+                for item in common_sched_items:
+                    st.info(item)
 
             if todos:
                 for t in todos:
                     st.warning(t)
-            elif not sched_items:
+            elif not sched_items and not common_sched_items:
                 st.success(f"✅ {my} 님, 할 일 없어요!")
             else:
-                st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 7일 내 일정만 표시했습니다.")
+                st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 관련 일정만 표시했습니다.")
 
     with right:
         st.markdown("**📰 관련 뉴스**")
