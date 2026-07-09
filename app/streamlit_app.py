@@ -9,8 +9,9 @@ from pathlib import Path
 from team_config import (
     TEAM_MEMBERS, MEMBER_NAMES, USER_NAMES, FIELD_LABELS, NOTICE_AUTHORS,
     get_member, get_fields_for,
-    APP_PASSWORD,
+    APP_PASSWORD, ADMIN_IDS,
 )
+import account_store
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, FIELD_KEYS, KST,
@@ -85,25 +86,70 @@ def wednesday_of_week(week_str: str) -> datetime:
     return datetime.strptime(week_str, "%Y-%m-%d")
 
 
+def _set_session(a: dict):
+    """로그인 성공 시 세션 세팅. me=이름, is_admin=관리자 아이디 여부."""
+    st.session_state["authed"] = True
+    st.session_state["uid"] = a["아이디"]
+    st.session_state["me"] = a["이름"]
+    st.session_state["title"] = a.get("직함", "")
+    st.session_state["tok"] = account_store.token_for(a)
+    st.session_state["is_admin"] = a["아이디"] in ADMIN_IDS
+
+
 def auth_gate():
-    # URL 쿼리 파라미터로 로그인 유지 (새로고침 대응). 담당자/팀원 구분 없이 단일 비밀번호.
+    """개인 계정 로그인 + 회원가입(관리자 승인). 공용 비밀번호는 폐지."""
     qp = st.query_params
-    if not st.session_state.get("authed") and qp.get("auth") == "team":
-        st.session_state["authed"] = True
+    # 새로고침 로그인 유지: ?uid=&tok= 로 복원(토큰 위조 불가)
+    if not st.session_state.get("authed"):
+        uid, tok = qp.get("uid"), qp.get("tok")
+        if uid and tok:
+            try:
+                a = account_store.get_account(uid)
+            except Exception:
+                a = None
+            if a and a["상태"].strip() == account_store.ST_OK \
+                    and account_store.token_for(a) == tok:
+                _set_session(a)
 
     if st.session_state.get("authed"):
         return True
 
     st.markdown(_brand("login"), unsafe_allow_html=True)
-    st.write("")
-    pw = st.text_input("비밀번호", type="password", key="pw_input")
-    if st.button("입장"):
-        if pw == APP_PASSWORD:
-            st.session_state["authed"] = True
-            st.query_params["auth"] = "team"
-            st.rerun()
-        else:
-            st.error("비밀번호가 올바르지 않습니다.")
+    st.caption("개인 계정으로 로그인하세요. 계정이 없으면 회원가입 후 관리자 승인을 받으면 됩니다.")
+    tab_login, tab_join = st.tabs(["🔑 로그인", "📝 회원가입"])
+    with tab_login:
+        lid = st.text_input("아이디", key="login_id")
+        lpw = st.text_input("비밀번호", type="password", key="login_pw")
+        if st.button("로그인", type="primary"):
+            try:
+                a, err = account_store.login(lid, lpw)
+            except Exception as e:
+                a, err = None, f"로그인 오류: {e}"
+            if a:
+                _set_session(a)
+                st.query_params["uid"] = a["아이디"]
+                st.query_params["tok"] = account_store.token_for(a)
+                st.rerun()
+            else:
+                st.error(err)
+    with tab_join:
+        st.caption("이름·직함·아이디·비밀번호·이메일을 입력하고 신청하면, 관리자 승인 후 로그인됩니다.")
+        jname = st.text_input("이름", key="join_name")
+        jtitle = st.text_input("직함", key="join_title", placeholder="예: 연구원 / 과장")
+        jid = st.text_input("아이디", key="join_id")
+        jpw = st.text_input("비밀번호", type="password", key="join_pw")
+        jemail = st.text_input("이메일", key="join_email")
+        if st.button("회원가입 신청"):
+            try:
+                stt = account_store.register(jid, jpw, jname, jtitle, jemail, ADMIN_IDS)
+                if stt == account_store.ST_OK:
+                    st.success("관리자 계정으로 등록됐습니다. 이제 로그인하세요.")
+                else:
+                    st.success("가입 신청 완료! 관리자 승인 후 로그인할 수 있습니다.")
+            except ValueError as e:
+                st.warning(str(e))
+            except Exception as e:
+                st.error(f"가입 오류: {e}")
     return False
 
 
@@ -127,11 +173,11 @@ def home_page():
     week = this_wednesday()
     st.markdown(
         "<style>@import url('https://fonts.googleapis.com/css2?"
-        "family=Pacifico&display=swap');</style>"
-        "<div style='text-align:center;margin:2px 0 10px;'>"
-        "<span style=\"font-family:Pacifico,'Brush Script MT',cursive;"
-        "font-size:3.4rem;color:#C4622D;line-height:1.1;"
-        "text-shadow:0 2px 6px rgba(196,98,45,.22);\">Dolbom Studio</span></div>",
+        "family=Dancing+Script:wght@700&display=swap');</style>"
+        "<div style='text-align:center;margin:2px 0 12px;'>"
+        "<span style=\"font-family:'Dancing Script','Brush Script MT',cursive;"
+        "font-weight:700;font-size:3.9rem;color:#C4622D;line-height:1.05;"
+        "text-shadow:0 2px 6px rgba(196,98,45,.20);\">Dolbom Studio</span></div>",
         unsafe_allow_html=True)
 
     # 홈 전용 컴팩트 스타일(폰트·여백 축소). 다른 페이지엔 주입 안 됨(홈 렌더 시에만).
@@ -203,34 +249,41 @@ def home_page():
         ("🔧", "장비현황", "🔧 장비 사용현황"),
     ]
 
-    # ── 상단: 🙋나는 누구(좌) + ⚡바로가기 작은 타일(우, 한 줄) ──
-    # me는 main()에서 ?me=로 시드. 여기서 고르면 세션+URL 유지되고 전 페이지가 사용.
-    # 두 컬럼 모두 '굵은 라벨 + 컨트롤' 동일 구조로 맞춰 높이·정렬 통일.
-    top_l, top_r = st.columns([1.2, 6])
-    with top_l:
-        _midx = (USER_NAMES.index(st.session_state["me"])
-                 if st.session_state.get("me") in USER_NAMES else None)
-        _me_sel = st.selectbox("나는", USER_NAMES, index=_midx,
-                               placeholder="이름 선택", label_visibility="collapsed",
-                               key="me_widget")
-    st.session_state["me"] = _me_sel
-    if _me_sel and st.query_params.get("me") != _me_sel:
-        st.query_params["me"] = _me_sel
-    with top_r:
-        # 순수 HTML 타일 그리드. 클릭=?go= 링크(auth·me 유지). 공지등록은 go=notice 토글.
-        _meq = st.session_state.get("me") or ""
-        _base = "auth=team" + (f"&me={quote(_meq)}" if _meq else "")
-        _tiles = [("📌", "공지등록", "notice")] + list(shortcuts)
-        _html = '<div class="dsbar">'
-        for _e, _l, _key in _tiles:
-            _href = f"?{_base}&go={quote(_key)}"
-            _html += (f'<a class="dstile" href="{_href}" target="_self">'
-                      f'<span class="ic">{_e}</span>'
-                      f'<span class="lb">{_l}</span></a>')
-        _html += "</div>"
-        st.markdown(_html, unsafe_allow_html=True)
+    # ── ⚡ 바로가기 (전폭 중앙정렬). 로그인한 계정 유지용 uid·tok을 링크에 담음 ──
+    _uid = st.session_state.get("uid", "")
+    _tok = st.session_state.get("tok", "")
+    _base = f"uid={quote(_uid)}&tok={quote(_tok)}"
+    _tiles = [("📌", "공지등록", "notice")] + list(shortcuts)
+    _html = '<div class="dsbar">'
+    for _e, _l, _key in _tiles:
+        _href = f"?{_base}&go={quote(_key)}"
+        _html += (f'<a class="dstile" href="{_href}" target="_self">'
+                  f'<span class="ic">{_e}</span>'
+                  f'<span class="lb">{_l}</span></a>')
+    _html += "</div>"
+    st.markdown(_html, unsafe_allow_html=True)
 
-    # 📌 공지사항 (나는 누구 바로 밑) — 표시 + 등록/관리 토글
+    # 👤 회원 승인 (관리자만) — 대기자가 있을 때
+    if st.session_state.get("is_admin"):
+        try:
+            _pend = account_store.pending()
+        except Exception:
+            _pend = []
+        if _pend:
+            with st.expander(f"👤 회원 승인 대기 {len(_pend)}명", expanded=True):
+                for _a in _pend:
+                    ac1, ac2, ac3 = st.columns([6, 1, 1])
+                    ac1.markdown(
+                        f"**{_a['이름']}** {_a.get('직함', '')} · 아이디 `{_a['아이디']}`"
+                        + (f" · {_a['이메일']}" if _a.get('이메일') else ""))
+                    if ac2.button("승인", key=f"appr_{_a['아이디']}"):
+                        account_store.set_status(_a['아이디'], account_store.ST_OK)
+                        st.rerun()
+                    if ac3.button("거부", key=f"rej_{_a['아이디']}"):
+                        account_store.set_status(_a['아이디'], account_store.ST_REJECT)
+                        st.rerun()
+
+    # 📌 공지사항 — 표시 + 등록/관리 토글(바로가기 첫 타일)
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
         if is_expired(r, today_str):
             continue  # 만료일 지난 공지는 숨김(정리 전이어도)
@@ -329,7 +382,7 @@ def home_page():
 
         st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
         if not my:
-            st.caption("👆 상단 이름 선택 박스에서 본인 이름을 먼저 골라주세요.")
+            st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         elif todos:
             st.markdown("\n".join(f"- {t}" for t in todos))
         else:
@@ -1771,11 +1824,7 @@ def _report_collect():
 def main():
     if not auth_gate():
         return
-
-    # 전역 정체성 me: ?me=로 새로고침에도 복원 → 어느 페이지에서 접속해도 이름 기본값으로 사용
-    if "me" not in st.session_state:
-        _q = st.query_params.get("me")
-        st.session_state["me"] = _q if _q in USER_NAMES else None
+    # me·is_admin은 로그인 시 _set_session()에서 세팅됨(개인 계정).
 
     # 전체 페이지 여백 축소 + dolbom studio 주황/갈색 톤(전 페이지 적용)
     st.markdown("""<style>
@@ -1825,8 +1874,13 @@ def main():
             st.session_state["main_menu"] = nav
         mode = st.radio("메뉴", mode_options, key="main_menu")
         st.divider()
+        _who = st.session_state.get("me", "")
+        _wt = st.session_state.get("title", "")
+        st.caption(f"👤 {_who}" + (f" · {_wt}" if _wt else "")
+                   + (" · 관리자" if st.session_state.get("is_admin") else ""))
         if st.button("로그아웃"):
-            st.session_state.pop("authed", None)
+            for _k in ("authed", "uid", "me", "title", "tok", "is_admin"):
+                st.session_state.pop(_k, None)
             st.query_params.clear()
             st.rerun()
 

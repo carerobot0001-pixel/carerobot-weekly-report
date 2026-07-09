@@ -186,6 +186,9 @@ def get_fields_for(member):
     return [f for f in order if f in member["cells"]]
 
 
-# 단일 비밀번호(담당자/팀원 구분 없음). 모든 팀원이 이 비밀번호로 로그인하고
-# 모든 기능(공지·백업·취합본 생성·구매 완료처리 등)을 사용.
+# (구) 공용 비밀번호 — 개인 계정 로그인으로 전환하며 미사용. 참고용으로만 남김.
 APP_PASSWORD = "carerobot"
+
+# 개인 계정 로그인(account_store). 이 아이디로 회원가입하면 자동 승인 + 회원 승인 권한.
+# 관리자는 배포 직후 '회원가입'에서 이 아이디로 먼저 가입할 것(선점 방지). 필요 시 추가.
+ADMIN_IDS = {"admin"}
