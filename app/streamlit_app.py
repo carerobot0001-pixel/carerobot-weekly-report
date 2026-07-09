@@ -1751,12 +1751,24 @@ def main():
         _q = st.query_params.get("me")
         st.session_state["me"] = _q if _q in USER_NAMES else None
 
-    # 전체 페이지 여백 축소 — layout=wide 기본 상단·좌우 패딩이 커서 화면이 비어 보임
+    # 전체 페이지 여백 축소 + dolbom studio 주황/갈색 톤(전 페이지 적용)
     st.markdown("""<style>
       .block-container,
       [data-testid="stMainBlockContainer"]{
         padding-top:2.2rem;padding-bottom:2rem;
         padding-left:2.4rem;padding-right:2.4rem;}
+      /* 헤더·섹션 라벨(굵은글씨)·링크를 주황갈색으로 (알림박스 안 굵은글씨는 제외) */
+      h1,h2,h3,h4,h5,h6{ color:#8A3F12; }
+      [data-testid="stMarkdownContainer"] strong{ color:#A8501A; }
+      [data-testid="stAlert"] strong{ color:inherit; }
+      a,a:visited{ color:#C4622D; }
+      /* 사이드바 따뜻한 톤 */
+      section[data-testid="stSidebar"]{ background:#FBF2E8; }
+      /* 일반 버튼 주황 톤(바로가기 타일은 더 구체적 규칙이라 그대로 유지) */
+      div.stButton>button{ border-color:#E6C9AC; color:#8A4A1E; }
+      div.stButton>button:hover{ border-color:#C4622D; color:#C4622D; }
+      div.stButton>button[kind="primary"]{ background:#C4622D; border-color:#C4622D; color:#FFFFFF; }
+      div.stButton>button[kind="primary"]:hover{ background:#A8501A; border-color:#A8501A; color:#FFFFFF; }
     </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
