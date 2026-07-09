@@ -115,21 +115,19 @@ def home_page():
       div[data-testid="stAlert"] a{font-size:0.85rem;}
       hr{margin:0.45rem 0;}
       div.stButton>button{padding:0.25rem 0.5rem;}
-      /* ⚡ 바로가기 — 네이버식(아이콘 크게·박스 없음·라벨 작게·주황갈색). qbar 안 버튼만 */
+      /* ⚡ 바로가기 — 박스엔 이모지만 크게(네이버식), 라벨은 박스 밑. qbar 안 버튼만 */
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button{
-        white-space:pre-line; min-height:0; line-height:1.15; font-size:0.66rem;
-        color:#8A5A2B; border:1px solid transparent; border-radius:12px;
-        background:transparent; padding:4px 2px; box-shadow:none;
+        width:52px; margin:0 auto; height:40px; min-height:40px; padding:0;
+        font-size:1.7rem; line-height:1; color:#5A3A24;
+        border:1px solid #EADBCB; border-radius:12px; background:#FCF7F1; box-shadow:none;
       }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p{ white-space:pre-line; line-height:1.15; margin:0; }
+        div.stButton>button p{ font-size:1.7rem; line-height:1; margin:0; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button::first-line,
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p::first-line{ font-size:1.85rem; }
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button:hover{ border-color:#F0D9C4; background:#FCEEE1; }
+        div.stButton>button:hover{ border-color:#C4622D; background:#FCEEE1; }
+      .qlbl{ text-align:center; font-size:0.72rem; color:#8A5A2B; margin-top:4px;
+             line-height:1.15; }
       /* '나는 누구' 선택박스를 바로가기 타일과 비슷한 높이로(st-key 지원 버전에서) */
       .st-key-me_widget div[data-baseweb="select"]>div{ min-height:40px; }
       /* 사업단 일정 제목 옆 ➕ 버튼을 제목 높이에 맞게 컴팩트하게 */
@@ -193,17 +191,19 @@ def home_page():
         with st.container():
             st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
             qcols = st.columns(len(shortcuts) + 1)
-            # 첫 타일: 📌 공지 등록/관리 (토글 — 아래 패널 열고 닫음). 주간보고 왼쪽.
+            # 박스엔 이모지만(크게), 라벨은 박스 밑. 첫 타일=공지 등록/관리 토글(주간보고 왼쪽).
             _nopen = st.session_state.get("home_notice_open", False)
-            if qcols[0].button("📌  \n공지등록", key="qs_notice",
-                               help="공지 등록/관리", use_container_width=True):
-                st.session_state["home_notice_open"] = not _nopen
-                st.rerun()
-            for j, (col, (emoji, label, target)) in enumerate(
-                    zip(qcols[1:], shortcuts)):
-                if col.button(f"{emoji}  \n{label}", key=f"qs_{j}_{target}",
-                              use_container_width=True):
-                    _goto(target)
+            with qcols[0]:
+                if st.button("📌", key="qs_notice", help="공지 등록/관리"):
+                    st.session_state["home_notice_open"] = not _nopen
+                    st.rerun()
+                st.markdown("<div class='qlbl'>공지등록</div>", unsafe_allow_html=True)
+            for j, (emoji, label, target) in enumerate(shortcuts):
+                with qcols[j + 1]:
+                    if st.button(emoji, key=f"qs_{j}_{target}"):
+                        _goto(target)
+                    st.markdown(f"<div class='qlbl'>{label}</div>",
+                                unsafe_allow_html=True)
 
     # 📌 공지사항 (나는 누구 바로 밑) — 표시 + 등록/관리 토글
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
