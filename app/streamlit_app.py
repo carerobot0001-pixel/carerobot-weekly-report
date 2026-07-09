@@ -2,6 +2,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime, timedelta, time
+from urllib.parse import quote
 import pandas as pd
 from pathlib import Path
 
@@ -138,21 +139,15 @@ def home_page():
       div[data-testid="stAlert"] a{font-size:0.85rem;}
       hr{margin:0.45rem 0;}
       div.stButton>button{padding:0.25rem 0.5rem;}
-      /* ⚡ 바로가기 — 박스엔 이모지만 크게(네이버식), 라벨은 박스 밑. qbar 안 버튼만 */
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button{
-        width:58px !important; margin:0 auto; height:44px !important; min-height:44px !important;
-        padding:0 !important; line-height:1 !important; color:#5A3A24;
-        border:1px solid #E3C6A6; border-radius:13px; background:#FCF3EA; box-shadow:none;
-      }
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button,
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button *{ font-size:1.95rem !important; line-height:1 !important; }
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button:hover{ border-color:#C4622D; background:#FCEEE1; }
-      .qlbl{ text-align:center; font-size:0.72rem; color:#8A5A2B; margin-top:5px;
-             line-height:1.15; }
+      /* ⚡ 바로가기 — 순수 HTML 타일 그리드(네이버식): 이모지 크게·박스 작게·라벨 밑·간격 촘촘 */
+      .dsbar{ display:flex; flex-wrap:wrap; gap:9px 18px; align-items:flex-start; }
+      .dsbar .dstile{ width:56px; text-decoration:none; text-align:center; }
+      .dsbar .dstile .ic{ display:flex; align-items:center; justify-content:center;
+        width:52px; height:44px; margin:0 auto; font-size:1.95rem; line-height:1;
+        border:1px solid #E3C6A6; border-radius:13px; background:#FCF3EA; }
+      .dsbar .dstile:hover .ic{ border-color:#C4622D; background:#FCEEE1; }
+      .dsbar .dstile .lb{ display:block; margin-top:5px; font-size:0.72rem;
+        color:#8A5A2B !important; line-height:1.15; }
       /* '나는 누구' 선택박스를 바로가기 타일과 비슷한 높이로(st-key 지원 버전에서) */
       .st-key-me_widget div[data-baseweb="select"]>div{ min-height:40px; }
       /* 사업단 일정 제목 옆 ➕ 버튼을 제목 높이에 맞게 컴팩트하게 */
@@ -213,22 +208,18 @@ def home_page():
         st.query_params["me"] = _me_sel
     with top_r:
         st.markdown("**⚡ 바로가기**")
-        with st.container():
-            st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
-            qcols = st.columns(len(shortcuts) + 1)
-            # 박스엔 이모지만(크게), 라벨은 박스 밑. 첫 타일=공지 등록/관리 토글(주간보고 왼쪽).
-            _nopen = st.session_state.get("home_notice_open", False)
-            with qcols[0]:
-                if st.button("📌", key="qs_notice", help="공지 등록/관리"):
-                    st.session_state["home_notice_open"] = not _nopen
-                    st.rerun()
-                st.markdown("<div class='qlbl'>공지등록</div>", unsafe_allow_html=True)
-            for j, (emoji, label, target) in enumerate(shortcuts):
-                with qcols[j + 1]:
-                    if st.button(emoji, key=f"qs_{j}_{target}"):
-                        _goto(target)
-                    st.markdown(f"<div class='qlbl'>{label}</div>",
-                                unsafe_allow_html=True)
+        # 순수 HTML 타일 그리드. 클릭=?go= 링크(auth·me 유지). 공지등록은 go=notice 토글.
+        _meq = st.session_state.get("me") or ""
+        _base = "auth=team" + (f"&me={quote(_meq)}" if _meq else "")
+        _tiles = [("📌", "공지등록", "notice")] + list(shortcuts)
+        _html = '<div class="dsbar">'
+        for _e, _l, _key in _tiles:
+            _href = f"?{_base}&go={quote(_key)}"
+            _html += (f'<a class="dstile" href="{_href}" target="_self">'
+                      f'<span class="ic">{_e}</span>'
+                      f'<span class="lb">{_l}</span></a>')
+        _html += "</div>"
+        st.markdown(_html, unsafe_allow_html=True)
 
     # 📌 공지사항 (나는 누구 바로 밑) — 표시 + 등록/관리 토글
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
@@ -1799,11 +1790,25 @@ def main():
       div.stButton>button[kind="primary"]:hover{ background:#A8501A; border-color:#A8501A; color:#FFFFFF; }
     </style>""", unsafe_allow_html=True)
 
+    mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
+                    "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
+                    "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
+    # 홈 바로가기(HTML 타일)의 ?go= 처리 — 메뉴 이동 또는 공지 토글 (radio 생성 전에)
+    _go = st.query_params.get("go")
+    if _go is not None:
+        try:
+            del st.query_params["go"]
+        except Exception:
+            pass
+        if _go == "notice":
+            st.session_state["home_notice_open"] = \
+                not st.session_state.get("home_notice_open", False)
+            st.session_state["main_menu"] = "🏠 홈"
+        elif _go in mode_options:
+            st.session_state["main_menu"] = _go
+
     with st.sidebar:
         st.markdown(_brand("sidebar"), unsafe_allow_html=True)
-        mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
-                        "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
-                        "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
         # 홈의 바로가기 버튼(_nav_to)이 있으면 그 메뉴로 이동
         nav = st.session_state.pop("_nav_to", None)
         if nav and nav in mode_options:
