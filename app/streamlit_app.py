@@ -319,23 +319,29 @@ def home_page():
         else:
             st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 관련 일정만 표시했습니다.")
 
-    # ── 📅 사업단 일정 (달력 + 일정 관리를 한 카드로 묶음) ─────────────
+    # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
     with st.container(border=True):
-        st.markdown("**📅 사업단 일정**")
         if calendar_enabled():
-            # 달력은 구글 임베드(iframe)라 그 안에 버튼을 못 넣음 → 달력과 같은 카드 안,
-            # 바로 아래에 '일정 추가·수정·삭제'를 둠(주간/월간/일정 전환은 임베드 자체 버튼).
-            _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url("MONTH"), height=520)
+            # 제목 바로 옆 작은 ➕ 버튼 → 누르면 일정 관리 패널(달력 위)이 열림.
+            try:
+                ct1, ct2, _sp = st.columns([2, 0.6, 12],
+                                           vertical_alignment="center")
+            except TypeError:
+                ct1, ct2, _sp = st.columns([2, 0.6, 12])
+            ct1.markdown("**📅 사업단 일정**")
             cal_open = st.session_state.get("home_cal_open", False)
-            if st.button("➖ 일정 관리 닫기" if cal_open else "➕ 일정 추가·수정·삭제",
-                         key="home_cal_open_btn", use_container_width=True):
+            if ct2.button("➖" if cal_open else "➕", key="home_cal_open_btn",
+                          help="일정 추가·수정·삭제"):
                 st.session_state["home_cal_open"] = not cal_open
                 st.rerun()
             if st.session_state.get("home_cal_open"):
                 _calendar_manage()
+            # 달력은 구글 임베드(iframe). 주간/월간/일정 전환은 임베드 자체 버튼. 기본 월간.
+            _iframe = getattr(st, "iframe", components.iframe)
+            _iframe(embed_url("MONTH"), height=520)
         else:
+            st.markdown("**📅 사업단 일정**")
             st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
     # ── 📰 관련 뉴스 (전체 폭) ────────────────────────────────
