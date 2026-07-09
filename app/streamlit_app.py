@@ -176,8 +176,9 @@ def home_page():
         "family=Dancing+Script:wght@700&display=swap');</style>"
         "<div style='text-align:center;margin:2px 0 12px;'>"
         "<span style=\"font-family:'Dancing Script','Brush Script MT',cursive;"
-        "font-weight:700;font-size:3.9rem;color:#C4622D;line-height:1.05;"
-        "text-shadow:0 2px 6px rgba(196,98,45,.20);\">Dolbom Studio</span></div>",
+        "font-weight:700;font-size:clamp(2.3rem,8vw,3.9rem);color:#C4622D;"
+        "line-height:1.05;text-shadow:0 2px 6px rgba(196,98,45,.20);\">"
+        "Dolbom Studio</span></div>",
         unsafe_allow_html=True)
 
     # 홈 전용 컴팩트 스타일(폰트·여백 축소). 다른 페이지엔 주입 안 됨(홈 렌더 시에만).
@@ -1857,6 +1858,14 @@ def main():
       div.stButton>button:hover{ border-color:#C4622D; color:#C4622D; }
       div.stButton>button[kind="primary"]{ background:#C4622D; border-color:#C4622D; color:#FFFFFF; }
       div.stButton>button[kind="primary"]:hover{ background:#A8501A; border-color:#A8501A; color:#FFFFFF; }
+      /* 📱 모바일(좁은 화면): 2단 컬럼 세로로 쌓고 여백 축소 → 폰에서 안 잘림 */
+      @media (max-width: 700px){
+        .block-container, [data-testid="stMainBlockContainer"]{
+          padding-left:0.8rem; padding-right:0.8rem; padding-top:2.6rem; }
+        div[data-testid="stHorizontalBlock"]{ flex-direction:column; gap:0.4rem; }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]{
+          width:100% !important; flex:1 1 100% !important; }
+      }
     </style>""", unsafe_allow_html=True)
 
     mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
