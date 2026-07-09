@@ -125,7 +125,12 @@ def home_page():
     today = datetime.now(KST).date()
     now = datetime.now(KST)
     week = this_wednesday()
-    st.caption(f"📊 팀 현황 · {today.strftime('%Y-%m-%d')} 기준")
+    st.markdown(
+        "<div style='text-align:center;margin:0 0 4px;'>"
+        "<span style='font-size:2.1rem;font-weight:800;color:#C4622D;"
+        "letter-spacing:.5px;text-shadow:0 1px 2px rgba(196,98,45,.18);'>"
+        "Dolbom Studio</span></div>",
+        unsafe_allow_html=True)
 
     # 홈 전용 컴팩트 스타일(폰트·여백 축소). 다른 페이지엔 주입 안 됨(홈 렌더 시에만).
     st.markdown("""<style>
@@ -147,8 +152,8 @@ def home_page():
       .dsbar .dstile:hover .ic{ border-color:#C4622D; background:#FCEEE1; }
       .dsbar .dstile .lb{ display:block; margin-top:5px; font-size:0.72rem;
         color:#8A5A2B !important; line-height:1.15; }
-      /* '나는 누구' 선택박스를 바로가기 타일(44px)과 같은 높이로(st-key 지원 버전에서) */
-      .st-key-me_widget div[data-baseweb="select"]>div{ min-height:44px; }
+      /* '나는 누구' 선택박스를 타일+라벨(공지등록 글씨 포함) 높이로 맞춤 */
+      .st-key-me_widget div[data-baseweb="select"]>div{ min-height:62px; }
       /* 사업단 일정 제목 옆 ➕ 버튼을 제목 높이에 맞게 컴팩트하게 */
       .st-key-home_cal_open_btn button{ min-height:0; padding:0.15rem 0.55rem; }
     </style>""", unsafe_allow_html=True)
