@@ -154,9 +154,18 @@ def auth_gate():
                     stt = account_store.register(jid, jpw, jname, jtitle,
                                                  jek, jeg, ADMIN_IDS)
                     if stt == account_store.ST_OK:
-                        st.success("관리자 계정으로 등록됐습니다. 이제 로그인하세요.")
+                        # 자동 승인(관리자) → 가입 즉시 자동 로그인해서 바로 입장
+                        a = account_store.get_account(jid)
+                        if a:
+                            _set_session(a)
+                            st.query_params["uid"] = a["아이디"]
+                            st.query_params["tok"] = account_store.token_for(a)
+                            st.rerun()
+                        else:
+                            st.success("등록 완료! 위 '🔑 로그인' 탭에서 로그인하세요.")
                     else:
-                        st.success("가입 신청 완료! 관리자 승인 후 로그인할 수 있습니다.")
+                        st.success("가입 신청 완료! 관리자 승인 후 "
+                                   "위 '🔑 로그인' 탭에서 로그인하세요.")
                 except ValueError as e:
                     st.warning(str(e))
                 except Exception as e:
