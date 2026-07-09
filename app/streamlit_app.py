@@ -343,11 +343,13 @@ def home_page():
         if calendar_enabled():
             # 제목 바로 옆 작은 ➕ 버튼 → 누르면 일정 관리 패널(달력 위)이 열림.
             try:
-                ct1, ct2, _sp = st.columns([3.2, 0.7, 9],
+                ct1, ct2, _sp = st.columns([2.2, 0.6, 11],
                                            vertical_alignment="center")
             except TypeError:
-                ct1, ct2, _sp = st.columns([3.2, 0.7, 9])
-            ct1.markdown("**📅 사업단 일정**")
+                ct1, ct2, _sp = st.columns([2.2, 0.6, 11])
+            ct1.markdown("<div style='white-space:nowrap;font-weight:700;"
+                         "color:#A8501A;font-size:1rem;'>📅 사업단 일정</div>",
+                         unsafe_allow_html=True)
             cal_open = st.session_state.get("home_cal_open", False)
             if ct2.button("➖" if cal_open else "➕", key="home_cal_open_btn",
                           help="일정 추가·수정·삭제"):
