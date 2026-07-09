@@ -111,37 +111,17 @@ def auth_gate():
             if a and a["상태"].strip() == account_store.ST_OK \
                     and account_store.token_for(a) == tok:
                 _set_session(a)
-                st.session_state["remember"] = True  # 저장된 자격으로 입장 → 유지
 
     if st.session_state.get("authed"):
         return True
 
-    # 로그아웃 직후면 저장된 자격 삭제(localStorage).
-    if st.session_state.pop("_clear_creds", False):
-        components.html(
-            "<script>try{var p=window.parent;p.localStorage.removeItem('ds_uid');"
-            "p.localStorage.removeItem('ds_tok');}catch(e){}</script>", height=0)
-
     st.markdown(_brand("login"), unsafe_allow_html=True)
-    st.caption("개인 계정으로 로그인하세요. 계정이 없으면 회원가입 후 관리자 승인을 받으면 됩니다.")
+    st.caption("개인 계정으로 로그인하세요. 계정이 없으면 회원가입 후 관리자 승인을 받으면 됩니다. "
+               "💡 로그인한 뒤 브라우저 메뉴에서 '홈 화면에 추가'하면 다음부터 자동 로그인됩니다.")
     tab_login, tab_join = st.tabs(["🔑 로그인", "📝 회원가입"])
     with tab_login:
-        # 지난번 '로그인 정보 저장'을 켰으면 이 버튼으로 아이디/비번 없이 바로 로그인
-        # (클릭=사용자 동작이라 브라우저가 자동 이동을 허용함)
-        components.html(
-            "<button onclick=\"try{var u=window.parent.localStorage.getItem('ds_uid'),"
-            "t=window.parent.localStorage.getItem('ds_tok');if(u&&t){var "
-            "c=new URLSearchParams(window.parent.location.search);c.set('uid',u);"
-            "c.set('tok',t);window.parent.location.search=c.toString();}else{"
-            "alert('저장된 로그인 정보가 없습니다. 아래에서 로그인하세요.');}}catch(e){"
-            "alert('이 브라우저에서는 저장 기능을 쓸 수 없습니다.');}\" "
-            "style=\"width:100%;padding:9px;border:1px solid #C4622D;border-radius:8px;"
-            "background:#FCEEE1;color:#8A4A1E;font-weight:700;cursor:pointer;"
-            "font-size:14px;\">🔓 저장된 계정으로 자동 로그인</button>", height=54)
         lid = st.text_input("아이디", key="login_id")
         lpw = st.text_input("비밀번호", type="password", key="login_pw")
-        lrem = st.checkbox("🔒 로그인 정보 저장 (이 브라우저에서 자동 로그인)",
-                           value=True, key="login_remember")
         if st.button("로그인", type="primary"):
             try:
                 a, err = account_store.login(lid, lpw)
@@ -149,7 +129,6 @@ def auth_gate():
                 a, err = None, f"로그인 오류: {e}"
             if a:
                 _set_session(a)
-                st.session_state["remember"] = bool(lrem)
                 st.query_params["uid"] = a["아이디"]
                 st.query_params["tok"] = account_store.token_for(a)
                 st.rerun()
@@ -454,9 +433,29 @@ def home_page():
             unsafe_allow_html=True)
         if _copen:
             _calendar_manage()
-        # 달력은 구글 임베드(iframe). 주간/월간/일정 전환은 임베드 자체 버튼. 기본 월간.
-        _iframe = getattr(st, "iframe", components.iframe)
-        _iframe(embed_url("MONTH"), height=520)
+        # 앱이 서비스계정으로 읽은 일정 목록 — 구글 로그인 없이 누구나 보임(폰 포함).
+        # (임베드 달력은 보는 사람이 구글 로그인돼야 해서, 목록을 기본으로 두고 달력은 접이식)
+        try:
+            _evs = upcoming_events(days=21, maxn=60)
+        except Exception:
+            _evs = []
+        _WD = ["월", "화", "수", "목", "금", "토", "일"]
+        if _evs:
+            _lastd = None
+            for _e in _evs:
+                _v = event_view(_e)
+                if _v["date"] != _lastd:
+                    _dd = _pdate(_v["date"])
+                    _wd = _WD[_dd.weekday()] if _dd else ""
+                    st.markdown(f"**🗓️ {_v['date'][5:].replace('-', '/')} ({_wd})**")
+                    _lastd = _v["date"]
+                st.markdown(f"- {_v['when']} · {_v['title']}")
+        else:
+            st.caption("3주 내 일정이 없습니다.")
+        with st.expander("📅 달력(구글 캘린더)으로 크게 보기"):
+            st.caption("※ 이 달력은 구글 계정 로그인이 필요합니다. 안 보이면 위 목록을 이용하세요.")
+            _iframe = getattr(st, "iframe", components.iframe)
+            _iframe(embed_url("MONTH"), height=520)
     else:
         st.markdown("**📅 사업단 일정**")
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
@@ -1895,18 +1894,7 @@ def main():
     if not auth_gate():
         return
     # me·is_admin은 로그인 시 _set_session()에서 세팅됨(개인 계정).
-    # 로그인 정보 저장: remember면 localStorage에 저장(자동 로그인), 끄면 삭제.
-    _rem = st.session_state.get("remember")
-    _ruid, _rtok = st.session_state.get("uid", ""), st.session_state.get("tok", "")
-    if _rem and _ruid and _rtok:
-        components.html(
-            "<script>try{var p=window.parent;p.localStorage.setItem('ds_uid',"
-            + json.dumps(_ruid) + ");p.localStorage.setItem('ds_tok',"
-            + json.dumps(_rtok) + ");}catch(e){}</script>", height=0)
-    elif _rem is False:
-        components.html(
-            "<script>try{var p=window.parent;p.localStorage.removeItem('ds_uid');"
-            "p.localStorage.removeItem('ds_tok');}catch(e){}</script>", height=0)
+    # 로그인 유지는 ?uid=&tok= URL 토큰으로(위조 불가). '홈 화면에 추가'하면 그 주소가 저장돼 자동 로그인.
 
     # 전체 페이지 여백 축소 + dolbom studio 주황/갈색 톤(전 페이지 적용)
     st.markdown("""<style>
@@ -1983,10 +1971,8 @@ def main():
             if _np:
                 st.caption(f"🔔 가입 승인 대기 {_np}명 → '👤 회원 관리'")
         if st.button("로그아웃"):
-            for _k in ("authed", "uid", "me", "title", "tok", "is_admin",
-                       "remember"):
+            for _k in ("authed", "uid", "me", "title", "tok", "is_admin"):
                 st.session_state.pop(_k, None)
-            st.session_state["_clear_creds"] = True   # 로그인 화면서 저장자격 삭제
             st.query_params.clear()
             st.rerun()
 

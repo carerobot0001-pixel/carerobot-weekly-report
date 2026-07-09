@@ -129,7 +129,7 @@ const stats = [
   ["30~60분 → 클릭 1회", "매주 취합 수작업 → 버튼 한 번에 HWPX 생성"],
   ["0원", "무료 호스팅 · 무료 구글 API · 별도 설치 없음"],
   ["업무 8종 → 앱 1개", "보고·취합·구매·장비·방문·협업·공지·일정 통합"],
-  ["이름 1회 입력", "'나는 누구' 한 번 선택 → 모든 폼 자동"],
+  ["개인 계정 로그인", "로그인=본인 → 모든 폼에 이름 자동 · 폰에서 앱처럼"],
 ];
 stats.forEach((st, i) => {
   const col = i % 2, row = Math.floor(i / 2);
@@ -150,7 +150,8 @@ s.addText("계속 바꿔왔다 — UI 변천사", { x: M, y: 0.9, w: 11.5, h: 0.
 s.addText("\"처음엔 이랬는데 → 이렇게 → 또 이렇게 …\"  총 100여 커밋의 흐름", { x: M, y: 1.62, w: 11.5, h: 0.4, fontFace: F, fontSize: 14, italic: true, color: ORANGE_L, margin: 0 });
 const stages = [
   ["1", "취합 MVP", "04월"], ["2", "기능 확장", "06월"], ["3", "홈 대시보드", "07.06"],
-  ["4", "레일·바로가기", "07.07"], ["5", "담당자 제거", "07.07"], ["6", "홈 재배치", "07.09"], ["7", "브랜딩", "07.09"],
+  ["4", "레일·바로가기", "07.07"], ["5", "담당자 제거", "07.07"], ["6", "홈 재배치", "07.09"],
+  ["7", "브랜딩", "07.09"], ["8", "계정·모바일", "07.09"],
 ];
 const n = stages.length, tw = (W - 2 * M) / n;
 // timeline axis
@@ -163,7 +164,7 @@ stages.forEach((st, i) => {
   s.addText(st[2], { x: cx - tw / 2 + 0.1, y: 2.7, w: tw - 0.2, h: 0.35, align: "center", fontFace: F, fontSize: 11, color: ORANGE_L, margin: 0 });
 });
 s.addText("→ 뒤 슬라이드에서 단계별로 화면 변화를 봅니다", { x: M, y: 6.5, w: 11, h: 0.4, fontFace: F, fontSize: 13, color: MUTED, italic: true, margin: 0 });
-s.addNotes("7단계로 압축한 변천사. 다음 슬라이드부터 각 단계의 화면과 이유.");
+s.addNotes("8단계로 압축한 변천사. 다음 슬라이드부터 각 단계의 화면과 이유.");
 
 // -------- Slides 6-12: stages --------
 const stageDetail = [
@@ -200,12 +201,18 @@ const stageDetail = [
            "바로가기는 작게, '나는 누구' 옆으로 · 토글 재배치(공지/일정/백업)",
            "오늘 챙길 것은 마감 임박(2일 이내)만 노출"],
     why: "가장 자주 보는 것을 맨 위로. 스크린샷 피드백을 받아 반복 미세조정." },
-  { n: 7, date: "2026.07.09", title: "dolbom studio 브랜딩", file: "stage7.png",
-    cap: "이름·주황/갈색 테마·네이버식 아이콘",
-    what: ["사이트 이름 dolbom studio (탭·로그인·사이드바)",
-           "주황/갈색 테마(primaryColor) · 바로가기 아이콘 크게·박스 없이",
-           "공지등록을 바로가기 첫 타일로"],
-    why: "정체성과 색을 입혀 '우리 도구'다운 느낌으로 마무리." },
+  { n: 7, date: "2026.07.09", title: "Dolbom Studio 브랜딩", file: "stage7.png",
+    cap: "DS 아이콘 · 주황 테마 · Dancing Script 워드마크",
+    what: ["사이트 이름 Dolbom Studio + 주황 DS 배지(파비콘/홈화면)",
+           "정중앙 Dancing Script 워드마크 · 주황/갈색 테마 · 다크 사이드바",
+           "바로가기 아이콘 크게(HTML 타일)·중앙정렬"],
+    why: "정체성과 색을 입혀 '우리 도구'다운 감성으로." },
+  { n: 8, date: "2026.07.09", title: "개인 계정 로그인 + 모바일/PWA", file: "stage8.png",
+    cap: "회원가입·관리자 승인 로그인 + 폰에서 앱처럼",
+    what: ["공용 비번 폐지 → 개인 계정(회원가입·관리자 승인·로그인), 비번 해시",
+           "로그인=본인 → '나는 누구' 선택칸 제거, 폼에 이름 자동. 로그인 정보 저장",
+           "모바일 반응형 + 홈 화면에 추가(PWA)로 폰에서 앱처럼"],
+    why: "누가 뭘 했는지 계정 기반으로 명확히 + 팀원이 폰으로 쉽게 쓰게." },
 ];
 stageDetail.forEach((d) => {
   s = pres.addSlide();
@@ -238,14 +245,14 @@ const c1x = M, c2x = 6.95, cw = 5.35, cy = 2.4, ch = 3.4;
 [["효과", ORANGE, [
   "매주 취합 30~60분 → 클릭 1회",
   "8종 업무를 앱 하나로",
-  "이름 1회 → 전 페이지 자동",
-  "담당자 없이 전원 사용 · 운영비 0원",
+  "개인 계정 로그인 → 폼에 이름 자동",
+  "폰에서 앱처럼(홈 화면 추가) · 운영비 0원",
   "다층 백업으로 데이터 안전",
 ]], ["앞으로", BROWN, [
   "streamlit_app.py 페이지 파일 분리",
+  "모바일 최적화 2차 · 자동로그인 신뢰성",
   "공통확인 표를 메인 취합본에 통합",
   "통일된 주황/갈색 아이콘 세트(SVG)",
-  "캘린더 권한 대비 읽기 목록 폴백",
 ]]].forEach((c, i) => {
   const x = i === 0 ? c1x : c2x;
   s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: cy, w: cw, h: ch, fill: { color: "4A3423" }, line: { color: c[1], width: 1.25 }, rectRadius: 0.1 });
@@ -254,10 +261,10 @@ const c1x = M, c2x = 6.95, cw = 5.35, cy = 2.4, ch = 3.4;
     { x: x + 0.35, y: cy + 0.85, w: cw - 0.7, h: ch - 1.1, fontFace: F, fontSize: 13, valign: "top" });
 });
 s.addText([
-  { text: "carerobot-weekly-report.streamlit.app", options: { color: ORANGE_L, bold: true } },
-  { text: "   ·   비밀번호 carerobot (전원 공용)", options: { color: MUTED } },
+  { text: "dolbom-studio.streamlit.app", options: { color: ORANGE_L, bold: true } },
+  { text: "   ·   개인 계정 로그인(회원가입 → 관리자 승인)", options: { color: MUTED } },
 ], { x: M, y: 6.2, w: 11.5, h: 0.4, fontFace: F, fontSize: 14, margin: 0 });
-s.addText("dolbom studio", { x: M, y: 6.75, w: 6, h: 0.4, fontFace: F, fontSize: 13, bold: true, color: CREAM, margin: 0 });
+s.addText("Dolbom Studio", { x: M, y: 6.75, w: 6, h: 0.4, fontFace: F, fontSize: 13, bold: true, color: CREAM, margin: 0 });
 s.addNotes("마무리: 효과 요약과 향후 과제. 계속 개선 중.");
 
 pres.writeFile({ fileName: OUT }).then((f) => console.log("WROTE", f));
