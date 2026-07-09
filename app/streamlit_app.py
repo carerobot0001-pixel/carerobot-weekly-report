@@ -192,7 +192,7 @@ def home_page():
                               use_container_width=True):
                     _goto(target)
 
-    # 📌 공지사항 (표시만 — 등록/관리는 홈 하단 토글)
+    # 📌 공지사항 (나는 누구 바로 밑) — 표시 + 등록/관리 토글
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
         if is_expired(r, today_str):
             continue  # 만료일 지난 공지는 숨김(정리 전이어도)
@@ -215,6 +215,16 @@ def home_page():
         linkmd = f"　·　[📄 문서 열기]({link})" if link else ""
         dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
         st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
+
+    # 📌 공지 등록/관리 (누구나, 기본 접힘) — 공지 바로 아래
+    n_open = st.session_state.get("home_notice_open", False)
+    if st.button("➖ 공지 관리 닫기" if n_open else "📌 공지 등록/관리",
+                 key="home_notice_open_btn", use_container_width=True):
+        st.session_state["home_notice_open"] = not n_open
+        st.rerun()
+    if st.session_state.get("home_notice_open"):
+        with st.container(border=True):
+            _notice_manage()
 
     # 🔔 오늘 챙길 것
     st.markdown("**🔔 오늘 챙길 것**")
@@ -314,6 +324,14 @@ def home_page():
         # 주간/월간/일정 전환은 임베드 달력 우측 상단 자체 버튼 사용. 기본 월간.
         _iframe = getattr(st, "iframe", components.iframe)
         _iframe(embed_url("MONTH"), height=520)
+        # 일정 추가·수정·삭제 — 달력 바로 아래(누구나, 기본 접힘)
+        cal_open = st.session_state.get("home_cal_open", False)
+        if st.button("➖ 일정 관리 닫기" if cal_open else "➕ 일정 추가·수정·삭제",
+                     key="home_cal_open_btn", use_container_width=True):
+            st.session_state["home_cal_open"] = not cal_open
+            st.rerun()
+        if st.session_state.get("home_cal_open"):
+            _calendar_manage()
     else:
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
@@ -332,37 +350,6 @@ def home_page():
                     st.markdown(f"- [{it['title']}]({it['link']}){src}")
             else:
                 st.caption("불러오지 못했어요 (잠시 후 새로고침).")
-
-    # === 🗓️ 일정 추가·수정·삭제 (기본 접힘, 전체 폭) ===
-    if calendar_enabled():
-        st.divider()
-        cal_open = st.session_state.get("home_cal_open", False)
-        if st.button("➖ 일정 관리 닫기" if cal_open else "➕ 일정 추가·수정·삭제",
-                     key="home_cal_open_btn", use_container_width=True):
-            st.session_state["home_cal_open"] = not cal_open
-            st.rerun()
-        if st.session_state.get("home_cal_open"):
-            _calendar_manage()
-
-    # === 📌 공지 등록/관리 · 🗄️ 전체 백업 (기본 접힘, 전체 폭, 누구나) ===
-    st.divider()
-    bc1, bc2 = st.columns(2)
-    n_open = st.session_state.get("home_notice_open", False)
-    if bc1.button("➖ 공지 관리 닫기" if n_open else "📌 공지 등록/관리",
-                  key="home_notice_open_btn", use_container_width=True):
-        st.session_state["home_notice_open"] = not n_open
-        st.rerun()
-    b_open = st.session_state.get("home_backup_open", False)
-    if bc2.button("➖ 백업 닫기" if b_open else "🗄️ 전체 데이터 백업",
-                  key="home_backup_open_btn", use_container_width=True):
-        st.session_state["home_backup_open"] = not b_open
-        st.rerun()
-    if st.session_state.get("home_notice_open"):
-        with st.container(border=True):
-            _notice_manage()
-    if st.session_state.get("home_backup_open"):
-        with st.container(border=True):
-            _backup_section()
 
 
 def member_page():
@@ -1727,6 +1714,17 @@ def _report_collect():
             st.success("생성 완료. 위 버튼으로 다운로드하세요.")
         except Exception as e:
             st.error(f"생성 실패: {e}")
+
+    # 🗄️ 전체 데이터 백업 (홈에서 이동, 기본 접힘 — 누구나)
+    st.divider()
+    b_open = st.session_state.get("collect_backup_open", False)
+    if st.button("➖ 백업 닫기" if b_open else "🗄️ 전체 데이터 백업",
+                 key="collect_backup_open_btn", use_container_width=True):
+        st.session_state["collect_backup_open"] = not b_open
+        st.rerun()
+    if st.session_state.get("collect_backup_open"):
+        with st.container(border=True):
+            _backup_section()
 
 
 def main():
