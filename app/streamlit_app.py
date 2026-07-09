@@ -284,39 +284,6 @@ def home_page():
     _html += "</div>"
     st.markdown(_html, unsafe_allow_html=True)
 
-    # 👤 회원 관리 (관리자만) — 대기 승인 + 전체 상태 변경(거부 복구·권한 회수 가능)
-    if st.session_state.get("is_admin"):
-        try:
-            _accts = account_store.all_accounts()
-        except Exception:
-            _accts = []
-        _npend = sum(1 for a in _accts if a["상태"].strip() == account_store.ST_PENDING)
-        if _accts:
-            with st.expander(f"👤 회원 관리 · 대기 {_npend}명 / 전체 {len(_accts)}명",
-                             expanded=bool(_npend)):
-                _order = {"대기": 0, "승인": 1, "거부": 2}
-                for _a in sorted(_accts, key=lambda x: _order.get(x["상태"].strip(), 3)):
-                    _st = _a["상태"].strip()
-                    cc = st.columns([5, 1, 1, 1])
-                    _emails = " / ".join(
-                        e for e in (_a.get('이메일_korea', ''),
-                                    _a.get('이메일_gmail', '')) if e.strip())
-                    cc[0].markdown(
-                        f"**{_a['이름']}** {_a.get('직함', '')} · `{_a['아이디']}`"
-                        + (f" · {_emails}" if _emails else "")
-                        + f" — **[{_st or '?'}]**")
-                    _id = _a["아이디"]
-                    if _st != "승인" and cc[1].button("승인", key=f"s_ok_{_id}"):
-                        account_store.set_status(_id, account_store.ST_OK)
-                        st.rerun()
-                    if _st != "대기" and cc[2].button("대기", key=f"s_pd_{_id}"):
-                        account_store.set_status(_id, account_store.ST_PENDING)
-                        st.rerun()
-                    if _st != "거부" and cc[3].button("거부", key=f"s_rj_{_id}"):
-                        account_store.set_status(_id, account_store.ST_REJECT)
-                        st.rerun()
-                st.caption("거부 취소·권한 회수는 상태를 '대기'/'승인'으로 바꾸면 됩니다.")
-
     # 📌 공지사항 — 표시 + 등록/관리 토글(바로가기 첫 타일)
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
         if is_expired(r, today_str):
@@ -1855,6 +1822,44 @@ def _report_collect():
             _backup_section()
 
 
+def _member_admin():
+    """👤 회원 관리 (관리자 전용 메뉴) — 가입 승인 + 전체 상태 변경."""
+    st.header("👤 회원 관리")
+    if not st.session_state.get("is_admin"):
+        st.warning("관리자만 사용할 수 있습니다.")
+        return
+    try:
+        accts = account_store.all_accounts()
+    except Exception as e:
+        st.error(f"계정을 불러오지 못했습니다: {e}")
+        return
+    npend = sum(1 for a in accts if a["상태"].strip() == account_store.ST_PENDING)
+    st.caption(f"대기 {npend}명 / 전체 {len(accts)}명 — 승인해야 로그인할 수 있습니다.")
+    if not accts:
+        st.info("아직 가입한 계정이 없습니다.")
+        return
+    order = {"대기": 0, "승인": 1, "거부": 2}
+    for a in sorted(accts, key=lambda x: order.get(x["상태"].strip(), 3)):
+        stt = a["상태"].strip()
+        cc = st.columns([5, 1, 1, 1])
+        emails = " / ".join(e for e in (a.get('이메일_korea', ''),
+                                        a.get('이메일_gmail', '')) if e.strip())
+        cc[0].markdown(f"**{a['이름']}** {a.get('직함', '')} · `{a['아이디']}`"
+                       + (f" · {emails}" if emails else "")
+                       + f" — **[{stt or '?'}]**")
+        aid = a["아이디"]
+        if stt != "승인" and cc[1].button("승인", key=f"ma_ok_{aid}"):
+            account_store.set_status(aid, account_store.ST_OK)
+            st.rerun()
+        if stt != "대기" and cc[2].button("대기", key=f"ma_pd_{aid}"):
+            account_store.set_status(aid, account_store.ST_PENDING)
+            st.rerun()
+        if stt != "거부" and cc[3].button("거부", key=f"ma_rj_{aid}"):
+            account_store.set_status(aid, account_store.ST_REJECT)
+            st.rerun()
+    st.caption("거부 취소·권한 회수는 상태를 '대기'/'승인'으로 바꾸면 됩니다.")
+
+
 def main():
     if not auth_gate():
         return
@@ -1894,6 +1899,8 @@ def main():
     mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
+    if st.session_state.get("is_admin"):
+        mode_options.append("👤 회원 관리")
     # 홈 바로가기(HTML 타일)의 ?go= 처리 — 메뉴 이동 또는 공지 토글 (radio 생성 전에)
     _go = st.query_params.get("go")
     if _go is not None:
@@ -1920,6 +1927,14 @@ def main():
         _wt = st.session_state.get("title", "")
         st.caption(f"👤 {_who}" + (f" · {_wt}" if _wt else "")
                    + (" · 관리자" if st.session_state.get("is_admin") else ""))
+        if st.session_state.get("is_admin"):
+            try:
+                _np = sum(1 for a in account_store.all_accounts()
+                          if a["상태"].strip() == account_store.ST_PENDING)
+            except Exception:
+                _np = 0
+            if _np:
+                st.caption(f"🔔 가입 승인 대기 {_np}명 → '👤 회원 관리'")
         if st.button("로그아웃"):
             for _k in ("authed", "uid", "me", "title", "tok", "is_admin"):
                 st.session_state.pop(_k, None)
@@ -1940,6 +1955,8 @@ def main():
         collab_page()
     elif mode == "🔧 장비 사용현황":
         equip_page()
+    elif mode == "👤 회원 관리":
+        _member_admin()
     else:
         history_page()
 
