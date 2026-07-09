@@ -228,8 +228,12 @@ def home_page():
       .st-key-me_widget div[data-baseweb="select"] div[value],
       .st-key-me_widget div[data-baseweb="select"] input{
         font-size:1.1rem; text-align:center; }
-      /* 사업단 일정 제목 옆 ➕ 버튼을 제목 높이에 맞게 컴팩트하게 */
-      .st-key-home_cal_open_btn button{ min-height:0; padding:0.15rem 0.55rem; }
+      /* 사업단 일정 제목 옆 ➕ 버튼: 테두리·배경 없는 주황 아이콘 */
+      .st-key-home_cal_open_btn button{ min-height:0; padding:0 0.35rem;
+        border:none !important; background:transparent !important; box-shadow:none;
+        color:#C4622D !important; font-size:1.25rem; line-height:1; }
+      .st-key-home_cal_open_btn button:hover{ color:#A8501A !important;
+        background:transparent !important; border:none !important; }
     </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -405,7 +409,7 @@ def home_page():
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
-    with st.container(border=True):
+    with st.container(border=False):
         if calendar_enabled():
             # 제목 바로 옆 작은 ➕ 버튼 → 누르면 일정 관리 패널(달력 위)이 열림.
             try:
