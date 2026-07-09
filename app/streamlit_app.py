@@ -141,15 +141,17 @@ def home_page():
       /* ⚡ 바로가기 — 박스엔 이모지만 크게(네이버식), 라벨은 박스 밑. qbar 안 버튼만 */
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button{
-        width:52px; margin:0 auto; height:40px; min-height:40px; padding:0;
-        font-size:1.7rem; line-height:1; color:#5A3A24;
-        border:1px solid #EADBCB; border-radius:12px; background:#FCF7F1; box-shadow:none;
+        width:58px !important; margin:0 auto; height:44px !important; min-height:44px !important;
+        padding:0 !important; line-height:1 !important; color:#5A3A24;
+        border:1px solid #E3C6A6; border-radius:13px; background:#FCF3EA; box-shadow:none;
       }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p{ font-size:1.7rem; line-height:1; margin:0; }
+        div.stButton>button,
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
+        div.stButton>button *{ font-size:1.95rem !important; line-height:1 !important; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button:hover{ border-color:#C4622D; background:#FCEEE1; }
-      .qlbl{ text-align:center; font-size:0.72rem; color:#8A5A2B; margin-top:4px;
+      .qlbl{ text-align:center; font-size:0.72rem; color:#8A5A2B; margin-top:5px;
              line-height:1.15; }
       /* '나는 누구' 선택박스를 바로가기 타일과 비슷한 높이로(st-key 지원 버전에서) */
       .st-key-me_widget div[data-baseweb="select"]>div{ min-height:40px; }
@@ -354,10 +356,10 @@ def home_page():
         if calendar_enabled():
             # 제목 바로 옆 작은 ➕ 버튼 → 누르면 일정 관리 패널(달력 위)이 열림.
             try:
-                ct1, ct2, _sp = st.columns([2, 0.6, 12],
+                ct1, ct2, _sp = st.columns([3.2, 0.7, 9],
                                            vertical_alignment="center")
             except TypeError:
-                ct1, ct2, _sp = st.columns([2, 0.6, 12])
+                ct1, ct2, _sp = st.columns([3.2, 0.7, 9])
             ct1.markdown("**📅 사업단 일정**")
             cal_open = st.session_state.get("home_cal_open", False)
             if ct2.button("➖" if cal_open else "➕", key="home_cal_open_btn",
@@ -1778,7 +1780,7 @@ def main():
     st.markdown("""<style>
       .block-container,
       [data-testid="stMainBlockContainer"]{
-        padding-top:2.2rem;padding-bottom:2rem;
+        padding-top:3.6rem;padding-bottom:2rem;
         padding-left:2.4rem;padding-right:2.4rem;}
       /* 헤더·섹션 라벨(굵은글씨)·링크를 주황갈색으로 (알림박스 안 굵은글씨는 제외) */
       h1,h2,h3,h4,h5,h6{ color:#8A3F12; }
