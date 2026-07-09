@@ -48,7 +48,7 @@ from common_store import (
 )
 from hwpx_exporter import build_report
 
-st.set_page_config(page_title="돌봄로봇 주간 업무보고", page_icon="📋", layout="wide")
+st.set_page_config(page_title="dolbom studio", page_icon="🧡", layout="wide")
 
 
 def this_wednesday() -> str:
@@ -71,7 +71,8 @@ def auth_gate():
     if st.session_state.get("authed"):
         return True
 
-    st.title("📋 돌봄로봇 주간 업무보고")
+    st.title("🧡 dolbom studio")
+    st.caption("돌봄로봇 사업단 주간 업무 · 협업 공간")
     pw = st.text_input("비밀번호", type="password", key="pw_input")
     if st.button("입장"):
         if pw == APP_PASSWORD:
@@ -114,21 +115,21 @@ def home_page():
       div[data-testid="stAlert"] a{font-size:0.85rem;}
       hr{margin:0.45rem 0;}
       div.stButton>button{padding:0.25rem 0.5rem;}
-      /* ⚡ 바로가기 타일(아이콘+라벨 한 버튼) — 작게, 한 줄. qbar 컨테이너 안 버튼만 */
+      /* ⚡ 바로가기 — 네이버식(아이콘 크게·박스 없음·라벨 작게·주황갈색). qbar 안 버튼만 */
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button{
-        white-space:pre-line; min-height:40px; line-height:1.25; font-size:0.62rem;
-        color:#555; border:1px solid #e9ecf1; border-radius:9px; background:#fff;
-        padding:3px 1px; box-shadow:none;
+        white-space:pre-line; min-height:0; line-height:1.15; font-size:0.66rem;
+        color:#8A5A2B; border:1px solid transparent; border-radius:12px;
+        background:transparent; padding:4px 2px; box-shadow:none;
       }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p{ white-space:pre-line; line-height:1.25; margin:0; }
+        div.stButton>button p{ white-space:pre-line; line-height:1.15; margin:0; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button::first-line,
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button p::first-line{ font-size:1.05rem; }
+        div.stButton>button p::first-line{ font-size:1.85rem; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
-        div.stButton>button:hover{ border-color:#4C8BF5; background:#F5F9FF; }
+        div.stButton>button:hover{ border-color:#F0D9C4; background:#FCEEE1; }
       /* '나는 누구' 선택박스를 바로가기 타일과 비슷한 높이로(st-key 지원 버전에서) */
       .st-key-me_widget div[data-baseweb="select"]>div{ min-height:40px; }
       /* 사업단 일정 제목 옆 ➕ 버튼을 제목 높이에 맞게 컴팩트하게 */
@@ -1759,6 +1760,7 @@ def main():
     </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
+        st.markdown("### 🧡 dolbom studio")
         mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
                         "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]

@@ -1,0 +1,4 @@
+# dolbom studio 테마 — 주황/갈색(네이버 초록 대비). primaryColor는 위젯 강조색(포커스·선택·primary 버튼).
+# (Streamlit이 CWD 기준 .streamlit/config.toml을 읽는 경우 대비해 레포 루트에도 둠)
+[theme]
+primaryColor = "#C4622D"
