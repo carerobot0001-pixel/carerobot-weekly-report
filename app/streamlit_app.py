@@ -53,7 +53,7 @@ from hwpx_exporter import build_report
 _ICON = Path(__file__).resolve().parent / "assets" / "dolbom_favicon.png"
 st.set_page_config(page_title="dolbom studio",
                    page_icon=str(_ICON) if _ICON.exists() else "🧡",
-                   layout="wide")
+                   layout="wide", initial_sidebar_state="collapsed")
 
 
 def _brand(where="home"):
@@ -214,7 +214,7 @@ def home_page():
       div.stButton>button{padding:0.25rem 0.5rem;}
       /* ⚡ 바로가기 — 순수 HTML 타일 그리드(네이버식): 이모지 크게·박스 작게·라벨 밑·간격 촘촘 */
       .dsbar{ display:flex; flex-wrap:wrap; gap:9px 18px; align-items:flex-start;
-              justify-content:center; }
+              justify-content:center; margin-bottom:12px; }
       .dsbar .dstile{ width:56px; text-decoration:none; text-align:center; }
       .dsbar .dstile .ic{ display:flex; align-items:center; justify-content:center;
         width:52px; height:44px; margin:0 auto; font-size:1.95rem; line-height:1;
