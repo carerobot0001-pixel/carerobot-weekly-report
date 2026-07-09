@@ -170,9 +170,10 @@ def home_page():
         ("📚", "회의록", "📚 과거 회의록 열람"),
     ]
 
-    # ── 🙋 나는 누구 (맨 위, 1회 설정) — main()에서 ?me=로 시드, 여기서 고르면 세션+URL 유지 ──
-    pcol, _psp = st.columns([1.3, 3])
-    with pcol:
+    # ── 상단: 🙋나는 누구(좌) + ⚡바로가기 작은 타일(우, 한 줄) ──
+    # me는 main()에서 ?me=로 시드. 여기서 고르면 세션+URL 유지되고 전 페이지가 사용.
+    top_l, top_r = st.columns([1, 4])
+    with top_l:
         _midx = (USER_NAMES.index(st.session_state["me"])
                  if st.session_state.get("me") in USER_NAMES else None)
         _me_sel = st.selectbox("🙋 나는 누구?", USER_NAMES, index=_midx,
@@ -180,6 +181,16 @@ def home_page():
     st.session_state["me"] = _me_sel
     if _me_sel and st.query_params.get("me") != _me_sel:
         st.query_params["me"] = _me_sel
+    with top_r:
+        st.markdown("**⚡ 바로가기**")
+        with st.container():
+            st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
+            qcols = st.columns(len(shortcuts))
+            for j, (col, (emoji, label, target)) in enumerate(
+                    zip(qcols, shortcuts)):
+                if col.button(f"{emoji}  \n{label}", key=f"qs_{j}_{target}",
+                              use_container_width=True):
+                    _goto(target)
 
     # 📌 공지사항 (표시만 — 등록/관리는 홈 하단 토글)
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
@@ -212,16 +223,19 @@ def home_page():
         wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
         deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
         delta = deadline - now
-        if delta.total_seconds() < 0:
-            dtxt = "🔴 마감 지남 (화 17시)"
-        elif delta.days == 0:
-            dtxt = (f"⏰ 오늘 마감! (화 17시·"
-                    f"{int(delta.total_seconds() // 3600)}시간 남음)")
-        else:
-            dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
-        st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
-                   f"{', '.join(missing)}")
-        any_reminder = True
+        overdue = delta.total_seconds() < 0
+        # 마감 임박(2일 이내)이거나 지난 경우만 '오늘 챙길 것'에 노출(그 전엔 '내 할 일'에만)
+        if overdue or delta.days <= 2:
+            if overdue:
+                dtxt = "🔴 마감 지남 (화 17시)"
+            elif delta.days == 0:
+                dtxt = (f"⏰ 오늘 마감! (화 17시·"
+                        f"{int(delta.total_seconds() // 3600)}시간 남음)")
+            else:
+                dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
+            st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
+                       f"{', '.join(missing)}")
+            any_reminder = True
     for r in active_collab:
         dl = _pdate(r[6])
         if dl is None:
@@ -302,16 +316,6 @@ def home_page():
         _iframe(embed_url("MONTH"), height=520)
     else:
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
-
-    # ── ⚡ 바로가기 (작게, 한 줄) ─────────────────────────────
-    st.markdown("**⚡ 바로가기**")
-    with st.container():
-        st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
-        qcols = st.columns(len(shortcuts))
-        for j, (col, (emoji, label, target)) in enumerate(zip(qcols, shortcuts)):
-            if col.button(f"{emoji}  \n{label}", key=f"qs_{j}_{target}",
-                          use_container_width=True):
-                _goto(target)
 
     # ── 📰 관련 뉴스 (전체 폭) ────────────────────────────────
     st.markdown("**📰 관련 뉴스**")
