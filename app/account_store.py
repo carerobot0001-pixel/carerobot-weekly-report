@@ -121,12 +121,20 @@ def all_accounts():
 
 
 def set_status(uid: str, status: str) -> None:
-    a = get_account(uid)
-    if not a:
+    """상태 변경(승인/대기/거부). 캐시 아닌 최신 시트에서 아이디로 행을 찾아 씀(행밀림 방지)."""
+    uid = (uid or "").strip()
+    if not uid:
         return
     ws = _ws()
-    ws.update_cell(a["_row"], 6, status)          # 상태 F열
+    row_idx = None
+    for i, r in enumerate(ws.get_all_values()[1:], start=2):
+        if r and r[0].strip() == uid:
+            row_idx = i
+            break
+    if row_idx is None:
+        return
+    ws.update_cell(row_idx, 6, status)            # 상태 F열
     if status == ST_OK:
-        ws.update_cell(a["_row"], 8,              # 승인일시 H열
+        ws.update_cell(row_idx, 8,                # 승인일시 H열
                        datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
     _rows.clear()

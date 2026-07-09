@@ -263,25 +263,35 @@ def home_page():
     _html += "</div>"
     st.markdown(_html, unsafe_allow_html=True)
 
-    # 👤 회원 승인 (관리자만) — 대기자가 있을 때
+    # 👤 회원 관리 (관리자만) — 대기 승인 + 전체 상태 변경(거부 복구·권한 회수 가능)
     if st.session_state.get("is_admin"):
         try:
-            _pend = account_store.pending()
+            _accts = account_store.all_accounts()
         except Exception:
-            _pend = []
-        if _pend:
-            with st.expander(f"👤 회원 승인 대기 {len(_pend)}명", expanded=True):
-                for _a in _pend:
-                    ac1, ac2, ac3 = st.columns([6, 1, 1])
-                    ac1.markdown(
-                        f"**{_a['이름']}** {_a.get('직함', '')} · 아이디 `{_a['아이디']}`"
-                        + (f" · {_a['이메일']}" if _a.get('이메일') else ""))
-                    if ac2.button("승인", key=f"appr_{_a['아이디']}"):
-                        account_store.set_status(_a['아이디'], account_store.ST_OK)
+            _accts = []
+        _npend = sum(1 for a in _accts if a["상태"].strip() == account_store.ST_PENDING)
+        if _accts:
+            with st.expander(f"👤 회원 관리 · 대기 {_npend}명 / 전체 {len(_accts)}명",
+                             expanded=bool(_npend)):
+                _order = {"대기": 0, "승인": 1, "거부": 2}
+                for _a in sorted(_accts, key=lambda x: _order.get(x["상태"].strip(), 3)):
+                    _st = _a["상태"].strip()
+                    cc = st.columns([5, 1, 1, 1])
+                    cc[0].markdown(
+                        f"**{_a['이름']}** {_a.get('직함', '')} · `{_a['아이디']}`"
+                        + (f" · {_a['이메일']}" if _a.get('이메일') else "")
+                        + f" — **[{_st or '?'}]**")
+                    _id = _a["아이디"]
+                    if _st != "승인" and cc[1].button("승인", key=f"s_ok_{_id}"):
+                        account_store.set_status(_id, account_store.ST_OK)
                         st.rerun()
-                    if ac3.button("거부", key=f"rej_{_a['아이디']}"):
-                        account_store.set_status(_a['아이디'], account_store.ST_REJECT)
+                    if _st != "대기" and cc[2].button("대기", key=f"s_pd_{_id}"):
+                        account_store.set_status(_id, account_store.ST_PENDING)
                         st.rerun()
+                    if _st != "거부" and cc[3].button("거부", key=f"s_rj_{_id}"):
+                        account_store.set_status(_id, account_store.ST_REJECT)
+                        st.rerun()
+                st.caption("거부 취소·권한 회수는 상태를 '대기'/'승인'으로 바꾸면 됩니다.")
 
     # 📌 공지사항 — 표시 + 등록/관리 토글(바로가기 첫 타일)
     for _idx, r in sorted(ntc, key=lambda x: x[0], reverse=True):
