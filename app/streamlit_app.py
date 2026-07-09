@@ -312,9 +312,14 @@ def home_page():
         dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
         st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
 
-    # 📌 공지 등록/관리 패널 (열기/닫기는 위 '바로가기'의 📌공지등록 타일)
+    # 📌 공지 등록/관리 패널 (열기=바로가기 📌공지등록 타일 / 닫기=아래 ✖ 버튼)
     if st.session_state.get("home_notice_open"):
         with st.container(border=True):
+            _nh1, _nh2 = st.columns([6, 1])
+            _nh1.markdown("**📌 공지 등록 / 관리**")
+            if _nh2.button("✖ 닫기", key="notice_close"):
+                st.session_state["home_notice_open"] = False
+                st.rerun()
             _notice_manage()
 
     # 데이터 계산: 오늘 챙길 것(my 무관) + 할일·일정(my 필요)
