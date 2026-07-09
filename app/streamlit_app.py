@@ -172,12 +172,15 @@ def home_page():
 
     # ── 상단: 🙋나는 누구(좌) + ⚡바로가기 작은 타일(우, 한 줄) ──
     # me는 main()에서 ?me=로 시드. 여기서 고르면 세션+URL 유지되고 전 페이지가 사용.
-    top_l, top_r = st.columns([1, 4])
+    # 두 컬럼 모두 '굵은 라벨 + 컨트롤' 동일 구조로 맞춰 높이·정렬 통일.
+    top_l, top_r = st.columns([1.2, 5])
     with top_l:
+        st.markdown("**🙋 나는 누구?**")
         _midx = (USER_NAMES.index(st.session_state["me"])
                  if st.session_state.get("me") in USER_NAMES else None)
-        _me_sel = st.selectbox("🙋 나는 누구?", USER_NAMES, index=_midx,
-                               placeholder="이름 선택", key="me_widget")
+        _me_sel = st.selectbox("나는", USER_NAMES, index=_midx,
+                               placeholder="이름 선택", label_visibility="collapsed",
+                               key="me_widget")
     st.session_state["me"] = _me_sel
     if _me_sel and st.query_params.get("me") != _me_sel:
         st.query_params["me"] = _me_sel
@@ -317,23 +320,24 @@ def home_page():
         else:
             st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 관련 일정만 표시했습니다.")
 
-    # ── 📅 사업단 일정 (달력, 전체 폭) ─────────────────────────
+    # ── 📅 사업단 일정 (달력 + 일정 관리를 한 카드로 묶음) ─────────────
     st.divider()
-    st.markdown("**📅 사업단 일정**")
-    if calendar_enabled():
-        # 주간/월간/일정 전환은 임베드 달력 우측 상단 자체 버튼 사용. 기본 월간.
-        _iframe = getattr(st, "iframe", components.iframe)
-        _iframe(embed_url("MONTH"), height=520)
-        # 일정 추가·수정·삭제 — 달력 바로 아래(누구나, 기본 접힘)
-        cal_open = st.session_state.get("home_cal_open", False)
-        if st.button("➖ 일정 관리 닫기" if cal_open else "➕ 일정 추가·수정·삭제",
-                     key="home_cal_open_btn", use_container_width=True):
-            st.session_state["home_cal_open"] = not cal_open
-            st.rerun()
-        if st.session_state.get("home_cal_open"):
-            _calendar_manage()
-    else:
-        st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
+    with st.container(border=True):
+        st.markdown("**📅 사업단 일정**")
+        if calendar_enabled():
+            # 달력은 구글 임베드(iframe)라 그 안에 버튼을 못 넣음 → 달력과 같은 카드 안,
+            # 바로 아래에 '일정 추가·수정·삭제'를 둠(주간/월간/일정 전환은 임베드 자체 버튼).
+            _iframe = getattr(st, "iframe", components.iframe)
+            _iframe(embed_url("MONTH"), height=520)
+            cal_open = st.session_state.get("home_cal_open", False)
+            if st.button("➖ 일정 관리 닫기" if cal_open else "➕ 일정 추가·수정·삭제",
+                         key="home_cal_open_btn", use_container_width=True):
+                st.session_state["home_cal_open"] = not cal_open
+                st.rerun()
+            if st.session_state.get("home_cal_open"):
+                _calendar_manage()
+        else:
+            st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
     # ── 📰 관련 뉴스 (전체 폭) ────────────────────────────────
     st.markdown("**📰 관련 뉴스**")
