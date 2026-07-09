@@ -97,31 +97,69 @@ def _set_session(a: dict):
     st.session_state["is_admin"] = a["아이디"] in ADMIN_IDS
 
 
+def _local_store():
+    """streamlit-local-storage 인스턴스(사파리 포함 로그인정보 저장). 실패 시 None."""
+    try:
+        from streamlit_local_storage import LocalStorage
+        return LocalStorage()
+    except Exception:
+        return None
+
+
+def _try_login_token(uid, tok):
+    """uid+tok가 유효하면 세션 로그인. 성공 True."""
+    if not (uid and tok):
+        return False
+    try:
+        a = account_store.get_account(uid)
+    except Exception:
+        a = None
+    if a and a["상태"].strip() == account_store.ST_OK \
+            and account_store.token_for(a) == tok:
+        _set_session(a)
+        st.query_params["uid"] = a["아이디"]
+        st.query_params["tok"] = account_store.token_for(a)
+        return True
+    return False
+
+
 def auth_gate():
     """개인 계정 로그인 + 회원가입(관리자 승인). 공용 비밀번호는 폐지."""
     qp = st.query_params
-    # 새로고침 로그인 유지: ?uid=&tok= 로 복원(토큰 위조 불가)
+    # 1) URL 토큰(?uid=&tok=)으로 복원 — 홈 화면 추가/새로고침용(토큰 위조 불가)
     if not st.session_state.get("authed"):
-        uid, tok = qp.get("uid"), qp.get("tok")
-        if uid and tok:
-            try:
-                a = account_store.get_account(uid)
-            except Exception:
-                a = None
-            if a and a["상태"].strip() == account_store.ST_OK \
-                    and account_store.token_for(a) == tok:
-                _set_session(a)
-
+        _try_login_token(qp.get("uid"), qp.get("tok"))
     if st.session_state.get("authed"):
         return True
 
+    # 2) 브라우저 저장(localStorage)으로 복원 — 다음 방문 시 자동 로그인(사파리 포함).
+    #    로그인 화면일 때만 컴포넌트를 렌더(로그인된 페이지엔 안 뜸).
+    ls = _local_store()
+    if ls is not None:
+        if st.session_state.get("_ls_clear"):        # 로그아웃 직후 저장정보 삭제
+            for _k in ("ds_uid", "ds_tok"):
+                try:
+                    ls.deleteItem(_k)
+                except Exception:
+                    pass
+            st.session_state.pop("_ls_clear", None)
+        else:
+            try:
+                saved = ls.getAll() or {}
+            except Exception:
+                saved = {}
+            if _try_login_token(saved.get("ds_uid"), saved.get("ds_tok")):
+                st.rerun()
+
     st.markdown(_brand("login"), unsafe_allow_html=True)
     st.caption("개인 계정으로 로그인하세요. 계정이 없으면 회원가입 후 관리자 승인을 받으면 됩니다. "
-               "💡 로그인한 뒤 브라우저 메뉴에서 '홈 화면에 추가'하면 다음부터 자동 로그인됩니다.")
+               "💡 '로그인 정보 저장'을 켜두면 다음부터 이 기기에서 자동 로그인됩니다.")
     tab_login, tab_join = st.tabs(["🔑 로그인", "📝 회원가입"])
     with tab_login:
         lid = st.text_input("아이디", key="login_id")
         lpw = st.text_input("비밀번호", type="password", key="login_pw")
+        lrem = st.checkbox("이 기기에 로그인 정보 저장(자동 로그인)", value=True,
+                           key="login_remember")
         if st.button("로그인", type="primary"):
             try:
                 a, err = account_store.login(lid, lpw)
@@ -131,6 +169,9 @@ def auth_gate():
                 _set_session(a)
                 st.query_params["uid"] = a["아이디"]
                 st.query_params["tok"] = account_store.token_for(a)
+                if lrem:   # 다음 방문 자동 로그인 — 저장은 main()의 정상 렌더에서(rerun에 안 잘리게)
+                    st.session_state["_ls_save"] = (a["아이디"],
+                                                    account_store.token_for(a))
                 st.rerun()
             else:
                 st.error(err)
@@ -1875,7 +1916,17 @@ def main():
     if not auth_gate():
         return
     # me·is_admin은 로그인 시 _set_session()에서 세팅됨(개인 계정).
-    # 로그인 유지는 ?uid=&tok= URL 토큰으로(위조 불가). '홈 화면에 추가'하면 그 주소가 저장돼 자동 로그인.
+    # 로그인 유지: ?uid=&tok= URL 토큰 + 브라우저 localStorage(다음 방문 자동 로그인).
+    # 저장은 여기(정상 렌더)에서 1회 — 로그인 클릭 직후 rerun에 컴포넌트 쓰기가 잘리지 않게.
+    _save = st.session_state.pop("_ls_save", None)
+    if _save:
+        _ls = _local_store()
+        if _ls is not None:
+            try:
+                _ls.setItem("ds_uid", _save[0], key="ls_set_uid")
+                _ls.setItem("ds_tok", _save[1], key="ls_set_tok")
+            except Exception:
+                pass
 
     # 전체 페이지 여백 축소 + dolbom studio 주황/갈색 톤(전 페이지 적용)
     st.markdown("""<style>
@@ -1954,6 +2005,7 @@ def main():
         if st.button("로그아웃"):
             for _k in ("authed", "uid", "me", "title", "tok", "is_admin"):
                 st.session_state.pop(_k, None)
+            st.session_state["_ls_clear"] = True   # 저장된 자동로그인 정보 삭제
             st.query_params.clear()
             st.rerun()
 
