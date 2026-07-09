@@ -409,30 +409,29 @@ def home_page():
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
-    with st.container(border=False):
-        if calendar_enabled():
-            # 제목 바로 옆 작은 ➕ 버튼 → 누르면 일정 관리 패널(달력 위)이 열림.
-            try:
-                ct1, ct2, _sp = st.columns([2.2, 0.6, 11],
-                                           vertical_alignment="center")
-            except TypeError:
-                ct1, ct2, _sp = st.columns([2.2, 0.6, 11])
-            ct1.markdown("<div style='white-space:nowrap;font-weight:700;"
-                         "color:#A8501A;font-size:1rem;'>📅 사업단 일정</div>",
-                         unsafe_allow_html=True)
-            cal_open = st.session_state.get("home_cal_open", False)
-            if ct2.button("➖" if cal_open else "➕", key="home_cal_open_btn",
-                          help="일정 추가·수정·삭제"):
-                st.session_state["home_cal_open"] = not cal_open
-                st.rerun()
-            if st.session_state.get("home_cal_open"):
-                _calendar_manage()
-            # 달력은 구글 임베드(iframe). 주간/월간/일정 전환은 임베드 자체 버튼. 기본 월간.
-            _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url("MONTH"), height=520)
-        else:
-            st.markdown("**📅 사업단 일정**")
-            st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
+    if calendar_enabled():
+        # 제목 + ＋를 한 HTML 줄에(컬럼 폭 문제 없이 딱 붙음). ＋는 ?go=cal 링크로 토글.
+        _cuid = st.session_state.get("uid", "")
+        _ctok = st.session_state.get("tok", "")
+        _cb = f"uid={quote(_cuid)}&tok={quote(_ctok)}"
+        _copen = st.session_state.get("home_cal_open", False)
+        _sym = "－" if _copen else "＋"
+        st.markdown(
+            "<div style='display:flex;align-items:center;gap:9px;margin:2px 0 6px;'>"
+            "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;'>"
+            "📅 사업단 일정</span>"
+            f"<a href='?{_cb}&go=cal' target='_self' title='일정 추가·수정·삭제' "
+            "style='text-decoration:none;color:#C4622D;font-size:1.4rem;"
+            f"line-height:1;font-weight:700;'>{_sym}</a></div>",
+            unsafe_allow_html=True)
+        if _copen:
+            _calendar_manage()
+        # 달력은 구글 임베드(iframe). 주간/월간/일정 전환은 임베드 자체 버튼. 기본 월간.
+        _iframe = getattr(st, "iframe", components.iframe)
+        _iframe(embed_url("MONTH"), height=520)
+    else:
+        st.markdown("**📅 사업단 일정**")
+        st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
     # ── 📰 관련 뉴스 (전체 폭, 달력 아래) ────────────────────────────────
     st.markdown("**📰 관련 뉴스**")
@@ -1915,6 +1914,10 @@ def main():
         if _go == "notice":
             st.session_state["home_notice_open"] = \
                 not st.session_state.get("home_notice_open", False)
+            st.session_state["main_menu"] = "🏠 홈"
+        elif _go == "cal":
+            st.session_state["home_cal_open"] = \
+                not st.session_state.get("home_cal_open", False)
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in mode_options:
             st.session_state["main_menu"] = _go
