@@ -48,7 +48,29 @@ from common_store import (
 )
 from hwpx_exporter import build_report
 
-st.set_page_config(page_title="dolbom studio", page_icon="🧡", layout="wide")
+_ICON = Path(__file__).resolve().parent / "assets" / "dolbom_favicon.png"
+st.set_page_config(page_title="dolbom studio",
+                   page_icon=str(_ICON) if _ICON.exists() else "🧡",
+                   layout="wide")
+
+
+def _brand(where="home"):
+    """DS 주황 배지 + 'dolbom studio' 브랜드 블록 HTML."""
+    if where == "sidebar":
+        name_c, sub_c, size, badge = "#F3E9DC", "#B9A892", 19, 34
+    else:  # home / login
+        name_c, sub_c, size, badge = "#C4622D", "#8A7A6B", (34 if where == "login" else 26), (54 if where == "login" else 46)
+    return (
+        f'<div style="display:flex;align-items:center;gap:12px;margin:2px 0 8px;">'
+        f'<div style="width:{badge}px;height:{badge}px;border-radius:{int(badge*0.28)}px;'
+        f'background:#C4622D;color:#fff;font-weight:800;font-size:{int(badge*0.44)}px;'
+        f'display:flex;align-items:center;justify-content:center;letter-spacing:1px;'
+        f'font-family:Arial,sans-serif;box-shadow:0 2px 7px rgba(196,98,45,.35);">DS</div>'
+        f'<div style="line-height:1.15;">'
+        f'<div style="font-size:{size}px;font-weight:800;color:{name_c};">dolbom studio</div>'
+        f'<div style="font-size:{max(10,int(size*0.5))}px;color:{sub_c};">돌봄로봇 사업단 · 업무·협업 공간</div>'
+        f'</div></div>'
+    )
 
 
 def this_wednesday() -> str:
@@ -71,8 +93,8 @@ def auth_gate():
     if st.session_state.get("authed"):
         return True
 
-    st.title("🧡 dolbom studio")
-    st.caption("돌봄로봇 사업단 주간 업무 · 협업 공간")
+    st.markdown(_brand("login"), unsafe_allow_html=True)
+    st.write("")
     pw = st.text_input("비밀번호", type="password", key="pw_input")
     if st.button("입장"):
         if pw == APP_PASSWORD:
@@ -102,6 +124,7 @@ def home_page():
     today = datetime.now(KST).date()
     now = datetime.now(KST)
     week = this_wednesday()
+    st.markdown(_brand("home"), unsafe_allow_html=True)
     st.caption(f"📊 팀 현황 · {today.strftime('%Y-%m-%d')} 기준")
 
     # 홈 전용 컴팩트 스타일(폰트·여백 축소). 다른 페이지엔 주입 안 됨(홈 렌더 시에만).
@@ -1762,8 +1785,11 @@ def main():
       [data-testid="stMarkdownContainer"] strong{ color:#A8501A; }
       [data-testid="stAlert"] strong{ color:inherit; }
       a,a:visited{ color:#C4622D; }
-      /* 사이드바 따뜻한 톤 */
-      section[data-testid="stSidebar"]{ background:#FBF2E8; }
+      /* 다크 사이드바(CRLM식) — 텍스트 밝게 강제해 가독성 보장 */
+      section[data-testid="stSidebar"]{ background:#2B2018; }
+      section[data-testid="stSidebar"] *{ color:#EFE5D8 !important; }
+      section[data-testid="stSidebar"] .stButton>button{ background:transparent; border-color:#6B5540; }
+      section[data-testid="stSidebar"] .stButton>button:hover{ border-color:#E08A3C; }
       /* 일반 버튼 주황 톤(바로가기 타일은 더 구체적 규칙이라 그대로 유지) */
       div.stButton>button{ border-color:#E6C9AC; color:#8A4A1E; }
       div.stButton>button:hover{ border-color:#C4622D; color:#C4622D; }
@@ -1772,7 +1798,7 @@ def main():
     </style>""", unsafe_allow_html=True)
 
     with st.sidebar:
-        st.markdown("### 🧡 dolbom studio")
+        st.markdown(_brand("sidebar"), unsafe_allow_html=True)
         mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
                         "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                         "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
