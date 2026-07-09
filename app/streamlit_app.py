@@ -129,6 +129,10 @@ def home_page():
         div.stButton>button p::first-line{ font-size:1.05rem; }
       div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .qbar-mark)
         div.stButton>button:hover{ border-color:#4C8BF5; background:#F5F9FF; }
+      /* '나는 누구' 선택박스를 바로가기 타일과 비슷한 높이로(st-key 지원 버전에서) */
+      .st-key-me_widget div[data-baseweb="select"]>div{ min-height:40px; }
+      /* 사업단 일정 제목 옆 ➕ 버튼을 제목 높이에 맞게 컴팩트하게 */
+      .st-key-home_cal_open_btn button{ min-height:0; padding:0.15rem 0.55rem; }
     </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -172,7 +176,7 @@ def home_page():
     # ── 상단: 🙋나는 누구(좌) + ⚡바로가기 작은 타일(우, 한 줄) ──
     # me는 main()에서 ?me=로 시드. 여기서 고르면 세션+URL 유지되고 전 페이지가 사용.
     # 두 컬럼 모두 '굵은 라벨 + 컨트롤' 동일 구조로 맞춰 높이·정렬 통일.
-    top_l, top_r = st.columns([1.2, 5])
+    top_l, top_r = st.columns([1.2, 6])
     with top_l:
         st.markdown("**🙋 나는 누구?**")
         _midx = (USER_NAMES.index(st.session_state["me"])
@@ -187,9 +191,15 @@ def home_page():
         st.markdown("**⚡ 바로가기**")
         with st.container():
             st.markdown('<div class="qbar-mark"></div>', unsafe_allow_html=True)
-            qcols = st.columns(len(shortcuts))
+            qcols = st.columns(len(shortcuts) + 1)
+            # 첫 타일: 📌 공지 등록/관리 (토글 — 아래 패널 열고 닫음). 주간보고 왼쪽.
+            _nopen = st.session_state.get("home_notice_open", False)
+            if qcols[0].button("📌  \n공지등록", key="qs_notice",
+                               help="공지 등록/관리", use_container_width=True):
+                st.session_state["home_notice_open"] = not _nopen
+                st.rerun()
             for j, (col, (emoji, label, target)) in enumerate(
-                    zip(qcols, shortcuts)):
+                    zip(qcols[1:], shortcuts)):
                 if col.button(f"{emoji}  \n{label}", key=f"qs_{j}_{target}",
                               use_container_width=True):
                     _goto(target)
@@ -218,12 +228,7 @@ def home_page():
         dl_md = f" · 마감 {r[6]}" if r[6].strip() else ""
         st.info(f"📋 **[문서협업] {r[3]}**{dl_md}　—　{prog}{linkmd}")
 
-    # 📌 공지 등록/관리 (누구나, 기본 접힘) — 공지 바로 아래
-    n_open = st.session_state.get("home_notice_open", False)
-    if st.button("➖ 공지 관리 닫기" if n_open else "📌 공지 등록/관리",
-                 key="home_notice_open_btn", use_container_width=True):
-        st.session_state["home_notice_open"] = not n_open
-        st.rerun()
+    # 📌 공지 등록/관리 패널 (열기/닫기는 위 '바로가기'의 📌공지등록 타일)
     if st.session_state.get("home_notice_open"):
         with st.container(border=True):
             _notice_manage()
