@@ -433,29 +433,10 @@ def home_page():
             unsafe_allow_html=True)
         if _copen:
             _calendar_manage()
-        # 앱이 서비스계정으로 읽은 일정 목록 — 구글 로그인 없이 누구나 보임(폰 포함).
-        # (임베드 달력은 보는 사람이 구글 로그인돼야 해서, 목록을 기본으로 두고 달력은 접이식)
-        try:
-            _evs = upcoming_events(days=21, maxn=60)
-        except Exception:
-            _evs = []
-        _WD = ["월", "화", "수", "목", "금", "토", "일"]
-        if _evs:
-            _lastd = None
-            for _e in _evs:
-                _v = event_view(_e)
-                if _v["date"] != _lastd:
-                    _dd = _pdate(_v["date"])
-                    _wd = _WD[_dd.weekday()] if _dd else ""
-                    st.markdown(f"**🗓️ {_v['date'][5:].replace('-', '/')} ({_wd})**")
-                    _lastd = _v["date"]
-                st.markdown(f"- {_v['when']} · {_v['title']}")
-        else:
-            st.caption("3주 내 일정이 없습니다.")
-        with st.expander("📅 달력(구글 캘린더)으로 크게 보기"):
-            st.caption("※ 이 달력은 구글 계정 로그인이 필요합니다. 안 보이면 위 목록을 이용하세요.")
-            _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url("MONTH"), height=520)
+        # 임베드 달력(기본 월간). 팀원 폰에서 로그인 벽 없이 보이려면 이 구글 캘린더를
+        # '공개(모든 일정 세부정보 보기)'로 설정해야 함 → AGENTS.md 참고.
+        _iframe = getattr(st, "iframe", components.iframe)
+        _iframe(embed_url("MONTH"), height=520)
     else:
         st.markdown("**📅 사업단 일정**")
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
