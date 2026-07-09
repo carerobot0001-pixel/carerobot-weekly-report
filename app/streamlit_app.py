@@ -278,9 +278,9 @@ def home_page():
             st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
             any_reminder = True
     if not any_reminder:
-        st.success("✅ 급히 챙길 건 없습니다.")
+        st.caption("✅ 급히 챙길 건 없습니다.")
 
-    # 🙋 내 할 일 (+ 7일 일정)
+    # 🙋 내 할 일 (+ 7일 일정) — 콤팩트(한 줄 목록·공통일정 접기·날짜 축약)
     my = st.session_state.get("me")
     st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
     if not my:
@@ -310,35 +310,29 @@ def home_page():
                         str(v.get("title", "") or ""),
                         str(v.get("desc", "") or ""),
                     ])
-                    item_text = f"📅 {v['date']} {v['when']} - {v['title']}"
+                    md = v["date"][5:].replace("-", "/")          # MM/DD
+                    tm = "종일" if v["when"] == "종일" else v["when"].split("~")[0]
+                    line = f"{md} {tm} · {v['title']}"
                     if my in haystack:
-                        sched_items.append(item_text)
-                        continue
-                    if not any(name in haystack for name in USER_NAMES):
-                        common_sched_items.append(item_text)
+                        sched_items.append(line)
+                    elif not any(name in haystack for name in USER_NAMES):
+                        common_sched_items.append(line)
             except Exception:
                 sched_items = []
                 common_sched_items = []
 
+        if todos:
+            st.markdown("\n".join(f"- {t}" for t in todos))
         if sched_items:
             st.markdown("**7일 내 내 일정**")
-            for item in sched_items:
-                st.info(item)
-        else:
-            st.caption("7일 내 내 일정이 없습니다.")
-
+            st.markdown("\n".join(f"- 📅 {s}" for s in sched_items))
+        if not todos and not sched_items:
+            st.caption("✅ 내 할 일·일정 없음"
+                       + ("  (공통 일정만 아래에)" if common_sched_items else ""))
         if common_sched_items:
-            st.markdown("**7일 내 공통 일정**")
-            for item in common_sched_items:
-                st.info(item)
-
-        if todos:
-            for t in todos:
-                st.warning(t)
-        elif not sched_items and not common_sched_items:
-            st.success(f"✅ {my} 님, 할 일 없어요!")
-        else:
-            st.caption(f"{my} 님의 업무성 할 일은 없고, 아래에 관련 일정만 표시했습니다.")
+            with st.expander(f"🗓️ 7일 내 공통 일정 ({len(common_sched_items)})",
+                             expanded=False):
+                st.markdown("\n".join(f"- {s}" for s in common_sched_items))
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
