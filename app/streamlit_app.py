@@ -196,7 +196,6 @@ def home_page():
     # 두 컬럼 모두 '굵은 라벨 + 컨트롤' 동일 구조로 맞춰 높이·정렬 통일.
     top_l, top_r = st.columns([1.2, 6])
     with top_l:
-        st.markdown("**🙋 나는 누구?**")
         _midx = (USER_NAMES.index(st.session_state["me"])
                  if st.session_state.get("me") in USER_NAMES else None)
         _me_sel = st.selectbox("나는", USER_NAMES, index=_midx,
@@ -206,7 +205,6 @@ def home_page():
     if _me_sel and st.query_params.get("me") != _me_sel:
         st.query_params["me"] = _me_sel
     with top_r:
-        st.markdown("**⚡ 바로가기**")
         # 순수 HTML 타일 그리드. 클릭=?go= 링크(auth·me 유지). 공지등록은 go=notice 토글.
         _meq = st.session_state.get("me") or ""
         _base = "auth=team" + (f"&me={quote(_meq)}" if _meq else "")
@@ -284,6 +282,7 @@ def home_page():
             except Exception:
                 sched_items, common_sched_items = [], []
 
+    st.divider()
     # ── 좌: 오늘 챙길 것 + 내 할 일 / 우: 7일 내 일정 ─────────────
     left, right = st.columns([1, 1])
     with left:
@@ -318,7 +317,7 @@ def home_page():
 
         st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
         if not my:
-            st.caption("👆 위 '나는 누구?'에서 이름을 먼저 선택하세요.")
+            st.caption("👆 상단 이름 선택 박스에서 본인 이름을 먼저 골라주세요.")
         elif todos:
             st.markdown("\n".join(f"- {t}" for t in todos))
         else:
