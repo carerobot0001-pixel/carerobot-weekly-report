@@ -133,23 +133,34 @@ def auth_gate():
             else:
                 st.error(err)
     with tab_join:
-        st.caption("이름·직함·아이디·비밀번호·이메일을 입력하고 신청하면, 관리자 승인 후 로그인됩니다.")
+        st.caption("이름·직함·아이디·비밀번호·이메일(korea·gmail)을 입력하고 신청하면, "
+                   "관리자 승인 후 로그인됩니다.")
         jname = st.text_input("이름", key="join_name")
         jtitle = st.text_input("직함", key="join_title", placeholder="예: 연구원 / 과장")
         jid = st.text_input("아이디", key="join_id")
         jpw = st.text_input("비밀번호", type="password", key="join_pw")
-        jemail = st.text_input("이메일", key="join_email")
+        jpw2 = st.text_input("비밀번호 확인", type="password", key="join_pw2")
+        jek = st.text_input("이메일 (korea)", key="join_email_k",
+                            placeholder="예: hong@korea.ac.kr")
+        jeg = st.text_input("이메일 (gmail)", key="join_email_g",
+                            placeholder="예: hong@gmail.com")
         if st.button("회원가입 신청"):
-            try:
-                stt = account_store.register(jid, jpw, jname, jtitle, jemail, ADMIN_IDS)
-                if stt == account_store.ST_OK:
-                    st.success("관리자 계정으로 등록됐습니다. 이제 로그인하세요.")
-                else:
-                    st.success("가입 신청 완료! 관리자 승인 후 로그인할 수 있습니다.")
-            except ValueError as e:
-                st.warning(str(e))
-            except Exception as e:
-                st.error(f"가입 오류: {e}")
+            if (jpw or "") != (jpw2 or ""):
+                st.warning("비밀번호와 비밀번호 확인이 일치하지 않습니다.")
+            elif len(jpw or "") < 4:
+                st.warning("비밀번호는 4자 이상으로 해주세요.")
+            else:
+                try:
+                    stt = account_store.register(jid, jpw, jname, jtitle,
+                                                 jek, jeg, ADMIN_IDS)
+                    if stt == account_store.ST_OK:
+                        st.success("관리자 계정으로 등록됐습니다. 이제 로그인하세요.")
+                    else:
+                        st.success("가입 신청 완료! 관리자 승인 후 로그인할 수 있습니다.")
+                except ValueError as e:
+                    st.warning(str(e))
+                except Exception as e:
+                    st.error(f"가입 오류: {e}")
     return False
 
 
@@ -278,9 +289,12 @@ def home_page():
                 for _a in sorted(_accts, key=lambda x: _order.get(x["상태"].strip(), 3)):
                     _st = _a["상태"].strip()
                     cc = st.columns([5, 1, 1, 1])
+                    _emails = " / ".join(
+                        e for e in (_a.get('이메일_korea', ''),
+                                    _a.get('이메일_gmail', '')) if e.strip())
                     cc[0].markdown(
                         f"**{_a['이름']}** {_a.get('직함', '')} · `{_a['아이디']}`"
-                        + (f" · {_a['이메일']}" if _a.get('이메일') else "")
+                        + (f" · {_emails}" if _emails else "")
                         + f" — **[{_st or '?'}]**")
                     _id = _a["아이디"]
                     if _st != "승인" and cc[1].button("승인", key=f"s_ok_{_id}"):

@@ -15,7 +15,10 @@ import streamlit as st
 from sheets_store import _get_client, KST
 
 ACC_WS = "계정"
-ACC_HEADER = ["아이디", "비번", "이름", "직함", "이메일", "상태", "가입일시", "승인일시"]
+ACC_HEADER = ["아이디", "비번", "이름", "직함", "이메일_korea", "이메일_gmail",
+              "상태", "가입일시", "승인일시"]
+_COL_STATUS = ACC_HEADER.index("상태") + 1        # 상태 열(1-indexed)
+_COL_APPROVED = ACC_HEADER.index("승인일시") + 1  # 승인일시 열
 ST_PENDING, ST_OK, ST_REJECT = "대기", "승인", "거부"
 
 
@@ -83,7 +86,7 @@ def get_account(uid: str):
     return None
 
 
-def register(uid, pw, name, title, email, admin_ids) -> str:
+def register(uid, pw, name, title, email_korea, email_gmail, admin_ids) -> str:
     """회원가입 신청. 아이디가 admin_ids면 자동 승인. 반환: 상태(대기/승인)."""
     uid = (uid or "").strip()
     if not uid or not pw or not (name or "").strip():
@@ -94,7 +97,8 @@ def register(uid, pw, name, title, email, admin_ids) -> str:
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     _ws().append_row(
         [uid, _hash_pw(pw), name.strip(), (title or "").strip(),
-         (email or "").strip(), status, now, now if status == ST_OK else ""],
+         (email_korea or "").strip(), (email_gmail or "").strip(),
+         status, now, now if status == ST_OK else ""],
         value_input_option="RAW")
     _rows.clear()
     return status
@@ -133,8 +137,8 @@ def set_status(uid: str, status: str) -> None:
             break
     if row_idx is None:
         return
-    ws.update_cell(row_idx, 6, status)            # 상태 F열
+    ws.update_cell(row_idx, _COL_STATUS, status)
     if status == ST_OK:
-        ws.update_cell(row_idx, 8,                # 승인일시 H열
+        ws.update_cell(row_idx, _COL_APPROVED,
                        datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
     _rows.clear()
