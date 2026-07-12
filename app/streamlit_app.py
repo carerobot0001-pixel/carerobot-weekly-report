@@ -390,56 +390,54 @@ def home_page():
                 sched_items, common_sched_items = [], []
 
     st.divider()
-    # ── 오늘 챙길 것 → 내 할 일 → 7일 내 일정 (세로 배치) ─────────────
-    st.markdown("**🔔 오늘 챙길 것**")
-    any_reminder = False
-    if missing:
-        wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
-        deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
-        delta = deadline - now
-        overdue = delta.total_seconds() < 0
-        if overdue or delta.days <= 1:   # 마감 지남 + D-0(오늘)·D-1(내일)만
-            if overdue:
-                dtxt = "🔴 마감 지남 (화 17시)"
-            elif delta.days == 0:
-                dtxt = (f"⏰ 오늘 마감! (화 17시·"
-                        f"{int(delta.total_seconds() // 3600)}시간 남음)")
-            else:
-                dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
-            st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
-                       f"{', '.join(missing)}")
-            any_reminder = True
-    for r in active_collab:
-        dl = _pdate(r[6])
-        if dl is None:
-            continue
-        if dl < today or (dl - today).days <= 1:   # 마감 지남 + D-0·D-1만
-            tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
-            st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
-            any_reminder = True
-    if not any_reminder:
-        st.caption("✅ 급히 챙길 건 없습니다.")
+    # ── 좌: 오늘 챙길 것 + 내 할 일(7일) / 우: 그 외 일정(7일) ─────────────
+    left, right = st.columns([1, 1])
+    with left:
+        st.markdown("**🔔 오늘 챙길 것**")
+        any_reminder = False
+        if missing:
+            wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
+            deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
+            delta = deadline - now
+            overdue = delta.total_seconds() < 0
+            if overdue or delta.days <= 1:   # 마감 지남 + D-0(오늘)·D-1(내일)만
+                if overdue:
+                    dtxt = "🔴 마감 지남 (화 17시)"
+                elif delta.days == 0:
+                    dtxt = (f"⏰ 오늘 마감! (화 17시·"
+                            f"{int(delta.total_seconds() // 3600)}시간 남음)")
+                else:
+                    dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
+                st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
+                           f"{', '.join(missing)}")
+                any_reminder = True
+        for r in active_collab:
+            dl = _pdate(r[6])
+            if dl is None:
+                continue
+            if dl < today or (dl - today).days <= 1:   # 마감 지남 + D-0·D-1만
+                tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
+                st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
+                any_reminder = True
+        if not any_reminder:
+            st.caption("✅ 급히 챙길 건 없습니다.")
 
-    st.markdown(f"**🙋 내 할 일**{f' — {my}' if my else ''}")
-    if not my:
-        st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
-    elif todos:
-        st.markdown("\n".join(f"- {t}" for t in todos))
-    else:
-        st.caption(f"✅ {my} 님, 지금 할 일이 없습니다.")
-
-    st.markdown("**📅 7일 내 일정**")
-    if not my:
-        st.caption("이름 선택 후 표시됩니다.")
-    else:
-        if sched_items:
-            st.markdown("\n".join(f"- 📅 {s}" for s in sched_items))
+        # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정
+        st.markdown(f"**🙋 내 할 일 (7일)**{f' — {my}' if my else ''}")
+        if not my:
+            st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         else:
-            st.caption("7일 내 내 일정이 없습니다.")
+            todo_lines = list(todos) + [f"📅 {s}" for s in sched_items]
+            if todo_lines:
+                st.markdown("\n".join(f"- {t}" for t in todo_lines))
+            else:
+                st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
+    with right:
+        st.markdown("**🗓️ 그 외 일정 (7일)**")
         if common_sched_items:
-            with st.expander(f"🗓️ 그 외 일정 ({len(common_sched_items)})",
-                             expanded=False):
-                st.markdown("\n".join(f"- {s}" for s in common_sched_items))
+            st.markdown("\n".join(f"- {s}" for s in common_sched_items))
+        else:
+            st.caption("7일 내 다른 일정이 없습니다.")
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
