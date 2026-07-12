@@ -398,7 +398,7 @@ def home_page():
         deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
         delta = deadline - now
         overdue = delta.total_seconds() < 0
-        if overdue or delta.days <= 2:
+        if overdue or delta.days <= 1:   # 마감 지남 + D-0(오늘)·D-1(내일)만
             if overdue:
                 dtxt = "🔴 마감 지남 (화 17시)"
             elif delta.days == 0:
@@ -413,7 +413,7 @@ def home_page():
         dl = _pdate(r[6])
         if dl is None:
             continue
-        if dl < today or (dl - today).days <= 3:
+        if dl < today or (dl - today).days <= 1:   # 마감 지남 + D-0·D-1만
             tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
             st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
             any_reminder = True
