@@ -384,7 +384,7 @@ def home_page():
                     line = f"{md} {tm} · {v['title']}"
                     if my in haystack:
                         sched_items.append(line)
-                    elif not any(name in haystack for name in USER_NAMES):
+                    else:   # 내 것 외에는 이름 구분 없이 전부 '그 외 일정'으로
                         common_sched_items.append(line)
             except Exception:
                 sched_items, common_sched_items = [], []
@@ -440,7 +440,7 @@ def home_page():
             else:
                 st.caption("7일 내 내 일정이 없습니다.")
             if common_sched_items:
-                with st.expander(f"🗓️ 공통 일정 ({len(common_sched_items)})",
+                with st.expander(f"🗓️ 그 외 일정 ({len(common_sched_items)})",
                                  expanded=False):
                     st.markdown("\n".join(f"- {s}" for s in common_sched_items))
 
