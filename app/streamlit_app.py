@@ -2062,9 +2062,11 @@ def _report_collect():
                      .replace(">", "&gt;").replace("\n", "<br>"))
                 return s or "-"
 
-            def _tbl(inner):
+            def _tbl(inner, fill=False):
                 # table-layout:fixed + colgroup → 구분칸 고정, 실적/계획 50:50(정중앙)
-                return ("<table style='width:100%;border-collapse:collapse;"
+                # fill=True → 표가 남은 높이를 채움(칸이 화면 아래까지 늘어남, 여백 제거)
+                h = "height:100%;" if fill else ""
+                return (f"<table style='width:100%;{h}border-collapse:collapse;"
                         "table-layout:fixed;font-size:0.93rem;line-height:1.45;'>"
                         "<colgroup><col style='width:56px'><col><col></colgroup>"
                         + inner + "</table>")
@@ -2212,14 +2214,15 @@ def _report_collect():
                         if not v:
                             continue
                         inner += _full(FIELD_LABELS[f], v)
-                    # 한 사람 = 한 화면(min-height) → 내용 적어도/많아도 다음 사람과 안 겹침
-                    block = _barhtml("#fbe6d3", f"🙋 {name}",
-                                     r.get("submitted_at", ""))
-                    block += _tbl(inner) if inner else ""
+                    # 한 사람 = 한 화면(min-height) → 내용 적어도/많아도 다음 사람과 안 겹침.
+                    # flex + 표 height:100% → 내용 짧아도 칸이 화면 아래까지 꽉 참(여백 제거).
+                    tbl = _tbl(inner, fill=True) if inner else ""
+                    bar = _barhtml("#fbe6d3", f"🙋 {name}", r.get("submitted_at", ""))
                     st.markdown(
-                        f"<div style='min-height:90vh;box-sizing:border-box;"
-                        f"border-bottom:2px dashed #e6be97;margin-bottom:14px;"
-                        f"padding-bottom:14px;'>{block}</div>",
+                        "<div style='min-height:92vh;box-sizing:border-box;display:flex;"
+                        "flex-direction:column;border-bottom:2px dashed #e6be97;"
+                        "margin-bottom:14px;'>" + bar
+                        + "<div style='flex:1 1 auto;min-height:0;'>" + tbl + "</div></div>",
                         unsafe_allow_html=True)
 
             # 회의자료(최혜민) — 취합본 뒷부분. 내용 있을 때만.
