@@ -2041,38 +2041,77 @@ def _report_collect():
                 st.text(val)
             st.divider()
 
-    with st.expander("🖥️ 회의 진행 모드 (연구원별 전체폭 · 스크롤로 진행)"):
+    with st.expander("🖥️ 회의 진행 모드 (취합본 형식 · 연구원별 실적/계획 표)"):
         mdata = load_week(week)
         submitted = [n for n in MEMBER_NAMES if mdata.get(n)]
         if not submitted:
             st.caption("제출된 보고가 없습니다.")
         else:
-            st.caption(f"제출 {len(submitted)}명 — 한 명씩 전체폭으로. 아래로 스크롤하며 진행하세요.")
+            st.caption(f"제출 {len(submitted)}명 — 취합본과 같은 '실적 | 계획' 형식. 아래로 스크롤하며 진행.")
 
             def _esc(s):
+                s = (s or "").strip()
                 return (s.replace("&", "&amp;").replace("<", "&lt;")
-                        .replace(">", "&gt;").replace("\n", "<br>"))
+                        .replace(">", "&gt;").replace("\n", "<br>")) or "-"
+
+            def _cell(txt, size="0.9rem"):
+                st.markdown(f"<div style='font-size:{size};line-height:1.45;"
+                            f"padding:2px 4px;'>{_esc(txt)}</div>",
+                            unsafe_allow_html=True)
+
+            # (실적키, 계획키, 행이름) — 취합본의 좌측 구분
+            PAIRS = [("research_done", "research_plan", "연구"),
+                     ("task_done", "task_plan", "업무"),
+                     ("smart_care_space_done", "smart_care_space_plan", "스페이스"),
+                     ("project_confirmation_2_done", "project_confirmation_2_plan", "공통확인")]
+            paired = {k for a, b, _ in PAIRS for k in (a, b)}
 
             for name in submitted:
                 r = mdata[name]
+                fields = get_fields_for(get_member(name))
                 with st.container(border=True):
                     st.markdown(
                         f"<div style='background:#C4622D;color:#fff;padding:6px 12px;"
-                        f"border-radius:7px;font-size:1.25rem;font-weight:700;"
+                        f"border-radius:7px;font-size:1.2rem;font-weight:700;"
                         f"margin-bottom:8px;'>🙋 {name}"
                         f"<span style='float:right;font-size:0.75rem;font-weight:400;"
                         f"opacity:.85;'>{r.get('submitted_at', '')}</span></div>",
                         unsafe_allow_html=True)
-                    for f in get_fields_for(get_member(name)):
-                        val = (r.get(f, "") or "").strip()
-                        if not val:
+                    # 획득 데이터(파랑, 전체폭)
+                    ad = (r.get("acquired_data", "") or "").strip()
+                    if "acquired_data" in fields and ad:
+                        st.markdown(
+                            f"<div style='color:#1a56db;font-weight:700;"
+                            f"font-size:0.92rem;padding:2px 4px 6px;'>"
+                            f"획득 데이터: {_esc(ad)}</div>", unsafe_allow_html=True)
+                    # 실적 | 계획 표
+                    rows = [(d, p, lb) for d, p, lb in PAIRS
+                            if (d in fields or p in fields)
+                            and ((r.get(d, "") or "").strip()
+                                 or (r.get(p, "") or "").strip())]
+                    if rows:
+                        h = st.columns([1, 6, 6])
+                        h[1].markdown("**📌 실적**")
+                        h[2].markdown("**📝 계획**")
+                        for d, p, lb in rows:
+                            c = st.columns([1, 6, 6])
+                            c[0].markdown(f"**{lb}**")
+                            with c[1]:
+                                _cell(r.get(d, ""))
+                            with c[2]:
+                                _cell(r.get(p, ""))
+                    # 기타 단일 필드(회의자료·공통확인1 등)
+                    for f in fields:
+                        if f in paired or f == "acquired_data":
+                            continue
+                        v = (r.get(f, "") or "").strip()
+                        if not v:
                             continue
                         st.markdown(
                             f"<div style='color:#A8501A;font-weight:700;"
-                            f"font-size:0.92rem;margin-top:8px;'>▸ {FIELD_LABELS[f]}</div>"
-                            f"<div style='font-size:0.95rem;line-height:1.5;"
-                            f"padding:2px 0 4px 14px;'>{_esc(val)}</div>",
+                            f"font-size:0.9rem;margin-top:6px;'>▸ {FIELD_LABELS[f]}</div>",
                             unsafe_allow_html=True)
+                        _cell(v)
                 st.markdown("<div style='height:10px;'></div>",
                             unsafe_allow_html=True)
 
