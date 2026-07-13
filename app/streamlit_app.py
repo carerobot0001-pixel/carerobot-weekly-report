@@ -423,6 +423,7 @@ def home_page():
                 if st.form_submit_button("추가") and _ct.strip():
                     try:
                         todo_store.add_todo(uid, _ct, todo_store.KIND_CARE)
+                        st.session_state["care_add_open"] = False  # 추가 후 닫기
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
                     st.rerun()
@@ -486,6 +487,7 @@ def home_page():
                     if st.form_submit_button("추가") and _tt.strip():
                         try:
                             todo_store.add_todo(uid, _tt)
+                            st.session_state["todo_add_open"] = False  # 추가 후 닫기
                         except Exception as e:
                             st.error(f"저장 실패: {e}")
                         st.rerun()
