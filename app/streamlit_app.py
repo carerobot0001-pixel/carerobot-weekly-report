@@ -220,15 +220,17 @@ def _me_index(options, default=0):
 
 
 def _inline_plus(title, go, is_open, help_txt="추가"):
-    """제목 옆에 '사업단 일정 ＋'과 같은 작은 인라인 ＋(＝토글 링크)를 렌더."""
+    """제목 옆에 '사업단 일정 ＋'과 같은 작은 인라인 ＋를 렌더.
+    열림 여부에 따라 go=<name>_open/_close 를 명시(토글 아님 → 중복 처리에도 안전)."""
     uid = st.session_state.get("uid", "")
     tok = st.session_state.get("tok", "")
     cb = f"uid={quote(uid)}&tok={quote(tok)}"
     sym = "－" if is_open else "＋"
+    act = "close" if is_open else "open"
     st.markdown(
         "<div style='display:flex;align-items:center;gap:9px;margin:2px 0 6px;'>"
         f"<span style='font-weight:700;color:#A8501A;font-size:1.05rem;'>{title}</span>"
-        f"<a href='?{cb}&go={go}' target='_self' title='{help_txt}' "
+        f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
         "style='text-decoration:none;color:#C4622D;font-size:1.4rem;"
         f"line-height:1;font-weight:700;'>{sym}</a></div>",
         unsafe_allow_html=True)
@@ -2043,13 +2045,9 @@ def main():
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
             st.session_state["main_menu"] = "🏠 홈"
-        elif _go == "care":
-            st.session_state["care_add_open"] = \
-                not st.session_state.get("care_add_open", False)
-            st.session_state["main_menu"] = "🏠 홈"
-        elif _go == "todo":
-            st.session_state["todo_add_open"] = \
-                not st.session_state.get("todo_add_open", False)
+        elif _go in ("care_open", "care_close", "todo_open", "todo_close"):
+            _nm, _act = _go.rsplit("_", 1)   # 명시적 열기/닫기(토글 아님)
+            st.session_state[f"{_nm}_add_open"] = (_act == "open")
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in mode_options:
             st.session_state["main_menu"] = _go
