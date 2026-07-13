@@ -4,6 +4,7 @@ import streamlit.components.v1 as components
 from datetime import datetime, timedelta, time
 from urllib.parse import quote
 import json
+import base64
 import pandas as pd
 from pathlib import Path
 
@@ -2200,9 +2201,50 @@ def _member_admin():
     st.caption("거부 취소·권한 회수는 상태를 '대기'/'승인'으로 바꾸면 됩니다.")
 
 
+@st.cache_data
+def _pwa_icon_b64():
+    try:
+        p = Path(__file__).resolve().parent / "assets" / "dolbom_favicon.png"
+        return base64.b64encode(p.read_bytes()).decode()
+    except Exception:
+        return ""
+
+
+def _inject_pwa():
+    """홈 화면 추가 시 아이콘·이름·전체화면(PWA) — 문서 head에 manifest/아이콘 주입.
+    실패해도 무해(try/catch), 세션당 1회. iOS Safari는 iframe 제약으로 일부만 적용될 수 있음."""
+    if st.session_state.get("_pwa_done"):
+        return
+    b64 = _pwa_icon_b64()
+    if not b64:
+        return
+    icon = f"data:image/png;base64,{b64}"
+    manifest = {
+        "name": "Dolbom Studio", "short_name": "Dolbom",
+        "start_url": ".", "display": "standalone",
+        "background_color": "#2B2018", "theme_color": "#C4622D",
+        "icons": [{"src": icon, "sizes": "512x512", "type": "image/png"},
+                  {"src": icon, "sizes": "192x192", "type": "image/png"}],
+    }
+    js = ("<script>try{var p=window.parent.document;"
+          "if(!p.getElementById('ds-pwa')){var h=p.head;"
+          "function m(n,c){var e=p.createElement('meta');e.name=n;e.content=c;h.appendChild(e);}"
+          "var mk=p.createElement('meta');mk.id='ds-pwa';mk.name='ds-pwa';mk.content='1';h.appendChild(mk);"
+          "m('apple-mobile-web-app-capable','yes');"
+          "m('apple-mobile-web-app-status-bar-style','default');"
+          "m('apple-mobile-web-app-title','Dolbom Studio');m('theme-color','#C4622D');"
+          "var ic=p.createElement('link');ic.rel='apple-touch-icon';ic.href=" + json.dumps(icon) + ";h.appendChild(ic);"
+          "var b=new Blob([" + json.dumps(json.dumps(manifest)) + "],{type:'application/json'});"
+          "var ml=p.createElement('link');ml.rel='manifest';ml.href=URL.createObjectURL(b);h.appendChild(ml);"
+          "}}catch(e){}</script>")
+    components.html(js, height=0)
+    st.session_state["_pwa_done"] = True
+
+
 def main():
     if not auth_gate():
         return
+    _inject_pwa()
     # me·is_admin은 로그인 시 _set_session()에서 세팅됨(개인 계정).
     # 로그인 유지: ?uid=&tok= URL 토큰 + 브라우저 localStorage(다음 방문 자동 로그인).
     # 저장은 여기(정상 렌더)에서 1회 — 로그인 직후 rerun에 컴포넌트 쓰기가 잘리지 않게.
