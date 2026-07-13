@@ -2164,7 +2164,8 @@ def _report_collect():
                      ("smart_care_space_done", "smart_care_space_plan", "스페이스")]
             paired = {k for a, b, _ in PAIRS for k in (a, b)}
             skip = paired | {"acquired_data", "project_confirmation_1",
-                             "project_confirmation_2_done", "project_confirmation_2_plan"}
+                             "project_confirmation_2_done", "project_confirmation_2_plan",
+                             "research_meeting", "director_meeting", "mohw_weekly"}
 
             for name in submitted:
                 r = mdata[name]
@@ -2196,6 +2197,37 @@ def _report_collect():
                 if inner:
                     st.markdown(_tbl(inner), unsafe_allow_html=True)
                 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+
+            # 회의자료(최혜민) — 취합본 뒷부분. 내용 있을 때만.
+            MEET = [("research_meeting", "1. 연구소 회의자료 (소장주재회의)"),
+                    ("director_meeting", "2. 원장+재활원 주요간부회의자료 (주간현안보고)"),
+                    ("mohw_weekly",
+                     "3. 복지부 본부 주간일정·보산진 보고 (의료기기 R&D 주간일정)")]
+            mvals = {}
+            for k, _lb in MEET:
+                for n in submitted:
+                    v = (mdata[n].get(k, "") or "").strip()
+                    if v:
+                        mvals[k] = v
+                        break
+            if mvals:
+                _bar("#6f4a38", "📑 회의자료")
+                inner = ""
+                for k, lb in MEET:
+                    inner += f"<tr><td style='{_TH}' colspan='3'>{_esc(lb)}</td></tr>"
+                    inner += (f"<tr><td style='{_TD}' colspan='3'>"
+                              f"{_esc(mvals.get(k, ''))}</td></tr>")
+                st.markdown(_tbl(inner), unsafe_allow_html=True)
+                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+
+            # 월간 캘린더(취합본 마지막) — 스마트돌봄스페이스 및 돌봄사업 일정
+            if calendar_enabled():
+                _bar("#6f4a38", "🗓️ 스마트돌봄스페이스 및 돌봄사업 일정")
+                try:
+                    _ifr = getattr(st, "iframe", components.iframe)
+                    _ifr(embed_url("MONTH"), height=560)
+                except Exception:
+                    st.caption("캘린더를 불러오지 못했습니다.")
 
     st.subheader("📤 내보내기")
 
