@@ -2033,8 +2033,8 @@ def meeting_page():
 
             def _tbl(inner, fill=False):
                 # table-layout:fixed + colgroup → 구분칸 고정, 실적/계획 50:50(정중앙)
-                # fill=True → 표가 남은 높이를 채움(칸이 화면 아래까지 늘어남, 여백 제거)
-                h = "height:100%;" if fill else ""
+                # fill=True → 표가 한 화면(84vh) 이상 → 내용 없어도 셀이 커져 화면 가득 참
+                h = "height:84vh;" if fill else ""
                 return (f"<table style='width:100%;{h}border-collapse:collapse;"
                         "table-layout:fixed;font-size:0.93rem;line-height:1.45;'>"
                         "<colgroup><col style='width:56px'><col><col></colgroup>"
@@ -2121,16 +2121,18 @@ def meeting_page():
                 or (ct.get("기타_계획", "") or "").strip()
 
             if conf1 or has_tables:
-                _bar("#f8e0c9", "📋 사업단 공통확인사항")
+                parts = _barhtml("#f8e0c9", "📋 사업단 공통확인사항")
                 if conf1:
-                    st.markdown(_tbl(_full("확인사항", conf1)), unsafe_allow_html=True)
+                    parts += _tbl(_full("확인사항", conf1))
                 if has_tables:
                     outer = (_hdr()
                              + f"<tr><td style='{_LBL}'>공통</td>"
                              + f"<td style='{_TD}'>{_side('용역_실적', '자산_실적', '기타_실적')}</td>"
                              + f"<td style='{_TD}'>{_side('용역_계획', '자산_계획', '기타_계획')}</td></tr>")
-                    st.markdown(_tbl(outer), unsafe_allow_html=True)
-                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+                    parts += _tbl(outer, fill=True)
+                st.markdown(
+                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
+                    "padding-bottom:10px;'>" + parts + "</div>", unsafe_allow_html=True)
 
             PAIRS = [("research_done", "research_plan", "연구"),
                      ("task_done", "task_plan", "업무"),
@@ -2183,18 +2185,15 @@ def meeting_page():
                         if not v:
                             continue
                         inner += _full(FIELD_LABELS[f], v)
-                    # 한 사람 = 한 화면(min-height) → 내용 적어도/많아도 다음 사람과 안 겹침.
-                    # flex + 표 height:100% → 내용 짧아도 칸이 화면 아래까지 꽉 참(여백 제거).
+                    # 한 사람 = 한 화면(표 84vh) → 내용 없어도 셀이 커져 화면 가득, 2명 안 겹침.
                     tbl = _tbl(inner, fill=True) if inner else ""
                     bar = _barhtml("#fbe6d3", f"🙋 {name}", r.get("submitted_at", ""))
                     st.markdown(
-                        "<div style='min-height:92vh;box-sizing:border-box;display:flex;"
-                        "flex-direction:column;border-bottom:2px dashed #e6be97;"
-                        "margin-bottom:14px;'>" + bar
-                        + "<div style='flex:1 1 auto;min-height:0;'>" + tbl + "</div></div>",
+                        "<div style='border-bottom:2px dashed #e6be97;"
+                        "margin-bottom:14px;padding-bottom:10px;'>" + bar + tbl + "</div>",
                         unsafe_allow_html=True)
 
-            # 회의자료(최혜민) — 취합본 뒷부분. 내용 있을 때만.
+            # 회의자료(최혜민) — 취합본 뒷부분(정지수 다음). 비어 있어도 항상 표시.
             MEET = [("research_meeting", "1. 연구소 회의자료 (소장주재회의)"),
                     ("director_meeting", "2. 원장+재활원 주요간부회의자료 (주간현안보고)"),
                     ("mohw_weekly",
@@ -2206,15 +2205,15 @@ def meeting_page():
                     if v:
                         mvals[k] = v
                         break
-            if mvals:
-                _bar("#f8e0c9", "📑 회의자료")
-                inner = ""
-                for k, lb in MEET:
-                    inner += f"<tr><td style='{_TH}' colspan='3'>{_esc(lb)}</td></tr>"
-                    inner += (f"<tr><td style='{_TD}' colspan='3'>"
-                              f"{_esc(mvals.get(k, ''))}</td></tr>")
-                st.markdown(_tbl(inner), unsafe_allow_html=True)
-                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+            minner = ""
+            for k, lb in MEET:
+                minner += f"<tr><td style='{_TH}' colspan='3'>{_esc(lb)}</td></tr>"
+                minner += (f"<tr><td style='{_TD}' colspan='3'>"
+                           f"{_esc(mvals.get(k, ''))}</td></tr>")
+            st.markdown(
+                "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
+                "padding-bottom:10px;'>" + _barhtml("#f8e0c9", "📑 회의자료")
+                + _tbl(minner, fill=True) + "</div>", unsafe_allow_html=True)
 
             # 월간 캘린더(취합본 마지막) — 스마트돌봄스페이스 및 돌봄사업 일정
             if calendar_enabled():
