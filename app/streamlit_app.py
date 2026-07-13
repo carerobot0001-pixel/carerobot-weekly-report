@@ -2049,12 +2049,12 @@ def _report_collect():
         else:
             st.caption(f"제출 {len(submitted)}명 — 취합본과 같은 '실적 | 계획' 표. 아래로 스크롤하며 진행.")
             # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
-            _BD = "#e3d8c8"
+            _BD = "#efe2d2"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
                    "text-align:left;word-break:break-word;")
-            _LBL = _TD + "white-space:nowrap;font-weight:700;background:#f4f0ea;color:#6d5847;"
-            _TH = _TD + "background:#f4f0ea;color:#8a5a44;font-weight:700;"
-            _ADS = _TD + "background:#eef2f8;color:#33517d;font-weight:700;"
+            _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#b5794a;"
+            _TH = _TD + "background:#fdf5ec;color:#c07b3a;font-weight:700;"
+            _ADS = _TD + "background:#f0f4fa;color:#5a76a8;font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
@@ -2085,10 +2085,11 @@ def _report_collect():
 
             def _bar(bg, txt, right=""):
                 st.markdown(
-                    f"<div style='background:{bg};color:#fff;padding:6px 12px;"
+                    f"<div style='background:{bg};color:#b5651d;padding:6px 12px;"
                     f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
                     f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
-                    f"opacity:.85;'>{right}</span></div>", unsafe_allow_html=True)
+                    f"opacity:.75;color:#b5651d;'>{right}</span></div>",
+                    unsafe_allow_html=True)
 
             # 상단: 사업단 공통확인사항 (취합본 1~2쪽) — 확인사항 리스트 + 용역/자산 실적·계획 표
             conf1 = ""
@@ -2148,7 +2149,7 @@ def _report_collect():
                 or (ct.get("기타_계획", "") or "").strip()
 
             if conf1 or has_tables:
-                _bar("#6f4a38", "📋 사업단 공통확인사항")
+                _bar("#f8e0c9", "📋 사업단 공통확인사항")
                 if conf1:
                     st.markdown(_tbl(_full("확인사항", conf1)), unsafe_allow_html=True)
                 if has_tables:
@@ -2181,13 +2182,13 @@ def _report_collect():
                 if not gmembers:
                     continue
                 st.markdown(
-                    f"<div style='color:#8a5a44;font-weight:700;font-size:0.95rem;"
-                    f"margin:6px 0 6px;border-left:5px solid #8a5a44;padding-left:8px;'>"
+                    f"<div style='color:#c4622d;font-weight:700;font-size:0.95rem;"
+                    f"margin:6px 0 6px;border-left:5px solid #e6be97;padding-left:8px;'>"
                     f"🏛️ 본부과제 · {gname}</div>", unsafe_allow_html=True)
                 for name in gmembers:
                     r = mdata[name]
                     fields = get_fields_for(get_member(name))
-                    _bar("#8a5a44", f"🙋 {name}", r.get("submitted_at", ""))
+                    _bar("#fbe6d3", f"🙋 {name}", r.get("submitted_at", ""))
                     inner = ""
                     ad = (r.get("acquired_data", "") or "").strip()
                     for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
@@ -2229,7 +2230,7 @@ def _report_collect():
                         mvals[k] = v
                         break
             if mvals:
-                _bar("#6f4a38", "📑 회의자료")
+                _bar("#f8e0c9", "📑 회의자료")
                 inner = ""
                 for k, lb in MEET:
                     inner += f"<tr><td style='{_TH}' colspan='3'>{_esc(lb)}</td></tr>"
@@ -2240,7 +2241,7 @@ def _report_collect():
 
             # 월간 캘린더(취합본 마지막) — 스마트돌봄스페이스 및 돌봄사업 일정
             if calendar_enabled():
-                _bar("#6f4a38", "🗓️ 스마트돌봄스페이스 및 돌봄사업 일정")
+                _bar("#f8e0c9", "🗓️ 스마트돌봄스페이스 및 돌봄사업 일정")
                 try:
                     _ifr = getattr(st, "iframe", components.iframe)
                     _ifr(embed_url("MONTH"), height=560)
