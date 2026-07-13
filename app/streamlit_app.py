@@ -391,6 +391,7 @@ def home_page():
 
     # 공통확인은 '업무보고 작성·취합' 탭, 회의록은 사이드바 메뉴로 접근 → 바로가기에선 제외
     shortcuts = [
+        ("🖥️", "회의진행", "🖥️ 회의 진행"),
         ("📝", "주간보고", "📝 업무보고 작성·취합"),
         ("🛒", "구매요청", "🛒 구매요청서"),
         ("📋", "문서협업", "📋 문서 협업"),
@@ -1999,49 +2000,17 @@ def _backup_section():
                "구글시트 '파일 → 버전 기록'에서 과거 상태로 되돌릴 수 있습니다.")
 
 
-def _report_collect():
-    """제출 현황 + 미리보기 + HWPX 취합본 생성 (구 담당자 대시보드에서 이동, 누구나)."""
+def meeting_page():
+    """주간 회의용 회의 진행 모드 — 전용 페이지(사이드바 홈 바로 밑)."""
+    st.header("🖥️ 회의 진행 모드")
+    st.caption("주간 회의용 — 연구원별 실적/계획을 취합본 형식으로. 한 명씩 한 화면.")
     _wd = st.date_input(
-        "조회 주차", key="collect_week",
+        "조회 주차", key="meet_week",
         value=datetime.strptime(this_wednesday(), "%Y-%m-%d").date(),
         help="달력에서 아무 날짜나 고르면 그 주(수요일 기준)로 조회됩니다.")
     week = (_wd + timedelta(days=(2 - _wd.weekday()))).strftime("%Y-%m-%d")
     st.caption(f"📅 조회 주차: **{week} (수)**")
-
-    status = submission_status(week)
-    df = pd.DataFrame([
-        {"이름": s["name"],
-         "상태": "✅ 완료" if s["submitted"] else "⏳ 미제출",
-         "제출시간": s["submitted_at"] or "-"}
-        for s in status
-    ])
-
-    done_count = sum(1 for s in status if s["submitted"])
-    st.metric("제출 현황", f"{done_count} / {len(status)}")
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    missing = [s["name"] for s in status if not s["submitted"]]
-    if missing:
-        st.warning(f"미제출: {', '.join(missing)}")
-    else:
-        st.success("전원 제출 완료 🎉")
-
-    with st.expander("🔍 제출 내용 미리보기"):
-        data = load_week(week)
-        for name in MEMBER_NAMES:
-            r = data.get(name)
-            if not r:
-                continue
-            st.markdown(f"**{name}**  _{r['submitted_at']}_")
-            member = get_member(name)
-            fields = get_fields_for(member)
-            for f in fields:
-                val = r.get(f, "") or "-"
-                st.caption(FIELD_LABELS[f])
-                st.text(val)
-            st.divider()
-
-    with st.expander("🖥️ 회의 진행 모드 (취합본 형식 · 연구원별 실적/계획 표)"):
+    with st.expander("📋 회의 자료 전체 (펼치기/접기)", expanded=True):
         mdata = load_week(week)
         submitted = [n for n in MEMBER_NAMES if mdata.get(n)]
         if not submitted:
@@ -2255,6 +2224,50 @@ def _report_collect():
                     _ifr(embed_url("MONTH"), height=560)
                 except Exception:
                     st.caption("캘린더를 불러오지 못했습니다.")
+
+
+
+def _report_collect():
+    """제출 현황 + 미리보기 + HWPX 취합본 생성 (구 담당자 대시보드에서 이동, 누구나)."""
+    _wd = st.date_input(
+        "조회 주차", key="collect_week",
+        value=datetime.strptime(this_wednesday(), "%Y-%m-%d").date(),
+        help="달력에서 아무 날짜나 고르면 그 주(수요일 기준)로 조회됩니다.")
+    week = (_wd + timedelta(days=(2 - _wd.weekday()))).strftime("%Y-%m-%d")
+    st.caption(f"📅 조회 주차: **{week} (수)**")
+
+    status = submission_status(week)
+    df = pd.DataFrame([
+        {"이름": s["name"],
+         "상태": "✅ 완료" if s["submitted"] else "⏳ 미제출",
+         "제출시간": s["submitted_at"] or "-"}
+        for s in status
+    ])
+
+    done_count = sum(1 for s in status if s["submitted"])
+    st.metric("제출 현황", f"{done_count} / {len(status)}")
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    missing = [s["name"] for s in status if not s["submitted"]]
+    if missing:
+        st.warning(f"미제출: {', '.join(missing)}")
+    else:
+        st.success("전원 제출 완료 🎉")
+
+    with st.expander("🔍 제출 내용 미리보기"):
+        data = load_week(week)
+        for name in MEMBER_NAMES:
+            r = data.get(name)
+            if not r:
+                continue
+            st.markdown(f"**{name}**  _{r['submitted_at']}_")
+            member = get_member(name)
+            fields = get_fields_for(member)
+            for f in fields:
+                val = r.get(f, "") or "-"
+                st.caption(FIELD_LABELS[f])
+                st.text(val)
+            st.divider()
 
     st.subheader("📤 내보내기")
 
@@ -2471,7 +2484,7 @@ def main():
       }
     </style>""", unsafe_allow_html=True)
 
-    mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
+    mode_options = ["🏠 홈", "🖥️ 회의 진행", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
                     "📚 과거 회의록 열람"]
@@ -2528,6 +2541,8 @@ def main():
 
     if mode == "🏠 홈":
         home_page()
+    elif mode == "🖥️ 회의 진행":
+        meeting_page()
     elif mode == "📝 업무보고 작성·취합":
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":
