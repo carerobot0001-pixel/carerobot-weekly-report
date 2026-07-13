@@ -147,11 +147,12 @@ s = pres.addSlide();
 s.background = { color: ESPRESSO };
 s.addText("HOW IT EVOLVED", { x: M, y: 0.6, w: 10, h: 0.3, fontFace: F, fontSize: 12, color: ORANGE_L, bold: true, charSpacing: 2, margin: 0 });
 s.addText("계속 바꿔왔다 — UI 변천사", { x: M, y: 0.9, w: 11.5, h: 0.7, fontFace: F, fontSize: 30, bold: true, color: CREAM, margin: 0 });
-s.addText("\"처음엔 이랬는데 → 이렇게 → 또 이렇게 …\"  총 100여 커밋의 흐름", { x: M, y: 1.62, w: 11.5, h: 0.4, fontFace: F, fontSize: 14, italic: true, color: ORANGE_L, margin: 0 });
+s.addText("\"처음엔 이랬는데 → 이렇게 → 또 이렇게 …\"  총 160여 커밋의 흐름 (막다른 길·되돌리기도 과정)", { x: M, y: 1.62, w: 11.9, h: 0.4, fontFace: F, fontSize: 14, italic: true, color: ORANGE_L, margin: 0 });
 const stages = [
   ["1", "취합 MVP", "04월"], ["2", "기능 확장", "06월"], ["3", "홈 대시보드", "07.06"],
   ["4", "레일·바로가기", "07.07"], ["5", "담당자 제거", "07.07"], ["6", "홈 재배치", "07.09"],
   ["7", "브랜딩", "07.09"], ["8", "계정·모바일", "07.09"],
+  ["9", "폰·자동로그인", "07.09"], ["10", "홈개인화·일정AI", "07.13"],
 ];
 const n = stages.length, tw = (W - 2 * M) / n;
 // timeline axis
@@ -213,6 +214,18 @@ const stageDetail = [
            "로그인=본인 → '나는 누구' 선택칸 제거, 폼에 이름 자동. 로그인 정보 저장",
            "모바일 반응형 + 홈 화면에 추가(PWA)로 폰에서 앱처럼"],
     why: "누가 뭘 했는지 계정 기반으로 명확히 + 팀원이 폰으로 쉽게 쓰게." },
+  { n: 9, date: "2026.07.09", title: "폰 안정화 · 자동 로그인 삽질기", file: "stage9.png",
+    cap: "localStorage 크래시 → revert → js-eval 재도입",
+    what: ["폰 문제: iOS Safari 자동로그인 실패 · 달력 구글 로그인 벽",
+           "자동로그인: window.parent.localStorage → 앱 크래시 → revert → streamlit-js-eval(안 멈춤)",
+           "달력은 '캘린더 공개 설정 + 임베드 유지'로 해결"],
+    why: "실패·되돌리기도 과정. '실패해도 앱은 정상' 폴백 원칙을 세운 단계." },
+  { n: 10, date: "2026.07.13", title: "홈 개인화 · 일정 지능화", file: "stage10.png",
+    cap: "개인 할 일(＋) · 정보 미입력 알림 · 지난 보고 가져오기",
+    what: ["홈 재편: 오늘 챙길 것(D-0·D-1) / 내 할 일(7일) / 그 외 일정(펼침)",
+           "개인 할 일 ＋(본인만, 캘린더 무관) · 일정 장소칸 + '정보 미입력' 알림(연가·조퇴 제외)",
+           "지난 주간보고 '계획'을 골라 할 일로 가져오기(규칙 기반, AI 없음)"],
+    why: "각자 쓰기 좋게 개인화하고, 놓치는 정보(장소·계획)를 앱이 챙겨주게." },
 ];
 stageDetail.forEach((d) => {
   s = pres.addSlide();
@@ -244,13 +257,13 @@ s.addText("작은 자동화 하나에서 시작해, 쓰면서 계속 바꿔 온 
 const c1x = M, c2x = 6.95, cw = 5.35, cy = 2.4, ch = 3.4;
 [["효과", ORANGE, [
   "매주 취합 30~60분 → 클릭 1회",
-  "8종 업무를 앱 하나로",
+  "8종 업무를 앱 하나로 · 운영비 0원",
   "개인 계정 로그인 → 폼에 이름 자동",
-  "폰에서 앱처럼(홈 화면 추가) · 운영비 0원",
-  "다층 백업으로 데이터 안전",
+  "폰에서 앱처럼(홈 화면 추가) + 자동 로그인",
+  "개인 할 일·정보 미입력 알림·보고→할일 가져오기",
 ]], ["앞으로", BROWN, [
+  "로컬 AI(미니PC+EXAONE 2.4B)로 계획 스마트 추출",
   "streamlit_app.py 페이지 파일 분리",
-  "모바일 최적화 2차 · 자동로그인 신뢰성",
   "공통확인 표를 메인 취합본에 통합",
   "통일된 주황/갈색 아이콘 세트(SVG)",
 ]]].forEach((c, i) => {
