@@ -2048,11 +2048,13 @@ def _report_collect():
             st.caption("제출된 보고가 없습니다.")
         else:
             st.caption(f"제출 {len(submitted)}명 — 취합본과 같은 '실적 | 계획' 표. 아래로 스크롤하며 진행.")
-            # 테두리 있는 HTML 표(칸 구분 또렷·여백 최소). 취합본 형식 재현.
-            _TD = "border:1px solid #d7c1a4;padding:5px 9px;vertical-align:top;text-align:left;"
-            _LBL = _TD + "width:64px;white-space:nowrap;font-weight:700;background:#FCF3EA;color:#8A4A1E;"
-            _TH = _TD + "background:#FCF3EA;color:#A8501A;font-weight:700;"
-            _ADS = _TD + "background:#eef3ff;color:#1a56db;font-weight:700;"
+            # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
+            _BD = "#e3d8c8"
+            _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
+                   "text-align:left;word-break:break-word;")
+            _LBL = _TD + "white-space:nowrap;font-weight:700;background:#f4f0ea;color:#6d5847;"
+            _TH = _TD + "background:#f4f0ea;color:#8a5a44;font-weight:700;"
+            _ADS = _TD + "background:#eef2f8;color:#33517d;font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
@@ -2061,8 +2063,11 @@ def _report_collect():
                 return s or "-"
 
             def _tbl(inner):
+                # table-layout:fixed + colgroup → 구분칸 고정, 실적/계획 50:50(정중앙)
                 return ("<table style='width:100%;border-collapse:collapse;"
-                        "font-size:0.86rem;line-height:1.4;'>" + inner + "</table>")
+                        "table-layout:fixed;font-size:0.86rem;line-height:1.4;'>"
+                        "<colgroup><col style='width:56px'><col><col></colgroup>"
+                        + inner + "</table>")
 
             def _hdr():
                 return (f"<tr><th style='{_LBL}'>구분</th>"
@@ -2143,7 +2148,7 @@ def _report_collect():
                 or (ct.get("기타_계획", "") or "").strip()
 
             if conf1 or has_tables:
-                _bar("#8A3F12", "📋 사업단 공통확인사항")
+                _bar("#6f4a38", "📋 사업단 공통확인사항")
                 if conf1:
                     st.markdown(_tbl(_full("확인사항", conf1)), unsafe_allow_html=True)
                 if has_tables:
@@ -2164,7 +2169,7 @@ def _report_collect():
             for name in submitted:
                 r = mdata[name]
                 fields = get_fields_for(get_member(name))
-                _bar("#C4622D", f"🙋 {name}", r.get("submitted_at", ""))
+                _bar("#8a5a44", f"🙋 {name}", r.get("submitted_at", ""))
                 inner = ""
                 ad = (r.get("acquired_data", "") or "").strip()
                 for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
