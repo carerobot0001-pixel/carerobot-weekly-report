@@ -2054,7 +2054,7 @@ def _report_collect():
                    "text-align:left;word-break:break-word;")
             _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#1a1a1a;"
             _TH = _TD + "background:#fdf5ec;color:#1a1a1a;font-weight:700;"
-            _ADS = _TD + "background:#f0f4fa;color:#1a1a1a;font-weight:700;"
+            _ADS = _TD + "background:#f0f4fa;color:#1a56db;font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
