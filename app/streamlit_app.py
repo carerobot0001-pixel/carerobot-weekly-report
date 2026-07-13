@@ -13,6 +13,7 @@ from team_config import (
     APP_PASSWORD, ADMIN_IDS,
 )
 import account_store
+import todo_store
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, FIELD_KEYS, KST,
@@ -422,15 +423,47 @@ def home_page():
         if not any_reminder:
             st.caption("✅ 급히 챙길 건 없습니다.")
 
-        # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정
-        st.markdown(f"**🙋 내 할 일 (7일)**{f' — {my}' if my else ''}")
+        # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
+        uid = st.session_state.get("uid", "")
+        _tc1, _tc2 = st.columns([5, 1])   # 좌 컬럼 안 1단 중첩(허용)
+        _tc1.markdown(f"**🙋 내 할 일 (7일)**{f' — {my}' if my else ''}")
+        if uid and _tc2.button("➕", key="todo_add_toggle",
+                               help="나만 보는 할 일 추가(캘린더에 안 들어감)"):
+            st.session_state["todo_add_open"] = \
+                not st.session_state.get("todo_add_open", False)
         if not my:
             st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         else:
+            if st.session_state.get("todo_add_open"):
+                with st.form("todo_add_form", clear_on_submit=True):
+                    _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
+                                        placeholder="예: 백정은 님께 자료 요청")
+                    if st.form_submit_button("추가") and _tt.strip():
+                        try:
+                            todo_store.add_todo(uid, _tt)
+                        except Exception as e:
+                            st.error(f"저장 실패: {e}")
+                        st.rerun()
+            # 시스템 할 일(주간보고·협업·일정)
             todo_lines = list(todos) + [f"📅 {s}" for s in sched_items]
             if todo_lines:
                 st.markdown("\n".join(f"- {t}" for t in todo_lines))
-            else:
+            # 개인 메모(본인만) — 각 항목 옆 완료(삭제) 버튼
+            try:
+                _mytodos = todo_store.list_todos(uid)
+            except Exception:
+                _mytodos = []
+            for _p in _mytodos:
+                _pc1, _pc2 = st.columns([8, 1])
+                _pc1.markdown(f"- 📝 {_p['내용']}")
+                if _pc2.button("✓", key=f"todo_done_{_p['_row']}",
+                               help="완료(삭제)"):
+                    try:
+                        todo_store.delete_todo(uid, _p["_row"], _p["내용"])
+                    except Exception as e:
+                        st.error(f"삭제 실패: {e}")
+                    st.rerun()
+            if not todo_lines and not _mytodos:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
     with right:
         if common_sched_items:
