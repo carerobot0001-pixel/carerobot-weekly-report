@@ -2466,8 +2466,19 @@ def main():
       /* 다크 사이드바(CRLM식) — 텍스트 밝게 강제해 가독성 보장 */
       section[data-testid="stSidebar"]{ background:#2B2018; }
       section[data-testid="stSidebar"] *{ color:#EFE5D8 !important; }
-      section[data-testid="stSidebar"] .stButton>button{ background:transparent; border-color:#6B5540; }
-      section[data-testid="stSidebar"] .stButton>button:hover{ border-color:#E08A3C; }
+      /* 네비게이션 버튼: 큰 글씨·왼쪽 정렬·현재 메뉴 강조 */
+      section[data-testid="stSidebar"] .stButton>button{
+        background:transparent; border:none; text-align:left;
+        justify-content:flex-start; font-size:1.05rem; font-weight:600;
+        padding:7px 12px; border-radius:8px; margin:1px 0; }
+      section[data-testid="stSidebar"] .stButton>button:hover{ background:#3c2d22; }
+      section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+        background:#C4622D; color:#fff !important; font-weight:700; }
+      section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{ background:#A8501A; }
+      /* 카테고리 소제목 */
+      section[data-testid="stSidebar"] .navcat{
+        color:#b79370 !important; font-size:0.7rem; font-weight:700;
+        letter-spacing:1.5px; margin:12px 6px 2px; }
       /* 일반 버튼 주황 톤(바로가기 타일은 더 구체적 규칙이라 그대로 유지) */
       div.stButton>button{ border-color:#E6C9AC; color:#8A4A1E; }
       div.stButton>button:hover{ border-color:#C4622D; color:#C4622D; }
@@ -2517,7 +2528,28 @@ def main():
         nav = st.session_state.pop("_nav_to", None)
         if nav and nav in mode_options:
             st.session_state["main_menu"] = nav
-        mode = st.radio("메뉴", mode_options, key="main_menu")
+        mode = st.session_state.get("main_menu", "🏠 홈")
+        if mode not in mode_options:
+            mode = "🏠 홈"
+        # 카테고리별 정리 + 큰 글씨 버튼 네비게이션
+        _cats = [("", ["🏠 홈", "🖥️ 회의 진행"]),
+                 ("업무", ["📝 업무보고 작성·취합", "🛒 구매요청서", "📋 문서 협업"]),
+                 ("자료·장비", ["📁 자료실", "🔧 장비 사용현황",
+                              "📍 실증 방문 일지", "📚 과거 회의록 열람"]),
+                 ("스페이스", ["🏠 스마트돌봄스페이스"])]
+        if st.session_state.get("is_admin"):
+            _cats.append(("관리자", ["👤 회원 관리"]))
+        for _cat, _items in _cats:
+            if _cat:
+                st.markdown(f"<div class='navcat'>{_cat}</div>",
+                            unsafe_allow_html=True)
+            for _opt in _items:
+                if _opt not in mode_options:
+                    continue
+                if st.button(_opt, key=f"nav_{_opt}", use_container_width=True,
+                             type="primary" if _opt == mode else "secondary"):
+                    st.session_state["main_menu"] = _opt
+                    st.rerun()
         st.divider()
         _who = st.session_state.get("me", "")
         _wt = st.session_state.get("title", "")
