@@ -2001,8 +2001,12 @@ def _backup_section():
 
 def _report_collect():
     """제출 현황 + 미리보기 + HWPX 취합본 생성 (구 담당자 대시보드에서 이동, 누구나)."""
-    week = st.text_input("조회 주차", value=this_wednesday(), key="collect_week",
-                         help="예: 2026-04-22 (해당 주 수요일)")
+    _wd = st.date_input(
+        "조회 주차", key="collect_week",
+        value=datetime.strptime(this_wednesday(), "%Y-%m-%d").date(),
+        help="달력에서 아무 날짜나 고르면 그 주(수요일 기준)로 조회됩니다.")
+    week = (_wd + timedelta(days=(2 - _wd.weekday()))).strftime("%Y-%m-%d")
+    st.caption(f"📅 조회 주차: **{week} (수)**")
 
     status = submission_status(week)
     df = pd.DataFrame([
