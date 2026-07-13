@@ -242,12 +242,29 @@ def _todo_import_panel(uid, name, existing_rows):
                 return True   # [소제목]
             return False
 
+        # 세부 줄(일시·장소·연가 등)은 바로 위 '항목'에 묶어 하나로.
+        _DETAIL = ("일시", "기간", "시간", "장소", "위치", "연가", "조퇴", "대상",
+                   "담당", "참석", "인원", "방법", "내용", "비고", "일정")
+
+        def _parse_items(text):
+            items = []
+            for raw in (text or "").replace("\r", "").split("\n"):
+                core = raw.strip(" ·-•*\t")
+                if not core:
+                    continue
+                indented = raw[:1] in (" ", "\t")
+                is_detail = indented or (
+                    any(core.startswith(p) for p in _DETAIL) and ":" in core[:6])
+                if is_detail and items:
+                    items[-1][1].append(core)
+                elif not _is_noise(core):
+                    items.append([core, []])
+            return items
+
         cands = []
         for fk in ("research_plan", "task_plan"):
-            for ln in (data.get(fk, "") or "").replace("\r", "").split("\n"):
-                ln = ln.strip(" ·-•*\t")
-                if ln and not _is_noise(ln):
-                    cands.append(ln)
+            for _head, _dets in _parse_items(data.get(fk, "")):
+                cands.append(f"{_head} ({' / '.join(_dets)})" if _dets else _head)
         exist = {r["내용"].strip() for r in (existing_rows or [])}
         seen, uniq = set(), []
         for c in cands:
