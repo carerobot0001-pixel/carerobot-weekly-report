@@ -394,7 +394,23 @@ def home_page():
     # ── 좌: 오늘 챙길 것 + 내 할 일(7일) / 우: 그 외 일정(7일) ─────────────
     left, right = st.columns([1, 1])
     with left:
-        st.markdown("**🔔 오늘 챙길 것**")
+        uid = st.session_state.get("uid", "")
+        _rc1, _rc2 = st.columns([5, 1])   # 좌 컬럼 안 1단 중첩(허용)
+        _rc1.markdown("**🔔 오늘 챙길 것**")
+        if uid and _rc2.button("➕", key="care_add_toggle",
+                               help="나만 보는 '오늘 챙길 것' 추가(캘린더에 안 들어감)"):
+            st.session_state["care_add_open"] = \
+                not st.session_state.get("care_add_open", False)
+        if st.session_state.get("care_add_open") and uid:
+            with st.form("care_add_form", clear_on_submit=True):
+                _ct = st.text_input("오늘 챙길 것 (나만 보임)", key="care_text",
+                                    placeholder="예: 회의 자료 인쇄")
+                if st.form_submit_button("추가") and _ct.strip():
+                    try:
+                        todo_store.add_todo(uid, _ct, todo_store.KIND_CARE)
+                    except Exception as e:
+                        st.error(f"저장 실패: {e}")
+                    st.rerun()
         any_reminder = False
         if missing:
             wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
@@ -420,11 +436,24 @@ def home_page():
                 tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
                 st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
                 any_reminder = True
-        if not any_reminder:
+        # 개인 '오늘 챙길 것'(본인만) — 각 항목 옆 완료(삭제) 버튼
+        try:
+            _mycare = todo_store.list_todos(uid, todo_store.KIND_CARE)
+        except Exception:
+            _mycare = []
+        for _c in _mycare:
+            _cc1, _cc2 = st.columns([8, 1])
+            _cc1.markdown(f"📌 {_c['내용']}")
+            if _cc2.button("✓", key=f"care_done_{_c['_row']}", help="완료(삭제)"):
+                try:
+                    todo_store.delete_todo(uid, _c["_row"], _c["내용"])
+                except Exception as e:
+                    st.error(f"삭제 실패: {e}")
+                st.rerun()
+        if not any_reminder and not _mycare:
             st.caption("✅ 급히 챙길 건 없습니다.")
 
         # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
-        uid = st.session_state.get("uid", "")
         _tc1, _tc2 = st.columns([5, 1])   # 좌 컬럼 안 1단 중첩(허용)
         _tc1.markdown(f"**🙋 내 할 일 (7일)**{f' — {my}' if my else ''}")
         if uid and _tc2.button("➕", key="todo_add_toggle",

@@ -11,7 +11,9 @@ import streamlit as st
 from sheets_store import _get_client, KST
 
 TODO_WS = "개인할일"
-TODO_HEADER = ["아이디", "내용", "등록일시"]
+# '구분'은 맨 뒤에 둠 — 옛 3열 행(구분 없음)은 기본 '할일'로 처리(데이터 안 밀림).
+TODO_HEADER = ["아이디", "내용", "등록일시", "구분"]
+KIND_TODO, KIND_CARE = "할일", "챙길것"
 
 
 @st.cache_resource
@@ -45,21 +47,28 @@ def _rows():
     return out
 
 
-def list_todos(uid):
-    """로그인한 본인(uid)의 개인 할 일만."""
+def list_todos(uid, kind=KIND_TODO):
+    """로그인한 본인(uid)의 개인 항목만(구분별). 구분 빈칸=옛 데이터=할일로 취급."""
     uid = (uid or "").strip()
     if not uid:
         return []
-    return [d for d in _rows() if d["아이디"].strip() == uid]
+    out = []
+    for d in _rows():
+        if d["아이디"].strip() != uid:
+            continue
+        k = d.get("구분", "").strip() or KIND_TODO
+        if k == kind:
+            out.append(d)
+    return out
 
 
-def add_todo(uid, text):
+def add_todo(uid, text, kind=KIND_TODO):
     uid = (uid or "").strip()
     text = (text or "").strip()
     if not uid or not text:
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    _ws().append_row([uid, text, now], value_input_option="RAW")
+    _ws().append_row([uid, text, now, kind], value_input_option="RAW")
     _rows.clear()
 
 
