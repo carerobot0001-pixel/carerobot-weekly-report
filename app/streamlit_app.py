@@ -14,6 +14,7 @@ from team_config import (
 )
 import account_store
 import todo_store
+import resource_store
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
@@ -32,7 +33,7 @@ from collab_store import (
     drive_enabled, create_drive_doc,
 )
 from equip_store import (
-    EQUIP_HEADER, equip_rows, save_all_equipment, build_equip_xlsx,
+    EQUIP_HEADER, equip_rows, save_all_equipment, build_equip_xlsx, sheet_link,
 )
 from visit_store import (
     VISIT_HEADER, visit_rows, add_visit, delete_visit,
@@ -1486,11 +1487,80 @@ def collab_page():
             st.divider()
 
 
+def resource_page():
+    """자료실 — 팀 공용 참고자료·양식 링크 보드(파일이 아니라 링크만 관리)."""
+    st.header("📁 자료실")
+    st.caption("팀 공용 참고자료·양식·매뉴얼 **링크** 모음. (파일이 아니라 구글문서/드라이브/URL 링크를 등록)")
+    _flash("res_flash")
+    me = st.session_state.get("me", "")
+
+    with st.expander("➕ 자료 등록", expanded=False):
+        c1, c2 = st.columns([1, 2])
+        cat = c1.selectbox("분류", resource_store.CATEGORIES, key="res_cat")
+        title = c2.text_input("제목", key="res_title")
+        link = st.text_input("링크(URL)", key="res_link", placeholder="https://...")
+        author = st.text_input("등록자", value=me, key="res_author")
+        desc = st.text_area("설명(선택)", key="res_desc", height=60)
+        if st.button("등록", type="primary", key="res_add"):
+            try:
+                resource_store.add_resource(author, cat, title, link, desc)
+                st.session_state["res_flash"] = f"✅ 등록 — {title.strip()}"
+                for k in ("res_title", "res_link", "res_desc"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+            except ValueError as e:
+                st.warning(str(e))
+            except Exception as e:
+                st.error(f"등록 실패: {e}")
+
+    try:
+        rows = resource_store.list_resources()
+    except Exception as e:
+        st.error(f"자료실을 불러오지 못했습니다: {e}")
+        return
+    q = st.text_input("🔎 검색 (제목·설명)", key="res_search").strip()
+    if q:
+        rows = [r for r in rows
+                if q.lower() in (r["제목"] + " " + r["설명"]).lower()]
+    if not rows:
+        st.caption("표시할 자료가 없습니다." if q else "아직 등록된 자료가 없습니다.")
+        return
+    # 분류별 그룹(정의된 순서 → 그 외)
+    order = resource_store.CATEGORIES
+    cats = [c for c in order if any((r["분류"] or "") == c for r in rows)]
+    cats += sorted({(r["분류"] or "기타") for r in rows if (r["분류"] or "") not in order})
+    for cat in dict.fromkeys(cats):
+        group = [r for r in rows if (r["분류"] or "기타") == cat]
+        if not group:
+            continue
+        st.markdown(f"**📂 {cat}** ({len(group)})")
+        for r in group:
+            c1, c2 = st.columns([9, 1])
+            meta = " · ".join(x for x in (r["등록자"], r["등록일시"]) if x)
+            body = f"🔗 [{r['제목']}]({r['링크']})"
+            if r["설명"]:
+                body += f" — {r['설명']}"
+            c1.markdown(body + (f"  \n<span style='color:#999;font-size:0.8rem;'>"
+                                f"{meta}</span>" if meta else ""),
+                        unsafe_allow_html=True)
+            if c2.button("🗑️", key=f"res_del_{r['_row']}", help="삭제"):
+                try:
+                    resource_store.delete_resource(r["_row"], r["제목"])
+                except Exception as e:
+                    st.error(f"삭제 실패: {e}")
+                st.rerun()
+        st.divider()
+
+
 def equip_page():
     """장비(기기) 사용현황 — 연구별 필터 조회 + 전체 목록 편집(등록·수정·삭제)."""
     st.header("🔧 장비 사용현황")
     st.caption("실증 장비(기기) 사용 현황 대장 — 연구(실증)별로 필터해 보고, 전체 목록을 "
                "편집할 수 있습니다. ※ 피험자명 등 개인정보 포함 — 팀 내부용입니다.")
+    _link = sheet_link()
+    if _link:
+        st.markdown(f"🔗 [원본 구글시트(장비현황)에서 직접 편집하기]({_link}) "
+                    "— 양이 많거나 세밀한 편집은 시트에서 하는 게 편합니다.")
     _flash("equip_flash")
 
     rows = equip_rows()
@@ -1966,6 +2036,41 @@ def _report_collect():
                 st.text(val)
             st.divider()
 
+    with st.expander("🖥️ 회의 진행 모드 (한 명씩 넘겨보기)"):
+        mdata = load_week(week)
+        submitted = [n for n in MEMBER_NAMES if mdata.get(n)]
+        if not submitted:
+            st.caption("제출된 보고가 없습니다.")
+        else:
+            idx = max(0, min(st.session_state.get("meet_idx", 0),
+                             len(submitted) - 1))
+            n1, n2, n3 = st.columns([1, 3, 1])
+            if n1.button("⬅️ 이전", key="meet_prev", disabled=idx == 0,
+                         use_container_width=True):
+                st.session_state["meet_idx"] = idx - 1
+                st.rerun()
+            if n3.button("다음 ➡️", key="meet_next",
+                         disabled=idx >= len(submitted) - 1,
+                         use_container_width=True):
+                st.session_state["meet_idx"] = idx + 1
+                st.rerun()
+            name = submitted[idx]
+            n2.markdown(
+                f"<div style='text-align:center;font-weight:700;font-size:1.05rem;'>"
+                f"{idx + 1} / {len(submitted)} · {name}</div>",
+                unsafe_allow_html=True)
+            r = mdata[name]
+            st.markdown(f"### 🙋 {name}　"
+                        f"<span style='font-size:0.8rem;color:#999;'>"
+                        f"{r.get('submitted_at', '')}</span>",
+                        unsafe_allow_html=True)
+            for f in get_fields_for(get_member(name)):
+                val = (r.get(f, "") or "").strip()
+                if not val:
+                    continue
+                st.markdown(f"**{FIELD_LABELS[f]}**")
+                st.markdown(val.replace("\n", "  \n"))
+
     st.subheader("📤 내보내기")
 
     try:
@@ -2142,7 +2247,8 @@ def main():
 
     mode_options = ["🏠 홈", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
-                    "🔧 장비 사용현황", "📍 실증 방문 일지", "📚 과거 회의록 열람"]
+                    "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
+                    "📚 과거 회의록 열람"]
     if st.session_state.get("is_admin"):
         mode_options.append("👤 회원 관리")
     # 홈 바로가기(HTML 타일)의 ?go= 처리 — 메뉴 이동 또는 공지 토글 (radio 생성 전에)
@@ -2206,6 +2312,8 @@ def main():
         purchase_page()
     elif mode == "📋 문서 협업":
         collab_page()
+    elif mode == "📁 자료실":
+        resource_page()
     elif mode == "🔧 장비 사용현황":
         equip_page()
     elif mode == "👤 회원 관리":

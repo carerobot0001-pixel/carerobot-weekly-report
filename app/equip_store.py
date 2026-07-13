@@ -33,6 +33,16 @@ def _ws():
     return ws
 
 
+def sheet_link() -> str:
+    """장비현황 탭으로 바로 가는 구글시트 편집 링크(양 많으면 시트에서 직접 편집)."""
+    try:
+        ws = _ws()
+        return (f"https://docs.google.com/spreadsheets/d/"
+                f"{ws.spreadsheet.id}/edit#gid={ws.id}")
+    except Exception:
+        return ""
+
+
 @st.cache_data(ttl=60)
 def equip_rows() -> list:
     vals = _ws().get_all_values()

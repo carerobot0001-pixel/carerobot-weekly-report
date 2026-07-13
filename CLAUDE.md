@@ -43,6 +43,7 @@
     ├── news_store.py                       ← 홈 뉴스피드 (구글뉴스 RSS)
     ├── notice_store.py                     ← 홈 팀 공지사항 (누구나 등록/삭제)
     ├── todo_store.py                        ← 홈 '내 할 일'의 개인 메모 (로그인 uid별, 본인만)
+    ├── resource_store.py                    ← 자료실 (팀 공용 참고자료·양식 링크 보드)
     ├── common_store.py                     ← 사업단 공통확인사항(최혜민) 표→한글/엑셀
     ├── hwpx_exporter.py                    ← HWPX 취합본 생성
     ├── requirements.txt                    ← 파이썬 의존성
