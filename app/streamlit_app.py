@@ -219,6 +219,21 @@ def _me_index(options, default=0):
     return options.index(me) if me in options else default
 
 
+def _inline_plus(title, go, is_open, help_txt="추가"):
+    """제목 옆에 '사업단 일정 ＋'과 같은 작은 인라인 ＋(＝토글 링크)를 렌더."""
+    uid = st.session_state.get("uid", "")
+    tok = st.session_state.get("tok", "")
+    cb = f"uid={quote(uid)}&tok={quote(tok)}"
+    sym = "－" if is_open else "＋"
+    st.markdown(
+        "<div style='display:flex;align-items:center;gap:9px;margin:2px 0 6px;'>"
+        f"<span style='font-weight:700;color:#A8501A;font-size:1.05rem;'>{title}</span>"
+        f"<a href='?{cb}&go={go}' target='_self' title='{help_txt}' "
+        "style='text-decoration:none;color:#C4622D;font-size:1.4rem;"
+        f"line-height:1;font-weight:700;'>{sym}</a></div>",
+        unsafe_allow_html=True)
+
+
 def home_page():
     """홈 대시보드 — 상단(나는 누구·공지·오늘 챙길 것·내 할 일) → 일정 달력 → 바로가기(작게) → 뉴스."""
     today = datetime.now(KST).date()
@@ -395,13 +410,13 @@ def home_page():
     left, right = st.columns([1, 1])
     with left:
         uid = st.session_state.get("uid", "")
-        _rc1, _rc2 = st.columns([5, 1])   # 좌 컬럼 안 1단 중첩(허용)
-        _rc1.markdown("**🔔 오늘 챙길 것**")
-        if uid and _rc2.button("➕", key="care_add_toggle",
-                               help="나만 보는 '오늘 챙길 것' 추가(캘린더에 안 들어감)"):
-            st.session_state["care_add_open"] = \
-                not st.session_state.get("care_add_open", False)
-        if st.session_state.get("care_add_open") and uid:
+        _care_open = st.session_state.get("care_add_open", False)
+        if uid:
+            _inline_plus("🔔 오늘 챙길 것", "care", _care_open,
+                         "나만 보는 '오늘 챙길 것' 추가(캘린더에 안 들어감)")
+        else:
+            st.markdown("**🔔 오늘 챙길 것**")
+        if _care_open and uid:
             with st.form("care_add_form", clear_on_submit=True):
                 _ct = st.text_input("오늘 챙길 것 (나만 보임)", key="care_text",
                                     placeholder="예: 회의 자료 인쇄")
@@ -454,16 +469,17 @@ def home_page():
             st.caption("✅ 급히 챙길 건 없습니다.")
 
         # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
-        _tc1, _tc2 = st.columns([5, 1])   # 좌 컬럼 안 1단 중첩(허용)
-        _tc1.markdown(f"**🙋 내 할 일 (7일)**{f' — {my}' if my else ''}")
-        if uid and _tc2.button("➕", key="todo_add_toggle",
-                               help="나만 보는 할 일 추가(캘린더에 안 들어감)"):
-            st.session_state["todo_add_open"] = \
-                not st.session_state.get("todo_add_open", False)
+        _todo_open = st.session_state.get("todo_add_open", False)
+        _todo_title = "🙋 내 할 일 (7일)" + (f" — {my}" if my else "")
+        if uid:
+            _inline_plus(_todo_title, "todo", _todo_open,
+                         "나만 보는 할 일 추가(캘린더에 안 들어감)")
+        else:
+            st.markdown(f"**{_todo_title}**")
         if not my:
             st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         else:
-            if st.session_state.get("todo_add_open"):
+            if _todo_open:
                 with st.form("todo_add_form", clear_on_submit=True):
                     _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                         placeholder="예: 백정은 님께 자료 요청")
@@ -2024,6 +2040,14 @@ def main():
         elif _go == "cal":
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
+            st.session_state["main_menu"] = "🏠 홈"
+        elif _go == "care":
+            st.session_state["care_add_open"] = \
+                not st.session_state.get("care_add_open", False)
+            st.session_state["main_menu"] = "🏠 홈"
+        elif _go == "todo":
+            st.session_state["todo_add_open"] = \
+                not st.session_state.get("todo_add_open", False)
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in mode_options:
             st.session_state["main_menu"] = _go
