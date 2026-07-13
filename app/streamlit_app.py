@@ -231,11 +231,22 @@ def _todo_import_panel(uid, name, existing_rows):
             st.caption("최근 제출한 주간보고가 없습니다.")
             return
         wk, data = latest
+        _HEADERS = {"연구 계획", "업무 계획", "연구계획", "업무계획", "계획"}
+
+        def _is_noise(s):
+            if s.startswith("(완료)") or s.startswith("(완료 )"):
+                return True   # 이미 끝난 항목
+            if s in _HEADERS:
+                return True   # 제목/라벨
+            if s.startswith("[") and s.endswith("]"):
+                return True   # [소제목]
+            return False
+
         cands = []
         for fk in ("research_plan", "task_plan"):
             for ln in (data.get(fk, "") or "").replace("\r", "").split("\n"):
                 ln = ln.strip(" ·-•*\t")
-                if ln:
+                if ln and not _is_noise(ln):
                     cands.append(ln)
         exist = {r["내용"].strip() for r in (existing_rows or [])}
         seen, uniq = set(), []
