@@ -2052,9 +2052,9 @@ def _report_collect():
             _BD = "#efe2d2"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
                    "text-align:left;word-break:break-word;")
-            _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#b5794a;"
-            _TH = _TD + "background:#fdf5ec;color:#c07b3a;font-weight:700;"
-            _ADS = _TD + "background:#f0f4fa;color:#5a76a8;font-weight:700;"
+            _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#1a1a1a;"
+            _TH = _TD + "background:#fdf5ec;color:#1a1a1a;font-weight:700;"
+            _ADS = _TD + "background:#f0f4fa;color:#1a1a1a;font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
@@ -2065,7 +2065,7 @@ def _report_collect():
             def _tbl(inner):
                 # table-layout:fixed + colgroup → 구분칸 고정, 실적/계획 50:50(정중앙)
                 return ("<table style='width:100%;border-collapse:collapse;"
-                        "table-layout:fixed;font-size:0.86rem;line-height:1.4;'>"
+                        "table-layout:fixed;font-size:0.93rem;line-height:1.45;'>"
                         "<colgroup><col style='width:56px'><col><col></colgroup>"
                         + inner + "</table>")
 
@@ -2085,10 +2085,10 @@ def _report_collect():
 
             def _bar(bg, txt, right=""):
                 st.markdown(
-                    f"<div style='background:{bg};color:#b5651d;padding:6px 12px;"
+                    f"<div style='background:{bg};color:#1a1a1a;padding:6px 12px;"
                     f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
                     f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
-                    f"opacity:.75;color:#b5651d;'>{right}</span></div>",
+                    f"opacity:.75;color:#1a1a1a;'>{right}</span></div>",
                     unsafe_allow_html=True)
 
             # 상단: 사업단 공통확인사항 (취합본 1~2쪽) — 확인사항 리스트 + 용역/자산 실적·계획 표
@@ -2112,7 +2112,7 @@ def _report_collect():
                 if not data:
                     return "<div style='color:#999;font-size:0.78rem;padding:2px;'>(없음)</div>"
                 out = ("<table style='width:100%;border-collapse:collapse;"
-                       "font-size:0.78rem;'><tr>"
+                       "font-size:0.86rem;'><tr>"
                        + "".join(f"<th style='{_TH}'>{h}</th>" for h in headers) + "</tr>")
                 tot = 0
                 for i, it in enumerate(data, 1):
@@ -2182,7 +2182,7 @@ def _report_collect():
                 if not gmembers:
                     continue
                 st.markdown(
-                    f"<div style='color:#c4622d;font-weight:700;font-size:0.95rem;"
+                    f"<div style='color:#1a1a1a;font-weight:700;font-size:0.95rem;"
                     f"margin:6px 0 6px;border-left:5px solid #e6be97;padding-left:8px;'>"
                     f"🏛️ 본부과제 · {gname}</div>", unsafe_allow_html=True)
                 for name in gmembers:
