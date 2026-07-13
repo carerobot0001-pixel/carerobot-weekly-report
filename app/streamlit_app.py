@@ -2047,36 +2047,45 @@ def _report_collect():
         if not submitted:
             st.caption("제출된 보고가 없습니다.")
         else:
-            st.caption(f"제출 {len(submitted)}명 — 취합본과 같은 '실적 | 계획' 형식. 아래로 스크롤하며 진행.")
+            st.caption(f"제출 {len(submitted)}명 — 취합본과 같은 '실적 | 계획' 표. 아래로 스크롤하며 진행.")
+            # 테두리 있는 HTML 표(칸 구분 또렷·여백 최소). 취합본 형식 재현.
+            _TD = "border:1px solid #d7c1a4;padding:5px 9px;vertical-align:top;text-align:left;"
+            _LBL = _TD + "width:64px;white-space:nowrap;font-weight:700;background:#FCF3EA;color:#8A4A1E;"
+            _TH = _TD + "background:#FCF3EA;color:#A8501A;font-weight:700;"
+            _ADS = _TD + "background:#eef3ff;color:#1a56db;font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
-                return (s.replace("&", "&amp;").replace("<", "&lt;")
-                        .replace(">", "&gt;").replace("\n", "<br>")) or "-"
+                s = (s.replace("&", "&amp;").replace("<", "&lt;")
+                     .replace(">", "&gt;").replace("\n", "<br>"))
+                return s or "-"
 
-            def _cell(txt, size="0.9rem"):
-                st.markdown(f"<div style='font-size:{size};line-height:1.45;"
-                            f"padding:2px 4px;'>{_esc(txt)}</div>",
-                            unsafe_allow_html=True)
+            def _tbl(inner):
+                return ("<table style='width:100%;border-collapse:collapse;"
+                        "font-size:0.86rem;line-height:1.4;'>" + inner + "</table>")
 
-            def _pair_table(rows_data):
-                """rows_data = [(라벨, 실적텍스트, 계획텍스트)] 중 내용 있는 것만 표로."""
-                rows = [(lb, dv, pv) for lb, dv, pv in rows_data
-                        if (dv or "").strip() or (pv or "").strip()]
-                if not rows:
-                    return
-                h = st.columns([1, 6, 6])
-                h[1].markdown("**📌 실적**")
-                h[2].markdown("**📝 계획**")
-                for lb, dv, pv in rows:
-                    c = st.columns([1, 6, 6])
-                    c[0].markdown(f"**{lb}**")
-                    with c[1]:
-                        _cell(dv)
-                    with c[2]:
-                        _cell(pv)
+            def _hdr():
+                return (f"<tr><th style='{_LBL}'>구분</th>"
+                        f"<th style='{_TH}'>📌 실적</th>"
+                        f"<th style='{_TH}'>📝 계획</th></tr>")
 
-            # 상단: 사업단 공통확인사항 1·2 (취합본처럼 맨 앞) — 가진 연구원(최혜민)에서 취합
+            def _row(lb, dv, pv):
+                return (f"<tr><td style='{_LBL}'>{lb}</td>"
+                        f"<td style='{_TD}'>{_esc(dv)}</td>"
+                        f"<td style='{_TD}'>{_esc(pv)}</td></tr>")
+
+            def _full(lb, v):
+                return (f"<tr><td style='{_LBL}'>{lb}</td>"
+                        f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
+
+            def _bar(bg, txt, right=""):
+                st.markdown(
+                    f"<div style='background:{bg};color:#fff;padding:6px 12px;"
+                    f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
+                    f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
+                    f"opacity:.85;'>{right}</span></div>", unsafe_allow_html=True)
+
+            # 상단: 사업단 공통확인사항 1·2 (취합본처럼 맨 앞, 1·2 둘 다 표시)
             conf = {}
             for n in submitted:
                 for k in ("project_confirmation_1", "project_confirmation_2_done",
@@ -2085,22 +2094,14 @@ def _report_collect():
                     if v and k not in conf:
                         conf[k] = v
             if conf:
-                with st.container(border=True):
-                    st.markdown(
-                        "<div style='background:#8A3F12;color:#fff;padding:6px 12px;"
-                        "border-radius:7px;font-size:1.15rem;font-weight:700;"
-                        "margin-bottom:8px;'>📋 사업단 공통확인사항</div>",
-                        unsafe_allow_html=True)
-                    if conf.get("project_confirmation_1"):
-                        st.markdown("<div style='color:#A8501A;font-weight:700;"
-                                    "font-size:0.9rem;'>▸ 공통확인사항 1</div>",
-                                    unsafe_allow_html=True)
-                        _cell(conf["project_confirmation_1"])
-                    _pair_table([("공통2", conf.get("project_confirmation_2_done", ""),
-                                  conf.get("project_confirmation_2_plan", ""))])
-                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                _bar("#8A3F12", "📋 사업단 공통확인사항")
+                inner = _full("공통 1", conf.get("project_confirmation_1", ""))
+                inner += _hdr()
+                inner += _row("공통 2", conf.get("project_confirmation_2_done", ""),
+                              conf.get("project_confirmation_2_plan", ""))
+                st.markdown(_tbl(inner), unsafe_allow_html=True)
+                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
-            # 개별 연구원: (실적키, 계획키, 행이름). 공통확인은 위에서 처리하므로 제외.
             PAIRS = [("research_done", "research_plan", "연구"),
                      ("task_done", "task_plan", "업무"),
                      ("smart_care_space_done", "smart_care_space_plan", "스페이스")]
@@ -2111,42 +2112,33 @@ def _report_collect():
             for name in submitted:
                 r = mdata[name]
                 fields = get_fields_for(get_member(name))
-                with st.container(border=True):
-                    st.markdown(
-                        f"<div style='background:#C4622D;color:#fff;padding:6px 12px;"
-                        f"border-radius:7px;font-size:1.2rem;font-weight:700;"
-                        f"margin-bottom:8px;'>🙋 {name}"
-                        f"<span style='float:right;font-size:0.75rem;font-weight:400;"
-                        f"opacity:.85;'>{r.get('submitted_at', '')}</span></div>",
-                        unsafe_allow_html=True)
-                    # 획득 데이터(파랑, 전체폭) — 값에 이미 '획득 데이터:'가 있으면 중복 제거
-                    ad = (r.get("acquired_data", "") or "").strip()
-                    for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
-                        if ad.startswith(pre):
-                            ad = ad[len(pre):].strip()
-                    if "acquired_data" in fields and ad:
-                        st.markdown(
-                            f"<div style='color:#1a56db;font-weight:700;"
-                            f"font-size:0.92rem;padding:2px 4px 6px;'>"
-                            f"획득 데이터: {_esc(ad)}</div>", unsafe_allow_html=True)
-                    # 실적 | 계획 표
-                    _pair_table([(lb, r.get(d, ""), r.get(p, ""))
-                                 for d, p, lb in PAIRS
-                                 if d in fields or p in fields])
-                    # 기타 단일 필드(회의자료 등)
-                    for f in fields:
-                        if f in skip:
-                            continue
-                        v = (r.get(f, "") or "").strip()
-                        if not v:
-                            continue
-                        st.markdown(
-                            f"<div style='color:#A8501A;font-weight:700;"
-                            f"font-size:0.9rem;margin-top:6px;'>▸ {FIELD_LABELS[f]}</div>",
-                            unsafe_allow_html=True)
-                        _cell(v)
-                st.markdown("<div style='height:10px;'></div>",
-                            unsafe_allow_html=True)
+                _bar("#C4622D", f"🙋 {name}", r.get("submitted_at", ""))
+                inner = ""
+                ad = (r.get("acquired_data", "") or "").strip()
+                for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
+                    if ad.startswith(pre):
+                        ad = ad[len(pre):].strip()
+                if "acquired_data" in fields and ad:
+                    inner += (f"<tr><td colspan='3' style='{_ADS}'>"
+                              f"획득 데이터: {_esc(ad)}</td></tr>")
+                pairs = [(lb, r.get(d, ""), r.get(p, "")) for d, p, lb in PAIRS
+                         if (d in fields or p in fields)
+                         and ((r.get(d, "") or "").strip()
+                              or (r.get(p, "") or "").strip())]
+                if pairs:
+                    inner += _hdr()
+                    for lb, dv, pv in pairs:
+                        inner += _row(lb, dv, pv)
+                for f in fields:
+                    if f in skip:
+                        continue
+                    v = (r.get(f, "") or "").strip()
+                    if not v:
+                        continue
+                    inner += _full(FIELD_LABELS[f], v)
+                if inner:
+                    st.markdown(_tbl(inner), unsafe_allow_html=True)
+                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
     st.subheader("📤 내보내기")
 
