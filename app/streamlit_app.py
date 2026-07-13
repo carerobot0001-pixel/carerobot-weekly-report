@@ -2037,40 +2037,36 @@ def _report_collect():
                 st.text(val)
             st.divider()
 
-    with st.expander("🖥️ 회의 진행 모드 (한 명씩 넘겨보기)"):
+    with st.expander("🖥️ 회의 진행 모드 (전원 한 화면)"):
         mdata = load_week(week)
         submitted = [n for n in MEMBER_NAMES if mdata.get(n)]
         if not submitted:
             st.caption("제출된 보고가 없습니다.")
         else:
-            idx = max(0, min(st.session_state.get("meet_idx", 0),
-                             len(submitted) - 1))
-            n1, n2, n3 = st.columns([1, 3, 1])
-            if n1.button("⬅️ 이전", key="meet_prev", disabled=idx == 0,
-                         use_container_width=True):
-                st.session_state["meet_idx"] = idx - 1
-                st.rerun()
-            if n3.button("다음 ➡️", key="meet_next",
-                         disabled=idx >= len(submitted) - 1,
-                         use_container_width=True):
-                st.session_state["meet_idx"] = idx + 1
-                st.rerun()
-            name = submitted[idx]
-            n2.markdown(
-                f"<div style='text-align:center;font-weight:700;font-size:1.05rem;'>"
-                f"{idx + 1} / {len(submitted)} · {name}</div>",
-                unsafe_allow_html=True)
-            r = mdata[name]
-            st.markdown(f"### 🙋 {name}　"
-                        f"<span style='font-size:0.8rem;color:#999;'>"
-                        f"{r.get('submitted_at', '')}</span>",
-                        unsafe_allow_html=True)
-            for f in get_fields_for(get_member(name)):
-                val = (r.get(f, "") or "").strip()
-                if not val:
-                    continue
-                st.markdown(f"**{FIELD_LABELS[f]}**")
-                st.markdown(val.replace("\n", "  \n"))
+            ncol = st.selectbox("열 수", [2, 3, 4], index=0, key="meet_cols",
+                                help="회의 화면 크기에 맞춰 열 수를 조절")
+
+            def _esc(s):
+                return (s.replace("&", "&amp;").replace("<", "&lt;")
+                        .replace(">", "&gt;").replace("\n", "<br>"))
+
+            cols = st.columns(ncol)
+            for i, name in enumerate(submitted):
+                r = mdata[name]
+                with cols[i % ncol]:
+                    with st.container(border=True):
+                        st.markdown(f"**🙋 {name}**")
+                        for f in get_fields_for(get_member(name)):
+                            val = (r.get(f, "") or "").strip()
+                            if not val:
+                                continue
+                            st.markdown(
+                                f"<div style='color:#A8501A;font-weight:600;"
+                                f"font-size:0.75rem;margin-top:3px;'>"
+                                f"{FIELD_LABELS[f]}</div>"
+                                f"<div style='font-size:0.82rem;line-height:1.3;'>"
+                                f"{_esc(val)}</div>",
+                                unsafe_allow_html=True)
 
     st.subheader("📤 내보내기")
 
