@@ -524,12 +524,16 @@ def home_page():
             st.caption("7일 내 다른 일정이 없습니다.")
 
         # 📍 정보 미입력 일정: 14일 내 일정 중 장소·시간이 빈 것 (사업단 일정 ＋에서 보완)
+        #   연가·조퇴 등 근태는 장소·시간이 필요 없어 제외.
+        _SKIP_WORDS = ("연가", "조퇴", "반차", "반가", "휴가", "외출", "월차", "연차")
         try:
             _miss = []
             for _e in upcoming_events(days=14, maxn=50):
                 _vv = event_view(_e)
                 _dd = _pdate(_vv["date"])
                 if _dd is None or _dd < today:
+                    continue
+                if any(_w in _vv["title"] for _w in _SKIP_WORDS):
                     continue
                 _m = []
                 if not (_vv.get("location") or "").strip():
