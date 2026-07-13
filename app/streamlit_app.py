@@ -2167,36 +2167,54 @@ def _report_collect():
                              "project_confirmation_2_done", "project_confirmation_2_plan",
                              "research_meeting", "director_meeting", "mohw_weekly"}
 
-            for name in submitted:
-                r = mdata[name]
-                fields = get_fields_for(get_member(name))
-                _bar("#8a5a44", f"🙋 {name}", r.get("submitted_at", ""))
-                inner = ""
-                ad = (r.get("acquired_data", "") or "").strip()
-                for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
-                    if ad.startswith(pre):
-                        ad = ad[len(pre):].strip()
-                if "acquired_data" in fields and ad:
-                    inner += (f"<tr><td colspan='3' style='{_ADS}'>"
-                              f"획득 데이터: {_esc(ad)}</td></tr>")
-                pairs = [(lb, r.get(d, ""), r.get(p, "")) for d, p, lb in PAIRS
-                         if (d in fields or p in fields)
-                         and ((r.get(d, "") or "").strip()
-                              or (r.get(p, "") or "").strip())]
-                if pairs:
-                    inner += _hdr()
-                    for lb, dv, pv in pairs:
-                        inner += _row(lb, dv, pv)
-                for f in fields:
-                    if f in skip:
-                        continue
-                    v = (r.get(f, "") or "").strip()
-                    if not v:
-                        continue
-                    inner += _full(FIELD_LABELS[f], v)
-                if inner:
-                    st.markdown(_tbl(inner), unsafe_allow_html=True)
-                st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+            # 본부과제 하위 분야별 그룹(취합본 좌측 계층)
+            GROUPS = [("현장실증", ["백정은", "한벼리", "박재우", "이윤환"]),
+                      ("로봇기술", ["김건양", "류현경", "남재엽", "이경진"]),
+                      ("운영과제", ["최혜민", "정지수"])]
+            grouped = {n for _g, ns in GROUPS for n in ns}
+            plan = [(g, [n for n in ns if n in submitted]) for g, ns in GROUPS]
+            _others = [n for n in submitted if n not in grouped]
+            if _others:
+                plan.append(("기타", _others))
+
+            for gname, gmembers in plan:
+                if not gmembers:
+                    continue
+                st.markdown(
+                    f"<div style='color:#8a5a44;font-weight:700;font-size:0.95rem;"
+                    f"margin:6px 0 6px;border-left:5px solid #8a5a44;padding-left:8px;'>"
+                    f"🏛️ 본부과제 · {gname}</div>", unsafe_allow_html=True)
+                for name in gmembers:
+                    r = mdata[name]
+                    fields = get_fields_for(get_member(name))
+                    _bar("#8a5a44", f"🙋 {name}", r.get("submitted_at", ""))
+                    inner = ""
+                    ad = (r.get("acquired_data", "") or "").strip()
+                    for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
+                        if ad.startswith(pre):
+                            ad = ad[len(pre):].strip()
+                    if "acquired_data" in fields and ad:
+                        inner += (f"<tr><td colspan='3' style='{_ADS}'>"
+                                  f"획득 데이터: {_esc(ad)}</td></tr>")
+                    pairs = [(lb, r.get(d, ""), r.get(p, "")) for d, p, lb in PAIRS
+                             if (d in fields or p in fields)
+                             and ((r.get(d, "") or "").strip()
+                                  or (r.get(p, "") or "").strip())]
+                    if pairs:
+                        inner += _hdr()
+                        for lb, dv, pv in pairs:
+                            inner += _row(lb, dv, pv)
+                    for f in fields:
+                        if f in skip:
+                            continue
+                        v = (r.get(f, "") or "").strip()
+                        if not v:
+                            continue
+                        inner += _full(FIELD_LABELS[f], v)
+                    if inner:
+                        st.markdown(_tbl(inner), unsafe_allow_html=True)
+                    st.markdown("<div style='height:12px;'></div>",
+                                unsafe_allow_html=True)
 
             # 회의자료(최혜민) — 취합본 뒷부분. 내용 있을 때만.
             MEET = [("research_meeting", "1. 연구소 회의자료 (소장주재회의)"),
