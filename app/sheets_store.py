@@ -106,6 +106,26 @@ def load_week(week: str) -> dict:
     return out
 
 
+def latest_submission(name: str):
+    """이름의 가장 최근(주차 내림차순) 제출 1건 → (주차, {필드키: 텍스트}) 또는 None.
+    주차는 'YYYY-MM-DD' 문자열이라 문자열 비교 = 날짜순."""
+    records = _fetch_all_values()
+    best_week, best = None, None
+    for r in records[1:]:
+        row = _row_to_dict(r)
+        if row.get("이름") != name:
+            continue
+        wk = row.get("주차", "")
+        if not wk:
+            continue
+        if best_week is None or wk > best_week:
+            best_week = wk
+            best = {k: row.get(FIELD_LABELS_KR[k], "") for k in FIELD_KEYS}
+    if best is None:
+        return None
+    return best_week, best
+
+
 def save_submission(name: str, week: str, values: dict) -> str:
     """values = {필드키: 텍스트} — FIELD_KEYS의 부분 집합. 누락은 빈 문자열로 저장."""
     ws = _get_sheet()

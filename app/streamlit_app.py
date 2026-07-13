@@ -16,7 +16,7 @@ import account_store
 import todo_store
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
-    build_full_backup_xlsx, FIELD_KEYS, KST,
+    build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
 )
 from space_store import (
     FAQ_HEADER, SPACE_LOG_HEADER, SheetNotConfigured, RowMismatch, sheet_url,
@@ -217,6 +217,51 @@ def _me_index(options, default=0):
     me가 없거나 목록에 없으면 default(기본 0=첫 항목, 기존 동작 유지)."""
     me = st.session_state.get("me")
     return options.index(me) if me in options else default
+
+
+def _todo_import_panel(uid, name, existing_rows):
+    """최근 주간보고의 '연구계획·업무계획'을 줄 단위 후보로 보여주고, 고른 것만 할 일로 추가."""
+    with st.container(border=True):
+        try:
+            latest = latest_submission(name)
+        except Exception as e:
+            st.error(f"보고 조회 실패: {e}")
+            return
+        if not latest:
+            st.caption("최근 제출한 주간보고가 없습니다.")
+            return
+        wk, data = latest
+        cands = []
+        for fk in ("research_plan", "task_plan"):
+            for ln in (data.get(fk, "") or "").replace("\r", "").split("\n"):
+                ln = ln.strip(" ·-•*\t")
+                if ln:
+                    cands.append(ln)
+        exist = {r["내용"].strip() for r in (existing_rows or [])}
+        seen, uniq = set(), []
+        for c in cands:
+            if c in seen or c in exist:
+                continue
+            seen.add(c)
+            uniq.append(c)
+        if not uniq:
+            st.caption(f"‘{wk}’ 계획에서 새로 가져올 항목이 없습니다.")
+            return
+        st.caption(f"‘{wk}’ 주간보고 계획에서 가져올 항목을 고르세요.")
+        picks = [c for i, c in enumerate(uniq)
+                 if st.checkbox(c, key=f"imp_{i}")]
+        _ic1, _ic2 = st.columns(2)
+        if _ic1.button("선택 추가", type="primary", key="todo_import_add"):
+            for c in picks:
+                try:
+                    todo_store.add_todo(uid, c)
+                except Exception:
+                    pass
+            st.session_state["todo_import_open"] = False
+            st.rerun()
+        if _ic2.button("닫기", key="todo_import_close"):
+            st.session_state["todo_import_open"] = False
+            st.rerun()
 
 
 def _inline_plus(title, go, is_open, help_txt="추가"):
@@ -514,6 +559,14 @@ def home_page():
                     st.rerun()
             if not todo_lines and not _mytodos:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
+            # 📥 지난 주간보고 '계획'을 할 일로 가져오기
+            if st.button("📥 지난 보고에서 가져오기", key="todo_import_btn",
+                         help="최근 주간보고의 연구·업무 계획을 골라 할 일에 추가"):
+                st.session_state["todo_import_open"] = \
+                    not st.session_state.get("todo_import_open", False)
+                st.rerun()
+            if st.session_state.get("todo_import_open"):
+                _todo_import_panel(uid, my, _mytodos)
     with right:
         if common_sched_items:
             with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
