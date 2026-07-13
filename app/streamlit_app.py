@@ -2474,9 +2474,12 @@ def main():
       section[data-testid="stSidebar"] *{ color:#EFE5D8 !important; }
       /* 네비게이션 버튼: 큰 글씨·왼쪽 정렬·현재 메뉴 강조 */
       section[data-testid="stSidebar"] .stButton>button{
-        background:transparent; border:none; text-align:left;
-        justify-content:flex-start; font-size:1.05rem; font-weight:600;
-        padding:7px 12px; border-radius:8px; margin:1px 0; }
+        background:transparent; border:none; text-align:left !important;
+        justify-content:flex-start !important; font-size:1.05rem; font-weight:600;
+        padding:7px 14px; border-radius:8px; margin:1px 0; }
+      section[data-testid="stSidebar"] .stButton>button p,
+      section[data-testid="stSidebar"] .stButton>button div{
+        text-align:left !important; width:100%; margin:0; }
       section[data-testid="stSidebar"] .stButton>button:hover{ background:#3c2d22; }
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
         background:#C4622D; color:#fff !important; font-weight:700; }
