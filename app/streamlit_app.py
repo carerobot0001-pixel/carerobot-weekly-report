@@ -2085,21 +2085,73 @@ def _report_collect():
                     f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
                     f"opacity:.85;'>{right}</span></div>", unsafe_allow_html=True)
 
-            # 상단: 사업단 공통확인사항 1·2 (취합본처럼 맨 앞, 1·2 둘 다 표시)
-            conf = {}
+            # 상단: 사업단 공통확인사항 (취합본 1~2쪽) — 확인사항 리스트 + 용역/자산 실적·계획 표
+            conf1 = ""
             for n in submitted:
-                for k in ("project_confirmation_1", "project_confirmation_2_done",
-                          "project_confirmation_2_plan"):
-                    v = (mdata[n].get(k, "") or "").strip()
-                    if v and k not in conf:
-                        conf[k] = v
-            if conf:
+                v = (mdata[n].get("project_confirmation_1", "") or "").strip()
+                if v:
+                    conf1 = v
+                    break
+            try:
+                ct = load_common()
+            except Exception:
+                ct = {}
+
+            def _num(s):
+                return int("".join(ch for ch in str(s) if ch.isdigit()) or "0")
+
+            def _mini(headers, items, ncols, midx):
+                data = [it for it in items
+                        if any((str(c) or "").strip() for c in it[:ncols])]
+                if not data:
+                    return "<div style='color:#999;font-size:0.78rem;padding:2px;'>(없음)</div>"
+                out = ("<table style='width:100%;border-collapse:collapse;"
+                       "font-size:0.78rem;'><tr>"
+                       + "".join(f"<th style='{_TH}'>{h}</th>" for h in headers) + "</tr>")
+                tot = 0
+                for i, it in enumerate(data, 1):
+                    cs = f"<td style='{_TD}'>{i}</td>"
+                    for j in range(ncols):
+                        cs += f"<td style='{_TD}'>{_esc(str(it[j]) if j < len(it) else '')}</td>"
+                    out += f"<tr>{cs}</tr>"
+                    tot += _num(it[midx]) if midx < len(it) else 0
+                sc = ""
+                for j in range(ncols + 1):
+                    if j == 1:
+                        sc += f"<td style='{_TD}'><b>합계</b></td>"
+                    elif j == midx + 1:
+                        sc += f"<td style='{_TD}'><b>{tot:,}</b></td>"
+                    else:
+                        sc += f"<td style='{_TD}'></td>"
+                return out + f"<tr>{sc}</tr></table>"
+
+            def _side(yk, ak, ek):
+                h = ("<div style='font-weight:700;color:#8A4A1E;margin:1px 0 3px;'>"
+                     "&lt;본부과제 용역&gt;</div>")
+                h += _mini(["순번", "분야", "발주금액", "비고"], ct.get(yk, []), 3, 1)
+                h += ("<div style='font-weight:700;color:#8A4A1E;margin:7px 0 3px;'>"
+                      "&lt;본부과제 자산구매&gt;</div>")
+                h += _mini(["순번", "품명", "수량", "구매금액", "비고"], ct.get(ak, []), 4, 2)
+                ex = (ct.get(ek, "") or "").strip()
+                if ex:
+                    h += f"<div style='margin-top:6px;'>{_esc(ex)}</div>"
+                return h
+
+            has_tables = any(any((str(c) or "").strip() for it in ct.get(k, []) for c in it)
+                             for k in ("용역_실적", "용역_계획", "자산_실적", "자산_계획")) \
+                or (ct.get("기타_실적", "") or "").strip() \
+                or (ct.get("기타_계획", "") or "").strip()
+
+            if conf1 or has_tables:
                 _bar("#8A3F12", "📋 사업단 공통확인사항")
-                inner = _full("공통 1", conf.get("project_confirmation_1", ""))
-                inner += _hdr()
-                inner += _row("공통 2", conf.get("project_confirmation_2_done", ""),
-                              conf.get("project_confirmation_2_plan", ""))
-                st.markdown(_tbl(inner), unsafe_allow_html=True)
+                if conf1:
+                    st.markdown(_tbl(_full("확인사항", conf1)), unsafe_allow_html=True)
+                if has_tables:
+                    outer = (_hdr()
+                             + f"<tr><td style='{_LBL}'>공통</td>"
+                             + f"<td style='{_TD}'>{_side('용역_실적', '자산_실적', '기타_실적')}</td>"
+                             + f"<td style='{_TD}'>{_side('용역_계획', '자산_계획', '기타_계획')}</td></tr>")
+                    st.markdown(_tbl(outer), unsafe_allow_html=True)
                 st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
 
             PAIRS = [("research_done", "research_plan", "연구"),
