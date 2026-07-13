@@ -2037,36 +2037,40 @@ def _report_collect():
                 st.text(val)
             st.divider()
 
-    with st.expander("🖥️ 회의 진행 모드 (전원 한 화면)"):
+    with st.expander("🖥️ 회의 진행 모드 (연구원별 전체폭 · 스크롤로 진행)"):
         mdata = load_week(week)
         submitted = [n for n in MEMBER_NAMES if mdata.get(n)]
         if not submitted:
             st.caption("제출된 보고가 없습니다.")
         else:
-            ncol = st.selectbox("열 수", [2, 3, 4], index=0, key="meet_cols",
-                                help="회의 화면 크기에 맞춰 열 수를 조절")
+            st.caption(f"제출 {len(submitted)}명 — 한 명씩 전체폭으로. 아래로 스크롤하며 진행하세요.")
 
             def _esc(s):
                 return (s.replace("&", "&amp;").replace("<", "&lt;")
                         .replace(">", "&gt;").replace("\n", "<br>"))
 
-            cols = st.columns(ncol)
-            for i, name in enumerate(submitted):
+            for name in submitted:
                 r = mdata[name]
-                with cols[i % ncol]:
-                    with st.container(border=True):
-                        st.markdown(f"**🙋 {name}**")
-                        for f in get_fields_for(get_member(name)):
-                            val = (r.get(f, "") or "").strip()
-                            if not val:
-                                continue
-                            st.markdown(
-                                f"<div style='color:#A8501A;font-weight:600;"
-                                f"font-size:0.75rem;margin-top:3px;'>"
-                                f"{FIELD_LABELS[f]}</div>"
-                                f"<div style='font-size:0.82rem;line-height:1.3;'>"
-                                f"{_esc(val)}</div>",
-                                unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.markdown(
+                        f"<div style='background:#C4622D;color:#fff;padding:6px 12px;"
+                        f"border-radius:7px;font-size:1.25rem;font-weight:700;"
+                        f"margin-bottom:8px;'>🙋 {name}"
+                        f"<span style='float:right;font-size:0.75rem;font-weight:400;"
+                        f"opacity:.85;'>{r.get('submitted_at', '')}</span></div>",
+                        unsafe_allow_html=True)
+                    for f in get_fields_for(get_member(name)):
+                        val = (r.get(f, "") or "").strip()
+                        if not val:
+                            continue
+                        st.markdown(
+                            f"<div style='color:#A8501A;font-weight:700;"
+                            f"font-size:0.92rem;margin-top:8px;'>▸ {FIELD_LABELS[f]}</div>"
+                            f"<div style='font-size:0.95rem;line-height:1.5;"
+                            f"padding:2px 0 4px 14px;'>{_esc(val)}</div>",
+                            unsafe_allow_html=True)
+                st.markdown("<div style='height:10px;'></div>",
+                            unsafe_allow_html=True)
 
     st.subheader("📤 내보내기")
 
