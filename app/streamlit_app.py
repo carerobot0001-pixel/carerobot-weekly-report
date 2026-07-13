@@ -471,26 +471,6 @@ def home_page():
         if not any_reminder and not _mycare:
             st.caption("✅ 급히 챙길 건 없습니다.")
 
-        # 📍 장소 미입력 일정: 14일 내 '시간 지정' 일정 중 장소가 빈 것(종일=연가류는 제외해 오탐↓)
-        try:
-            _noloc = []
-            for _e in upcoming_events(days=14, maxn=50):
-                _vv = event_view(_e)
-                _dd = _pdate(_vv["date"])
-                if _dd is None or _dd < today:
-                    continue
-                if not _vv["all_day"] and not (_vv.get("location") or "").strip():
-                    _noloc.append(_vv)
-        except Exception:
-            _noloc = []
-        if _noloc:
-            with st.expander(f"📍 장소 미입력 일정 ({len(_noloc)})", expanded=False):
-                for _vv in _noloc:
-                    st.markdown(
-                        f"- {_vv['date'][5:].replace('-', '/')} {_vv['when']} · "
-                        f"{_vv['title']}")
-                st.caption("아래 ‘📅 사업단 일정 ＋’에서 해당 일정을 열어 장소를 채워주세요.")
-
         # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
         _todo_open = st.session_state.get("todo_add_open", False)
         _todo_title = "🙋 내 할 일 (7일)" + (f" — {my}" if my else "")
@@ -542,6 +522,31 @@ def home_page():
         else:
             st.markdown("**🗓️ 그 외 일정 (7일)**")
             st.caption("7일 내 다른 일정이 없습니다.")
+
+        # 📍 정보 미입력 일정: 14일 내 일정 중 장소·시간이 빈 것 (사업단 일정 ＋에서 보완)
+        try:
+            _miss = []
+            for _e in upcoming_events(days=14, maxn=50):
+                _vv = event_view(_e)
+                _dd = _pdate(_vv["date"])
+                if _dd is None or _dd < today:
+                    continue
+                _m = []
+                if not (_vv.get("location") or "").strip():
+                    _m.append("장소")
+                if _vv["all_day"]:
+                    _m.append("시간")
+                if _m:
+                    _miss.append((_vv, _m))
+        except Exception:
+            _miss = []
+        if _miss:
+            with st.expander(f"📍 정보 미입력 일정 ({len(_miss)})", expanded=False):
+                for _vv, _m in _miss:
+                    st.markdown(
+                        f"- {_vv['date'][5:].replace('-', '/')} · {_vv['title']} "
+                        f"— {'·'.join(_m)} 없음")
+                st.caption("‘📅 사업단 일정 ＋’에서 해당 일정을 열어 채워주세요.")
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
