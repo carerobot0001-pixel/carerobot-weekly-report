@@ -2040,10 +2040,17 @@ def meeting_page():
                         "<colgroup><col style='width:56px'><col><col></colgroup>"
                         + inner + "</table>")
 
+            # 헤더 날짜 범위: 실적=지난주 수요일~이번주 화요일, 계획=이번주 수요일~다음주 화요일
+            _w = wednesday_of_week(week)
+            _dr = ("업무 실적(" + (_w - timedelta(days=7)).strftime("%Y.%m.%d.")
+                   + " ~ " + (_w - timedelta(days=1)).strftime("%Y.%m.%d.") + ")")
+            _pr = ("업무 계획(" + _w.strftime("%Y.%m.%d.")
+                   + " ~ " + (_w + timedelta(days=6)).strftime("%Y.%m.%d.") + ")")
+
             def _hdr():
                 return (f"<tr><th style='{_LBL}'>구분</th>"
-                        f"<th style='{_TH}'>📌 실적</th>"
-                        f"<th style='{_TH}'>📝 계획</th></tr>")
+                        f"<th style='{_TH}'>{_dr}</th>"
+                        f"<th style='{_TH}'>{_pr}</th></tr>")
 
             def _row(lb, dv, pv):
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
@@ -2205,11 +2212,9 @@ def meeting_page():
                     if v:
                         mvals[k] = v
                         break
-            minner = ""
+            minner = _hdr()
             for k, lb in MEET:
-                minner += f"<tr><td style='{_TH}' colspan='3'>{_esc(lb)}</td></tr>"
-                minner += (f"<tr><td style='{_TD}' colspan='3'>"
-                           f"{_esc(mvals.get(k, ''))}</td></tr>")
+                minner += _full(lb, mvals.get(k, ""))
             st.markdown(
                 "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
                 "padding-bottom:10px;'>" + _barhtml("#f8e0c9", "📑 회의자료")
