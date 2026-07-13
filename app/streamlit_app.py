@@ -433,10 +433,12 @@ def home_page():
             else:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
     with right:
-        st.markdown("**🗓️ 그 외 일정 (7일)**")
         if common_sched_items:
-            st.markdown("\n".join(f"- {s}" for s in common_sched_items))
+            with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
+                             expanded=False):
+                st.markdown("\n".join(f"- {s}" for s in common_sched_items))
         else:
+            st.markdown("**🗓️ 그 외 일정 (7일)**")
             st.caption("7일 내 다른 일정이 없습니다.")
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
