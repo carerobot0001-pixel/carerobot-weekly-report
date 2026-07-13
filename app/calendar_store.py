@@ -81,28 +81,31 @@ def upcoming_events(days: int = 45, maxn: int = 50) -> list:
     return r.json().get("items", [])
 
 
-def _body(summary, the_date, all_day, start_t, end_t, desc):
+def _body(summary, the_date, all_day, start_t, end_t, desc, location=""):
     if all_day:
-        return {"summary": summary, "description": desc,
-                "start": {"date": the_date},
-                "end": {"date": (datetime.strptime(the_date, "%Y-%m-%d").date()
-                                 + timedelta(days=1)).strftime("%Y-%m-%d")}}
-    return {"summary": summary, "description": desc,
-            "start": {"dateTime": f"{the_date}T{start_t}:00", "timeZone": "Asia/Seoul"},
-            "end": {"dateTime": f"{the_date}T{end_t}:00", "timeZone": "Asia/Seoul"}}
+        b = {"summary": summary, "description": desc, "location": location,
+             "start": {"date": the_date},
+             "end": {"date": (datetime.strptime(the_date, "%Y-%m-%d").date()
+                              + timedelta(days=1)).strftime("%Y-%m-%d")}}
+    else:
+        b = {"summary": summary, "description": desc, "location": location,
+             "start": {"dateTime": f"{the_date}T{start_t}:00", "timeZone": "Asia/Seoul"},
+             "end": {"dateTime": f"{the_date}T{end_t}:00", "timeZone": "Asia/Seoul"}}
+    return b
 
 
-def add_event(summary, the_date, all_day, start_t, end_t, desc="") -> str:
+def add_event(summary, the_date, all_day, start_t, end_t, desc="", location="") -> str:
     r = _sess().post(f"{CAL_API}/calendars/{_cid()}/events",
-                     json=_body(summary, the_date, all_day, start_t, end_t, desc))
+                     json=_body(summary, the_date, all_day, start_t, end_t, desc, location))
     r.raise_for_status()
     upcoming_events.clear()
     return r.json().get("id", "")
 
 
-def update_event(event_id, summary, the_date, all_day, start_t, end_t, desc="") -> None:
+def update_event(event_id, summary, the_date, all_day, start_t, end_t,
+                 desc="", location="") -> None:
     r = _sess().put(f"{CAL_API}/calendars/{_cid()}/events/{event_id}",
-                    json=_body(summary, the_date, all_day, start_t, end_t, desc))
+                    json=_body(summary, the_date, all_day, start_t, end_t, desc, location))
     r.raise_for_status()
     upcoming_events.clear()
 
@@ -121,10 +124,10 @@ def event_view(e: dict) -> dict:
         return {"id": e.get("id"), "title": e.get("summary", "(제목 없음)"),
                 "date": s["date"], "when": "종일", "all_day": True,
                 "start_t": "09:00", "end_t": "10:00",
-                "desc": e.get("description", "")}
+                "desc": e.get("description", ""), "location": e.get("location", "")}
     sd = s.get("dateTime", "")[:16]  # YYYY-MM-DDTHH:MM
     ed = en.get("dateTime", "")[:16]
     return {"id": e.get("id"), "title": e.get("summary", "(제목 없음)"),
             "date": sd[:10], "when": f"{sd[11:]}~{ed[11:]}", "all_day": False,
             "start_t": sd[11:] or "09:00", "end_t": ed[11:] or "10:00",
-            "desc": e.get("description", "")}
+            "desc": e.get("description", ""), "location": e.get("location", "")}

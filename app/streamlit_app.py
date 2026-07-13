@@ -471,6 +471,26 @@ def home_page():
         if not any_reminder and not _mycare:
             st.caption("✅ 급히 챙길 건 없습니다.")
 
+        # 📍 장소 미입력 일정: 14일 내 '시간 지정' 일정 중 장소가 빈 것(종일=연가류는 제외해 오탐↓)
+        try:
+            _noloc = []
+            for _e in upcoming_events(days=14, maxn=50):
+                _vv = event_view(_e)
+                _dd = _pdate(_vv["date"])
+                if _dd is None or _dd < today:
+                    continue
+                if not _vv["all_day"] and not (_vv.get("location") or "").strip():
+                    _noloc.append(_vv)
+        except Exception:
+            _noloc = []
+        if _noloc:
+            with st.expander(f"📍 장소 미입력 일정 ({len(_noloc)})", expanded=False):
+                for _vv in _noloc:
+                    st.markdown(
+                        f"- {_vv['date'][5:].replace('-', '/')} {_vv['when']} · "
+                        f"{_vv['title']}")
+                st.caption("아래 ‘📅 사업단 일정 ＋’에서 해당 일정을 열어 장소를 채워주세요.")
+
         # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
         _todo_open = st.session_state.get("todo_add_open", False)
         _todo_title = "🙋 내 할 일 (7일)" + (f" — {my}" if my else "")
@@ -1457,12 +1477,15 @@ def _cal_edit_form(v):
                              key=f"cal_et_st_{eid}")
         eet = tc2.time_input("종료", value=_pt(v["end_t"], time(10, 0)),
                              key=f"cal_et_et_{eid}")
+    eloc = st.text_input("장소", value=v.get("location", ""),
+                         key=f"cal_et_loc_{eid}")
     edesc = st.text_area("설명", value=v["desc"], key=f"cal_et_desc_{eid}", height=60)
     if st.button("💾 수정 저장", key=f"cal_et_save_{eid}", type="primary"):
         try:
             update_event(eid, title.strip(), edate.strftime("%Y-%m-%d"), eallday,
                          "09:00" if eallday else est.strftime("%H:%M"),
-                         "10:00" if eallday else eet.strftime("%H:%M"), edesc.strip())
+                         "10:00" if eallday else eet.strftime("%H:%M"),
+                         edesc.strip(), eloc.strip())
             st.session_state["cal_flash"] = f"✅ 수정됨 — {title.strip()}"
             st.session_state.pop(f"cal_edit_{eid}", None)
             st.rerun()
@@ -1494,6 +1517,8 @@ def _calendar_manage():
                 tc1, tc2 = st.columns(2)
                 stime = tc1.time_input("시작", value=time(9, 0), key="cal_add_st")
                 etime = tc2.time_input("종료", value=time(10, 0), key="cal_add_et")
+            loc = st.text_input("장소", key="cal_add_loc",
+                                placeholder="예: 의학세미나실 / 스마트돌봄스페이스")
             desc = st.text_area("설명 (선택)", key="cal_add_desc", height=70)
             if st.button("➕ 일정 등록", type="primary", use_container_width=True):
                 if not title.strip():
@@ -1503,9 +1528,9 @@ def _calendar_manage():
                         add_event(title.strip(), adate.strftime("%Y-%m-%d"), allday,
                                   "09:00" if allday else stime.strftime("%H:%M"),
                                   "10:00" if allday else etime.strftime("%H:%M"),
-                                  desc.strip())
+                                  desc.strip(), loc.strip())
                         st.session_state["cal_flash"] = f"✅ 일정 등록 — {title.strip()}"
-                        for k in ("cal_add_title", "cal_add_desc"):
+                        for k in ("cal_add_title", "cal_add_desc", "cal_add_loc"):
                             st.session_state.pop(k, None)
                         st.session_state["cal_show_form"] = False
                         st.rerun()
