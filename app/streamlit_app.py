@@ -2083,13 +2083,14 @@ def _report_collect():
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
+            def _barhtml(bg, txt, right=""):
+                return (f"<div style='background:{bg};color:#1a1a1a;padding:6px 12px;"
+                        f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
+                        f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
+                        f"opacity:.75;color:#1a1a1a;'>{right}</span></div>")
+
             def _bar(bg, txt, right=""):
-                st.markdown(
-                    f"<div style='background:{bg};color:#1a1a1a;padding:6px 12px;"
-                    f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
-                    f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
-                    f"opacity:.75;color:#1a1a1a;'>{right}</span></div>",
-                    unsafe_allow_html=True)
+                st.markdown(_barhtml(bg, txt, right), unsafe_allow_html=True)
 
             # 상단: 사업단 공통확인사항 (취합본 1~2쪽) — 확인사항 리스트 + 용역/자산 실적·계획 표
             conf1 = ""
@@ -2188,7 +2189,6 @@ def _report_collect():
                 for name in gmembers:
                     r = mdata[name]
                     fields = get_fields_for(get_member(name))
-                    _bar("#fbe6d3", f"🙋 {name}", r.get("submitted_at", ""))
                     inner = ""
                     ad = (r.get("acquired_data", "") or "").strip()
                     for pre in ("획득 데이터:", "획득데이터:", "획득 데이터 :"):
@@ -2212,10 +2212,15 @@ def _report_collect():
                         if not v:
                             continue
                         inner += _full(FIELD_LABELS[f], v)
-                    if inner:
-                        st.markdown(_tbl(inner), unsafe_allow_html=True)
-                    st.markdown("<div style='height:12px;'></div>",
-                                unsafe_allow_html=True)
+                    # 한 사람 = 한 화면(min-height) → 내용 적어도/많아도 다음 사람과 안 겹침
+                    block = _barhtml("#fbe6d3", f"🙋 {name}",
+                                     r.get("submitted_at", ""))
+                    block += _tbl(inner) if inner else ""
+                    st.markdown(
+                        f"<div style='min-height:90vh;box-sizing:border-box;"
+                        f"border-bottom:2px dashed #e6be97;margin-bottom:14px;"
+                        f"padding-bottom:14px;'>{block}</div>",
+                        unsafe_allow_html=True)
 
             # 회의자료(최혜민) — 취합본 뒷부분. 내용 있을 때만.
             MEET = [("research_meeting", "1. 연구소 회의자료 (소장주재회의)"),
