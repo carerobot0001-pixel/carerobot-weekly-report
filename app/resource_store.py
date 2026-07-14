@@ -12,7 +12,7 @@ from sheets_store import _get_client, KST
 
 RES_WS = "자료실"
 RES_HEADER = ["등록일시", "등록자", "분류", "제목", "링크", "설명"]
-CATEGORIES = ["양식", "참고자료", "매뉴얼/가이드", "규정/공문", "기타"]
+CATEGORIES = ["협업문서", "양식", "참고자료", "매뉴얼/가이드", "규정/공문", "기타"]
 
 
 @st.cache_resource

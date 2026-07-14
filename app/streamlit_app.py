@@ -1450,7 +1450,22 @@ def collab_page():
                           use_container_width=True):
                 try:
                     set_status(req_id, "완료")
-                    st.session_state["collab_flash"] = f"🏁 '{title}' 마감"
+                    # 완료 문서를 자료실에 자동 축적(유효 링크 + 중복 제외)
+                    _lk = link.strip()
+                    _archived = False
+                    if _lk.startswith("http"):
+                        try:
+                            _exist = {x["링크"].strip()
+                                      for x in resource_store.list_resources()}
+                            if _lk not in _exist:
+                                resource_store.add_resource(
+                                    who, "협업문서", title, _lk, "문서협업 완료본")
+                                _archived = True
+                        except Exception:
+                            pass
+                    st.session_state["collab_flash"] = (
+                        f"🏁 '{title}' 마감"
+                        + (" · 📁 자료실에 등록됨" if _archived else ""))
                     st.rerun()
                 except Exception as e:
                     st.error(f"실패: {e}")
