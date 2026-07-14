@@ -2023,7 +2023,7 @@ def meeting_page():
                    "text-align:left;word-break:break-word;")
             _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#1a1a1a;"
             # height:1px → 이 행들은 내용 높이만 차지(안 늘어남). 남는 높이는 내용 행이 흡수.
-            _TH = _TD + "height:1px;background:#fdf5ec;color:#1a1a1a;font-weight:700;"
+            _TH = _TD + "height:1px;background:#fdf5ec;color:#1a1a1a;font-weight:700;text-align:center;"
             _ADS = _TD + "height:1px;background:#ffffff;color:#1a56db;font-weight:700;"
 
             def _esc(s):
