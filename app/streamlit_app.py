@@ -2024,7 +2024,7 @@ def meeting_page():
             _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#1a1a1a;"
             # height:1px → 이 행들은 내용 높이만 차지(안 늘어남). 남는 높이는 내용 행이 흡수.
             _TH = _TD + "height:1px;background:#fdf5ec;color:#1a1a1a;font-weight:700;"
-            _ADS = _TD + "height:1px;background:#f0f4fa;color:#1a56db;font-weight:700;"
+            _ADS = _TD + "height:1px;background:#ffffff;color:#1a56db;font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
@@ -2091,8 +2091,14 @@ def meeting_page():
                         if any((str(c) or "").strip() for c in it[:ncols])]
                 if not data:
                     return "<div style='color:#999;font-size:0.78rem;padding:2px;'>(없음)</div>"
+                # 고정 레이아웃 + 열너비 → 긴 글씨도 셀 안에서 줄바꿈(튀어나감 방지)
+                if ncols == 3:      # 용역: 순번/분야/발주금액/비고
+                    cols = "<col style='width:9%'><col style='width:51%'><col style='width:22%'><col style='width:18%'>"
+                else:               # 자산: 순번/품명/수량/구매금액/비고
+                    cols = "<col style='width:8%'><col style='width:40%'><col style='width:13%'><col style='width:21%'><col style='width:18%'>"
                 out = ("<table style='width:100%;border-collapse:collapse;"
-                       "font-size:0.86rem;'><tr>"
+                       "table-layout:fixed;font-size:0.86rem;'><colgroup>" + cols
+                       + "</colgroup><tr>"
                        + "".join(f"<th style='{_TH}'>{h}</th>" for h in headers) + "</tr>")
                 tot = 0
                 for i, it in enumerate(data, 1):
