@@ -225,19 +225,16 @@ def auth_gate():
         _ruid = st.session_state.get("_recover_uid")
         if _ruid:
             st.success(f"✅ 아이디: **{_ruid}**")
-            np1 = st.text_input("새 비밀번호", type="password", key="find_np1")
-            np2 = st.text_input("새 비밀번호 확인", type="password", key="find_np2")
+            np1 = st.text_input("새 비밀번호 (👁 눈 아이콘으로 확인)",
+                                type="password", key="find_np1")
             if st.button("🔑 비밀번호 재설정", type="primary", key="find_reset"):
-                if (np1 or "") != (np2 or ""):
-                    st.warning("비밀번호와 확인이 일치하지 않습니다.")
-                elif len(np1 or "") < 4:
+                if len((np1 or "").strip()) < 4:
                     st.warning("비밀번호는 4자 이상으로 해주세요.")
                 else:
                     try:
-                        account_store.reset_password(_ruid, np1)
+                        account_store.reset_password(_ruid, np1.strip())
                         st.session_state.pop("_recover_uid", None)
-                        for _k in ("find_np1", "find_np2"):
-                            st.session_state.pop(_k, None)
+                        st.session_state.pop("find_np1", None)
                         st.success("비밀번호를 변경했습니다. 위 '🔑 로그인' 탭에서 "
                                    "새 비밀번호로 로그인하세요.")
                     except Exception as e:
