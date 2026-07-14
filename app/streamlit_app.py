@@ -2021,7 +2021,7 @@ def meeting_page():
             _BD = "#efe2d2"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
                    "text-align:left;word-break:break-word;")
-            _LBL = _TD + "white-space:nowrap;font-weight:700;background:#fdf5ec;color:#1a1a1a;"
+            _LBL = _TD + "font-weight:700;background:#fdf5ec;color:#1a1a1a;"
             # height:1px → 이 행들은 내용 높이만 차지(안 늘어남). 남는 높이는 내용 행이 흡수.
             _TH = _TD + "height:1px;background:#fdf5ec;color:#1a1a1a;font-weight:700;text-align:center;"
             _ADS = _TD + "height:1px;background:#ffffff;color:#1a56db;font-weight:700;"
@@ -2032,13 +2032,14 @@ def meeting_page():
                      .replace(">", "&gt;").replace("\n", "<br>"))
                 return s or "-"
 
-            def _tbl(inner, fill=False):
+            def _tbl(inner, fill=False, lblw="56px"):
                 # table-layout:fixed + colgroup → 구분칸 고정, 실적/계획 50:50(정중앙)
                 # fill=True → 표가 한 화면(84vh) 이상 → 내용 없어도 셀이 커져 화면 가득 참
+                # lblw → 구분칸 너비(회의자료처럼 라벨 긴 표는 넓게)
                 h = "height:84vh;" if fill else ""
                 return (f"<table style='width:100%;{h}border-collapse:collapse;"
                         "table-layout:fixed;font-size:0.93rem;line-height:1.45;'>"
-                        "<colgroup><col style='width:56px'><col><col></colgroup>"
+                        f"<colgroup><col style='width:{lblw}'><col><col></colgroup>"
                         + inner + "</table>")
 
             # 헤더 날짜 범위: 실적=지난주 수요일~이번주 화요일, 계획=이번주 수요일~다음주 화요일
@@ -2225,7 +2226,8 @@ def meeting_page():
             st.markdown(
                 "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
                 "padding-bottom:10px;'>" + _barhtml("#f8e0c9", "📑 회의자료")
-                + _tbl(minner, fill=True) + "</div>", unsafe_allow_html=True)
+                + _tbl(minner, fill=True, lblw="230px") + "</div>",
+                unsafe_allow_html=True)
 
             # 월간 캘린더(취합본 마지막) — 스마트돌봄스페이스 및 돌봄사업 일정
             if calendar_enabled():
