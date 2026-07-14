@@ -116,6 +116,34 @@ def login(uid, pw):
     return a, ""
 
 
+def find_by_identity(name: str, email: str):
+    """이름 + (가입 이메일 korea/gmail 중 하나) 일치하는 계정 반환(아이디 찾기용)."""
+    name = (name or "").strip()
+    email = (email or "").strip().lower()
+    if not name or not email:
+        return None
+    for a in _rows():
+        if a["이름"].strip() == name and email in (
+                a["이메일_korea"].strip().lower(),
+                a["이메일_gmail"].strip().lower()):
+            return a
+    return None
+
+
+def reset_password(uid: str, new_pw: str) -> bool:
+    """비밀번호 재설정(새 해시로 덮어씀). 최신 시트에서 아이디로 행 찾음(행밀림 방지)."""
+    uid = (uid or "").strip()
+    if not uid or not new_pw:
+        raise ValueError("아이디와 새 비밀번호가 필요합니다.")
+    ws = _ws()
+    for i, r in enumerate(ws.get_all_values()[1:], start=2):
+        if r and r[0].strip() == uid:
+            ws.update_cell(i, ACC_HEADER.index("비번") + 1, _hash_pw(new_pw))
+            _rows.clear()
+            return True
+    return False
+
+
 def pending():
     return [a for a in _rows() if a["상태"].strip() == ST_PENDING]
 

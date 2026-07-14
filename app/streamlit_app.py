@@ -146,7 +146,8 @@ def auth_gate():
     st.markdown(_brand("login"), unsafe_allow_html=True)
     st.caption("개인 계정으로 로그인하세요. 계정이 없으면 회원가입 후 관리자 승인을 받으면 됩니다. "
                "💡 '이 기기에 로그인 정보 저장'을 켜두면 다음부터 이 기기에서 자동 로그인됩니다.")
-    tab_login, tab_join = st.tabs(["🔑 로그인", "📝 회원가입"])
+    tab_login, tab_join, tab_find = st.tabs(
+        ["🔑 로그인", "📝 회원가입", "🔎 아이디·비번 찾기"])
     with tab_login:
         lid = st.text_input("아이디", key="login_id")
         lpw = st.text_input("비밀번호", type="password", key="login_pw")
@@ -205,6 +206,42 @@ def auth_gate():
                     st.warning(str(e))
                 except Exception as e:
                     st.error(f"가입 오류: {e}")
+    with tab_find:
+        st.caption("이름과 **가입 때 등록한 이메일**(korea·gmail 중 하나)을 입력하면, "
+                   "아이디를 알려주고 비밀번호를 새로 정할 수 있습니다.")
+        fn = st.text_input("이름", key="find_name")
+        fe = st.text_input("이메일 (korea 또는 gmail)", key="find_email")
+        if st.button("🔎 계정 찾기", key="find_btn"):
+            try:
+                fa = account_store.find_by_identity(fn, fe)
+            except Exception as e:
+                fa = None
+                st.error(f"조회 오류: {e}")
+            if fa:
+                st.session_state["_recover_uid"] = fa["아이디"]
+            else:
+                st.session_state.pop("_recover_uid", None)
+                st.warning("일치하는 계정이 없습니다. 이름·이메일을 확인하세요.")
+        _ruid = st.session_state.get("_recover_uid")
+        if _ruid:
+            st.success(f"✅ 아이디: **{_ruid}**")
+            np1 = st.text_input("새 비밀번호", type="password", key="find_np1")
+            np2 = st.text_input("새 비밀번호 확인", type="password", key="find_np2")
+            if st.button("🔑 비밀번호 재설정", type="primary", key="find_reset"):
+                if (np1 or "") != (np2 or ""):
+                    st.warning("비밀번호와 확인이 일치하지 않습니다.")
+                elif len(np1 or "") < 4:
+                    st.warning("비밀번호는 4자 이상으로 해주세요.")
+                else:
+                    try:
+                        account_store.reset_password(_ruid, np1)
+                        st.session_state.pop("_recover_uid", None)
+                        for _k in ("find_np1", "find_np2"):
+                            st.session_state.pop(_k, None)
+                        st.success("비밀번호를 변경했습니다. 위 '🔑 로그인' 탭에서 "
+                                   "새 비밀번호로 로그인하세요.")
+                    except Exception as e:
+                        st.error(f"재설정 실패: {e}")
     return False
 
 
