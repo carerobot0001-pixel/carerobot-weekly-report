@@ -2043,9 +2043,9 @@ def meeting_page():
 
             # 헤더 날짜 범위: 실적=지난주 수요일~이번주 화요일, 계획=이번주 수요일~다음주 화요일
             _w = wednesday_of_week(week)
-            _dr = ("업무 실적(" + (_w - timedelta(days=7)).strftime("%Y.%m.%d.")
+            _dr = ("실적(" + (_w - timedelta(days=7)).strftime("%Y.%m.%d.")
                    + " ~ " + (_w - timedelta(days=1)).strftime("%Y.%m.%d.") + ")")
-            _pr = ("업무 계획(" + _w.strftime("%Y.%m.%d.")
+            _pr = ("계획(" + _w.strftime("%Y.%m.%d.")
                    + " ~ " + (_w + timedelta(days=6)).strftime("%Y.%m.%d.") + ")")
 
             def _hdr():
