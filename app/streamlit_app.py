@@ -2073,10 +2073,10 @@ def meeting_page():
             _BD = "#efe2d2"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
                    "text-align:left;word-break:break-word;overflow-wrap:anywhere;"
-                   "overflow:hidden;")
-            _LBL = _TD + "font-weight:700;background:#fdf5ec;color:#1a1a1a;"
+                   "overflow:hidden;color:#000;")
+            _LBL = _TD + "font-weight:700;background:#fdf5ec;color:#000;"
             # height:1px → 이 행들은 내용 높이만 차지(안 늘어남). 남는 높이는 내용 행이 흡수.
-            _TH = _TD + "height:1px;background:#fdf5ec;color:#1a1a1a;font-weight:700;text-align:center;"
+            _TH = _TD + "height:1px;background:#fdf5ec;color:#000;font-weight:700;text-align:center;"
             _ADS = _TD + "height:1px;background:#ffffff;color:#1a56db;font-weight:700;"
 
             def _esc(s):
@@ -2117,10 +2117,10 @@ def meeting_page():
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
             def _barhtml(bg, txt, right=""):
-                return (f"<div style='background:{bg};color:#1a1a1a;padding:6px 12px;"
+                return (f"<div style='background:{bg};color:#000;padding:6px 12px;"
                         f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
                         f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
-                        f"opacity:.75;color:#1a1a1a;'>{right}</span></div>")
+                        f"opacity:.75;color:#000;'>{right}</span></div>")
 
             def _bar(bg, txt, right=""):
                 st.markdown(_barhtml(bg, txt, right), unsafe_allow_html=True)
@@ -2147,7 +2147,7 @@ def meeting_page():
                     return "<div style='color:#999;font-size:0.78rem;padding:2px;'>(없음)</div>"
                 # 행 간격(세로 여백) 최소화 → 공통확인 2가 한 화면에 들어오게(글씨는 유지)
                 tdm = (f"border:1px solid {_BD};padding:2px 6px;vertical-align:top;"
-                       "overflow-wrap:anywhere;line-height:1.28;")
+                       "overflow-wrap:anywhere;line-height:1.28;color:#000;")
                 thm = tdm + "background:#fdf5ec;font-weight:700;text-align:center;"
                 # 고정 레이아웃 + 열너비 → 긴 글씨도 셀 안에서 줄바꿈(튀어나감 방지)
                 if ncols == 3:      # 용역: 순번/분야/발주금액/비고(금액 좁게)
@@ -2234,8 +2234,8 @@ def meeting_page():
                 if not gmembers:
                     continue
                 st.markdown(
-                    f"<div style='color:#1a1a1a;font-weight:700;font-size:0.95rem;"
-                    f"margin:6px 0 6px;border-left:5px solid #e6be97;padding-left:8px;'>"
+                    f"<div style='color:#000;font-weight:700;font-size:0.95rem;"
+                    f"margin:0 0 2px;border-left:5px solid #e6be97;padding-left:8px;'>"
                     f"🏛️ 본부과제 · {gname}</div>", unsafe_allow_html=True)
                 for name in gmembers:
                     r = mdata[name]
