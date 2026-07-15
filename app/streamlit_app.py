@@ -2087,7 +2087,7 @@ def meeting_page():
                 # lblw → 구분칸 너비(회의자료처럼 라벨 긴 표는 넓게)
                 h = "height:84vh;" if fill else ""
                 return (f"<table style='width:100%;{h}border-collapse:collapse;"
-                        "table-layout:fixed;font-size:0.93rem;line-height:1.45;'>"
+                        "table-layout:fixed;font-size:1.05rem;line-height:1.5;'>"
                         f"<colgroup><col style='width:{lblw}'><col><col></colgroup>"
                         + inner + "</table>")
 
@@ -2147,7 +2147,7 @@ def meeting_page():
                 else:               # 자산: 순번/품명/수량/구매금액/비고
                     cols = "<col style='width:8%'><col style='width:40%'><col style='width:13%'><col style='width:21%'><col style='width:18%'>"
                 out = ("<table style='width:100%;border-collapse:collapse;"
-                       "table-layout:fixed;font-size:0.86rem;'><colgroup>" + cols
+                       "table-layout:fixed;font-size:0.94rem;'><colgroup>" + cols
                        + "</colgroup><tr>"
                        + "".join(f"<th style='{_TH}'>{h}</th>" for h in headers) + "</tr>")
                 tot = 0
@@ -2184,27 +2184,33 @@ def meeting_page():
                 or (ct.get("기타_실적", "") or "").strip() \
                 or (ct.get("기타_계획", "") or "").strip()
 
-            if conf1 or has_tables:
-                parts = _barhtml("#f8e0c9", "📋 사업단 공통확인사항")
-                if conf1:
-                    parts += _tbl(_full("확인사항", conf1))
-                if has_tables:
-                    outer = (_hdr()
-                             + f"<tr><td style='{_LBL}'>공통</td>"
-                             + f"<td style='{_TD}'>{_side('용역_실적', '자산_실적', '기타_실적')}</td>"
-                             + f"<td style='{_TD}'>{_side('용역_계획', '자산_계획', '기타_계획')}</td></tr>")
-                    parts += _tbl(outer, fill=True)
+            # 사업단 공통확인사항 1(확인사항 리스트) — 한 화면 고정
+            if conf1:
+                p1 = (_barhtml("#f8e0c9", "📋 사업단 공통확인사항 1")
+                      + _tbl(_full("확인사항", conf1), fill=True, lblw="96px"))
                 st.markdown(
                     "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
-                    "padding-bottom:10px;'>" + parts + "</div>", unsafe_allow_html=True)
+                    "padding-bottom:10px;'>" + p1 + "</div>", unsafe_allow_html=True)
+            # 사업단 공통확인사항 2(용역/자산 실적·계획) — 한 화면 고정
+            if has_tables:
+                outer = (_hdr()
+                         + f"<tr><td style='{_LBL}'>공통</td>"
+                         + f"<td style='{_TD}'>{_side('용역_실적', '자산_실적', '기타_실적')}</td>"
+                         + f"<td style='{_TD}'>{_side('용역_계획', '자산_계획', '기타_계획')}</td></tr>")
+                p2 = (_barhtml("#f8e0c9", "📋 사업단 공통확인사항 2")
+                      + _tbl(outer, fill=True))
+                st.markdown(
+                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
+                    "padding-bottom:10px;'>" + p2 + "</div>", unsafe_allow_html=True)
 
             PAIRS = [("research_done", "research_plan", "연구"),
-                     ("task_done", "task_plan", "업무"),
-                     ("smart_care_space_done", "smart_care_space_plan", "스페이스")]
+                     ("task_done", "task_plan", "업무")]
             paired = {k for a, b, _ in PAIRS for k in (a, b)}
+            # 스페이스·공통확인·회의자료는 카드에서 빼고 별도/마지막 섹션으로
             skip = paired | {"acquired_data", "project_confirmation_1",
                              "project_confirmation_2_done", "project_confirmation_2_plan",
-                             "research_meeting", "director_meeting", "mohw_weekly"}
+                             "research_meeting", "director_meeting", "mohw_weekly",
+                             "smart_care_space_done", "smart_care_space_plan"}
 
             # 본부과제 하위 분야별 그룹(취합본 좌측 계층)
             GROUPS = [("현장실증", ["백정은", "한벼리", "박재우", "이윤환"]),
@@ -2269,12 +2275,21 @@ def meeting_page():
                     if v:
                         mvals[k] = v
                         break
+            # 스마트돌봄스페이스(백정은 등) — 마지막에 회의자료와 함께
+            scd = scp = ""
+            for n in submitted:
+                if not scd:
+                    scd = (mdata[n].get("smart_care_space_done", "") or "").strip()
+                if not scp:
+                    scp = (mdata[n].get("smart_care_space_plan", "") or "").strip()
             minner = _hdr()
+            minner += _row("스마트돌봄스페이스", scd, scp)
             for k, lb in MEET:
                 minner += _full(lb, mvals.get(k, ""))
             st.markdown(
                 "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
-                "padding-bottom:10px;'>" + _barhtml("#f8e0c9", "📑 회의자료")
+                "padding-bottom:10px;'>"
+                + _barhtml("#f8e0c9", "🏠 스마트돌봄스페이스 · 📑 회의자료")
                 + _tbl(minner, fill=True, lblw="230px") + "</div>",
                 unsafe_allow_html=True)
 
