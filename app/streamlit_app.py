@@ -2192,13 +2192,15 @@ def meeting_page():
                 or (ct.get("기타_실적", "") or "").strip() \
                 or (ct.get("기타_계획", "") or "").strip()
 
+            # 모든 섹션을 하나의 HTML로 합쳐 마지막에 한 번에 렌더 → 섹션 간 겹침/흰띠 없음
+            _SEC = ("<div style='border-bottom:2px dashed #e6be97;"
+                    "margin-bottom:10px;padding-bottom:6px;'>")
+            HTML = ""
             # 사업단 공통확인사항 1(확인사항 리스트) — 한 화면 고정
             if conf1:
                 p1 = (_barhtml("#f8e0c9", "📋 사업단 공통확인사항 1")
                       + _tbl(_full("확인사항", conf1), fill=True, lblw="96px"))
-                st.markdown(
-                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:4px;"
-                    "padding-bottom:5px;'>" + p1 + "</div>", unsafe_allow_html=True)
+                HTML += _SEC + p1 + "</div>"
             # 사업단 공통확인사항 2(용역/자산 실적·계획) — 한 화면 고정
             if has_tables:
                 outer = (_hdr()
@@ -2207,9 +2209,7 @@ def meeting_page():
                          + f"<td style='{_TD}'>{_side('용역_계획', '자산_계획', '기타_계획')}</td></tr>")
                 p2 = (_barhtml("#f8e0c9", "📋 사업단 공통확인사항 2")
                       + _tbl(outer, fill=True))
-                st.markdown(
-                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:4px;"
-                    "padding-bottom:5px;'>" + p2 + "</div>", unsafe_allow_html=True)
+                HTML += _SEC + p2 + "</div>"
 
             PAIRS = [("research_done", "research_plan", "연구"),
                      ("task_done", "task_plan", "업무")]
@@ -2233,11 +2233,9 @@ def meeting_page():
             for gname, gmembers in plan:
                 if not gmembers:
                     continue
-                st.markdown(
-                    f"<div style='color:#000;font-weight:700;font-size:0.95rem;"
-                    f"margin:8px 0 3px;padding:3px 10px;background:#efe1d0;"
-                    f"border-radius:5px;'>🏛️ 본부과제 · {gname}</div>",
-                    unsafe_allow_html=True)
+                HTML += (f"<div style='color:#000;font-weight:700;font-size:0.98rem;"
+                         f"margin:12px 0 4px;border-left:5px solid #C4622D;"
+                         f"padding-left:8px;'>🏛️ 본부과제 · {gname}</div>")
                 for name in gmembers:
                     r = mdata[name]
                     fields = get_fields_for(get_member(name))
@@ -2267,10 +2265,7 @@ def meeting_page():
                     # 한 사람 = 한 화면(표 84vh) → 내용 없어도 셀이 커져 화면 가득, 2명 안 겹침.
                     tbl = _tbl(inner, fill=True) if inner else ""
                     bar = _barhtml("#fbe6d3", f"🙋 {name}", r.get("submitted_at", ""))
-                    st.markdown(
-                        "<div style='border-bottom:2px dashed #e6be97;"
-                        "margin-bottom:4px;padding-bottom:5px;'>" + bar + tbl + "</div>",
-                        unsafe_allow_html=True)
+                    HTML += _SEC + bar + tbl + "</div>"
 
             # 회의자료(최혜민) — 취합본 뒷부분(정지수 다음). 비어 있어도 항상 표시.
             MEET = [("research_meeting", "1. 연구소 회의자료 (소장주재회의)"),
@@ -2295,12 +2290,11 @@ def meeting_page():
             minner += _row("스마트돌봄스페이스", scd, scp)
             for k, lb in MEET:
                 minner += _full(lb, mvals.get(k, ""))
-            st.markdown(
-                "<div style='border-bottom:2px dashed #e6be97;margin-bottom:4px;"
-                "padding-bottom:5px;'>"
-                + _barhtml("#f8e0c9", "🏠 스마트돌봄스페이스 · 📑 회의자료")
-                + _tbl(minner, fill=True, lblw="230px") + "</div>",
-                unsafe_allow_html=True)
+            HTML += (_SEC + _barhtml("#f8e0c9", "🏠 스마트돌봄스페이스 · 📑 회의자료")
+                     + _tbl(minner, fill=True, lblw="230px") + "</div>")
+
+            # 합친 HTML을 한 번에 렌더(섹션 사이 Streamlit 간격 없음 → 겹침/흰띠 해결)
+            st.markdown(HTML, unsafe_allow_html=True)
 
             # 월간 캘린더(취합본 마지막) — 스마트돌봄스페이스 및 돌봄사업 일정
             if calendar_enabled():
