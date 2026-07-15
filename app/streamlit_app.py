@@ -2069,7 +2069,8 @@ def meeting_page():
             # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
             _BD = "#efe2d2"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
-                   "text-align:left;word-break:break-word;")
+                   "text-align:left;word-break:break-word;overflow-wrap:anywhere;"
+                   "overflow:hidden;")
             _LBL = _TD + "font-weight:700;background:#fdf5ec;color:#1a1a1a;"
             # height:1px → 이 행들은 내용 높이만 차지(안 늘어남). 남는 높이는 내용 행이 흡수.
             _TH = _TD + "height:1px;background:#fdf5ec;color:#1a1a1a;font-weight:700;text-align:center;"
