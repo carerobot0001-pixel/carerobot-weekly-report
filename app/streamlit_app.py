@@ -2142,9 +2142,9 @@ def meeting_page():
                         if any((str(c) or "").strip() for c in it[:ncols])]
                 if not data:
                     return "<div style='color:#999;font-size:0.78rem;padding:2px;'>(없음)</div>"
-                # 촘촘한 셀(여백·글씨 축소) → 공통확인 2가 한 화면에 들어오게
-                tdm = (f"border:1px solid {_BD};padding:1px 5px;vertical-align:top;"
-                       "overflow-wrap:anywhere;line-height:1.25;")
+                # 행 간격(세로 여백) 최소화 → 공통확인 2가 한 화면에 들어오게(글씨는 유지)
+                tdm = (f"border:1px solid {_BD};padding:0 6px;vertical-align:top;"
+                       "overflow-wrap:anywhere;line-height:1.12;")
                 thm = tdm + "background:#fdf5ec;font-weight:700;text-align:center;"
                 # 고정 레이아웃 + 열너비 → 긴 글씨도 셀 안에서 줄바꿈(튀어나감 방지)
                 if ncols == 3:      # 용역: 순번/분야/발주금액/비고
@@ -2152,7 +2152,7 @@ def meeting_page():
                 else:               # 자산: 순번/품명/수량/구매금액/비고
                     cols = "<col style='width:8%'><col style='width:40%'><col style='width:13%'><col style='width:21%'><col style='width:18%'>"
                 out = ("<table style='width:100%;border-collapse:collapse;"
-                       "table-layout:fixed;font-size:0.8rem;'><colgroup>" + cols
+                       "table-layout:fixed;font-size:0.88rem;'><colgroup>" + cols
                        + "</colgroup><tr>"
                        + "".join(f"<th style='{thm}'>{h}</th>" for h in headers) + "</tr>")
                 tot = 0
