@@ -2088,7 +2088,7 @@ def meeting_page():
                 # lblw → 구분칸 너비(회의자료처럼 라벨 긴 표는 넓게)
                 h = "height:84vh;" if fill else ""
                 return (f"<table style='width:100%;{h}border-collapse:collapse;"
-                        "table-layout:fixed;font-size:1.05rem;line-height:1.5;'>"
+                        "table-layout:fixed;font-size:1.05rem;line-height:1.32;'>"
                         f"<colgroup><col style='width:{lblw}'><col><col></colgroup>"
                         + inner + "</table>")
 
