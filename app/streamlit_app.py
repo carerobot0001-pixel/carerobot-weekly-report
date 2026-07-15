@@ -2059,6 +2059,9 @@ def meeting_page():
         help="달력에서 아무 날짜나 고르면 그 주(수요일 기준)로 조회됩니다.")
     week = (_wd + timedelta(days=(2 - _wd.weekday()))).strftime("%Y-%m-%d")
     st.caption(f"📅 조회 주차: **{week} (수)**")
+    # 섹션(st.markdown)들 사이 흰 여백 제거 — Streamlit 기본 블록 간격 축소
+    st.markdown("<style>[data-testid='stVerticalBlock']{gap:0.1rem !important;}</style>",
+                unsafe_allow_html=True)
     with st.expander("📋 회의 자료 전체 (펼치기/접기)", expanded=True):
         mdata = load_week(week)
         submitted = [n for n in MEMBER_NAMES if mdata.get(n)]
@@ -2194,8 +2197,8 @@ def meeting_page():
                 p1 = (_barhtml("#f8e0c9", "📋 사업단 공통확인사항 1")
                       + _tbl(_full("확인사항", conf1), fill=True, lblw="96px"))
                 st.markdown(
-                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
-                    "padding-bottom:10px;'>" + p1 + "</div>", unsafe_allow_html=True)
+                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:4px;"
+                    "padding-bottom:5px;'>" + p1 + "</div>", unsafe_allow_html=True)
             # 사업단 공통확인사항 2(용역/자산 실적·계획) — 한 화면 고정
             if has_tables:
                 outer = (_hdr()
@@ -2205,8 +2208,8 @@ def meeting_page():
                 p2 = (_barhtml("#f8e0c9", "📋 사업단 공통확인사항 2")
                       + _tbl(outer, fill=True))
                 st.markdown(
-                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
-                    "padding-bottom:10px;'>" + p2 + "</div>", unsafe_allow_html=True)
+                    "<div style='border-bottom:2px dashed #e6be97;margin-bottom:4px;"
+                    "padding-bottom:5px;'>" + p2 + "</div>", unsafe_allow_html=True)
 
             PAIRS = [("research_done", "research_plan", "연구"),
                      ("task_done", "task_plan", "업무")]
@@ -2265,7 +2268,7 @@ def meeting_page():
                     bar = _barhtml("#fbe6d3", f"🙋 {name}", r.get("submitted_at", ""))
                     st.markdown(
                         "<div style='border-bottom:2px dashed #e6be97;"
-                        "margin-bottom:14px;padding-bottom:10px;'>" + bar + tbl + "</div>",
+                        "margin-bottom:4px;padding-bottom:5px;'>" + bar + tbl + "</div>",
                         unsafe_allow_html=True)
 
             # 회의자료(최혜민) — 취합본 뒷부분(정지수 다음). 비어 있어도 항상 표시.
@@ -2292,8 +2295,8 @@ def meeting_page():
             for k, lb in MEET:
                 minner += _full(lb, mvals.get(k, ""))
             st.markdown(
-                "<div style='border-bottom:2px dashed #e6be97;margin-bottom:14px;"
-                "padding-bottom:10px;'>"
+                "<div style='border-bottom:2px dashed #e6be97;margin-bottom:4px;"
+                "padding-bottom:5px;'>"
                 + _barhtml("#f8e0c9", "🏠 스마트돌봄스페이스 · 📑 회의자료")
                 + _tbl(minner, fill=True, lblw="230px") + "</div>",
                 unsafe_allow_html=True)
