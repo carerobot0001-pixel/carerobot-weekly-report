@@ -2235,8 +2235,9 @@ def meeting_page():
                     continue
                 st.markdown(
                     f"<div style='color:#000;font-weight:700;font-size:0.95rem;"
-                    f"margin:0 0 2px;border-left:5px solid #e6be97;padding-left:8px;'>"
-                    f"🏛️ 본부과제 · {gname}</div>", unsafe_allow_html=True)
+                    f"margin:8px 0 3px;padding:3px 10px;background:#efe1d0;"
+                    f"border-radius:5px;'>🏛️ 본부과제 · {gname}</div>",
+                    unsafe_allow_html=True)
                 for name in gmembers:
                     r = mdata[name]
                     fields = get_fields_for(get_member(name))
