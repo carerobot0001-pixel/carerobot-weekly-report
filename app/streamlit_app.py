@@ -2147,10 +2147,10 @@ def meeting_page():
                        "overflow-wrap:anywhere;line-height:1.12;")
                 thm = tdm + "background:#fdf5ec;font-weight:700;text-align:center;"
                 # 고정 레이아웃 + 열너비 → 긴 글씨도 셀 안에서 줄바꿈(튀어나감 방지)
-                if ncols == 3:      # 용역: 순번/분야/발주금액/비고
-                    cols = "<col style='width:9%'><col style='width:51%'><col style='width:22%'><col style='width:18%'>"
-                else:               # 자산: 순번/품명/수량/구매금액/비고
-                    cols = "<col style='width:8%'><col style='width:40%'><col style='width:13%'><col style='width:21%'><col style='width:18%'>"
+                if ncols == 3:      # 용역: 순번/분야/발주금액/비고(비고 넓게)
+                    cols = "<col style='width:6%'><col style='width:44%'><col style='width:18%'><col style='width:32%'>"
+                else:               # 자산: 순번/품명/수량/구매금액/비고(품명·수량 줄이고 비고 넓게)
+                    cols = "<col style='width:6%'><col style='width:29%'><col style='width:8%'><col style='width:19%'><col style='width:38%'>"
                 out = ("<table style='width:100%;border-collapse:collapse;"
                        "table-layout:fixed;font-size:0.88rem;'><colgroup>" + cols
                        + "</colgroup><tr>"
