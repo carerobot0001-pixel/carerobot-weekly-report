@@ -274,7 +274,7 @@ def build_report(template_bytes: bytes, submissions: dict,
                  period_start: str, period_end: str,
                  plan_start: str, plan_end: str,
                  calendar_bmp: bytes | None = None,
-                 relayout: bool = False,
+                 relayout: bool = True,
                  calendar_ym: tuple | None = None) -> bytes:
     """submissions = {이름: {필드키: 텍스트, ...}}"""
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:

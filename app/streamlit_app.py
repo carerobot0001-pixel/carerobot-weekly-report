@@ -2624,10 +2624,10 @@ def _report_collect():
     ) if template_files else None
 
     st.checkbox(
-        "🧪 표 밖 넘침 보정 (실험) — 줄바꿈을 한글이 다시 계산하게 함",
-        key="hwpx_relayout",
-        help="글자가 칸 밖으로 삐져나올 때 켜보세요. 기본은 꺼짐(기존 방식 그대로)."
-             " 켠 뒤에는 반드시 한글에서 열어 페이지 배치를 확인해 주세요.",
+        "📐 줄바꿈 재계산 (권장) — 글자가 칸 밖으로 넘치지 않게",
+        value=True, key="hwpx_relayout",
+        help="템플릿에 남은 옛 줄바꿈 정보를 지워 한글이 다시 계산하게 합니다. "
+             "끄면 예전 방식(긴 문장이 칸 밖으로 넘칠 수 있음).",
     )
 
     uploaded = st.file_uploader("또는 템플릿 직접 업로드", type=["hwpx"])
@@ -2676,7 +2676,7 @@ def _report_collect():
                 period_start=period_start, period_end=period_end,
                 plan_start=plan_start, plan_end=plan_end,
                 calendar_bmp=cal_bmp,
-                relayout=st.session_state.get("hwpx_relayout", False),
+                relayout=st.session_state.get("hwpx_relayout", True),
                 calendar_ym=(wed.year, wed.month),
             )
             filename = f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.hwpx"
