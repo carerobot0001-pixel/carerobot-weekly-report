@@ -81,20 +81,6 @@ def upcoming_events(days: int = 45, maxn: int = 50) -> list:
     return r.json().get("items", [])
 
 
-@st.cache_data(ttl=300)
-def month_events(year: int, month: int, maxn: int = 250) -> list:
-    """해당 '월' 전체 일정(시간순). 취합본 달력 이미지 생성용."""
-    start = datetime(year, month, 1, tzinfo=KST)
-    end = (datetime(year + 1, 1, 1, tzinfo=KST) if month == 12
-           else datetime(year, month + 1, 1, tzinfo=KST))
-    r = _sess().get(f"{CAL_API}/calendars/{_cid()}/events", params={
-        "timeMin": start.isoformat(), "timeMax": end.isoformat(),
-        "singleEvents": "true", "orderBy": "startTime", "maxResults": maxn,
-    })
-    r.raise_for_status()
-    return r.json().get("items", [])
-
-
 def _body(summary, the_date, all_day, start_t, end_t, desc, location=""):
     if all_day:
         b = {"summary": summary, "description": desc, "location": location,

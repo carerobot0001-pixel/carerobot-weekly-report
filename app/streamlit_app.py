@@ -18,7 +18,6 @@ import account_store
 import todo_store
 import resource_store
 import mail_store
-import calendar_image
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
@@ -44,7 +43,7 @@ from visit_store import (
     RowMismatch as VisitRowMismatch,
 )
 from calendar_store import (
-    calendar_enabled, embed_url, upcoming_events, today_events, month_events,
+    calendar_enabled, embed_url, upcoming_events, today_events,
     add_event, update_event, delete_event, event_view,
 )
 from news_store import fetch_news, fetch_section, NEWS_SECTIONS
@@ -2545,21 +2544,11 @@ def _report_collect():
                 st.info(f"🔄 이번주 미제출 {len(fallback_used)}명은 지난주 내용으로 대체: "
                         f"{', '.join(fallback_used)}")
 
-            # 마지막 장 월간 달력을 이번 주차의 달로 새로 그려 교체(템플릿 옛 달력 방지)
-            cal_bmp = None
-            try:
-                if calendar_enabled():
-                    _evs = month_events(wed.year, wed.month)
-                    cal_bmp = calendar_image.build_calendar_bmp(
-                        wed.year, wed.month, _evs)
-            except Exception as _e:
-                st.caption(f"※ 달력 이미지 갱신을 건너뜁니다({_e}). 나머지는 정상 생성됩니다.")
             result = build_report(
                 template_bytes, submissions,
                 title_date=title_date,
                 period_start=period_start, period_end=period_end,
                 plan_start=plan_start, plan_end=plan_end,
-                calendar_bmp=cal_bmp,
             )
             filename = f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.hwpx"
             st.download_button(
