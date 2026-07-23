@@ -220,6 +220,44 @@ def ensure_blue_charpr(header_xml: str) -> tuple[str, str]:
     return new_header, new_id
 
 
+def ensure_black_charpr(header_xml: str, base_id: str,
+                        cache: dict) -> tuple[str, str]:
+    """base_id 글자속성(글꼴·크기)은 그대로 두고 **글자색만 검정**인 charPr id 반환.
+
+    템플릿(지난 취합본)의 셀 글자색이 빨강 등으로 남아 있으면 새 본문까지
+    그 색을 물려받는 문제가 있어, 같은 서식의 '검정 판'을 만들어 쓴다.
+    이미 검정(또는 색 지정 없음)이면 base_id 를 그대로 쓴다.
+    """
+    if base_id in cache:
+        return header_xml, cache[base_id]
+
+    m = re.search(rf'<hh:charPr\s+id="{base_id}"[^>]*?>.*?</hh:charPr>',
+                  header_xml, re.DOTALL)
+    if not m:
+        cache[base_id] = base_id
+        return header_xml, base_id
+    base_xml = m.group(0)
+
+    col_m = re.search(r'textColor="#([0-9A-Fa-f]{6})"', base_xml)
+    if not col_m or col_m.group(1).upper() == "000000":
+        cache[base_id] = base_id          # 이미 검정 → 그대로 사용
+        return header_xml, base_id
+
+    max_id = max(int(x) for x in re.findall(r'<hh:charPr\s+id="(\d+)"', header_xml))
+    new_id = str(max_id + 1)
+    black_xml = re.sub(r'id="\d+"', f'id="{new_id}"', base_xml, count=1)
+    black_xml = re.sub(r'textColor="#[0-9A-Fa-f]{6}"',
+                       'textColor="#000000"', black_xml, count=1)
+    header_xml = header_xml.replace(base_xml, base_xml + black_xml)
+    header_xml = re.sub(
+        r'(<hh:charProperties[^>]*itemCnt=")(\d+)(")',
+        lambda mm: f'{mm.group(1)}{int(mm.group(2)) + 1}{mm.group(3)}',
+        header_xml, count=1,
+    )
+    cache[base_id] = new_id
+    return header_xml, new_id
+
+
 def build_report(template_bytes: bytes, submissions: dict,
                  title_date: str,
                  period_start: str, period_end: str,
@@ -236,6 +274,7 @@ def build_report(template_bytes: bytes, submissions: dict,
 
     header, blue_id = ensure_blue_charpr(header)
     color_to_id = {"black": CHARPR_BLACK, "blue": blue_id}
+    _black_cache: dict = {}   # 원본 charPr id → 같은 서식의 '검정 판' id
 
     # 변경 추적(트랙 체인지) 설정 끄기 — 한글이 파일 열 때 "변경 내용 표시"
     # 모드로 자동 전환되어 글자가 겹쳐 보이는 착시 방지.
@@ -287,8 +326,13 @@ def build_report(template_bytes: bytes, submissions: dict,
                     text = f"획득 데이터: {stripped}"
                 elif not stripped:
                     text = "획득 데이터:"
-            # 파란색으로 명시된 필드만 override. 검정은 원본 셀 charPr 유지.
-            override = color_to_id["blue"] if color == "blue" else None
+            # 파란색은 파란 charPr, 그 외(검정)는 원본 서식 유지하되 글자색만 검정으로.
+            # (템플릿에 남아있던 빨간 글씨색이 새 본문에 물려지는 문제 방지)
+            if color == "blue":
+                override = color_to_id["blue"]
+            else:
+                _base = _extract_cell_charpr(xml, col, row, nth=nth)
+                header, override = ensure_black_charpr(header, _base, _black_cache)
             xml = replace_cell(xml, col, row, text,
                                override_color_id=override,
                                nth=nth)
