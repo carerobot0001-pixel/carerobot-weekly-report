@@ -258,11 +258,23 @@ def ensure_black_charpr(header_xml: str, base_id: str,
     return header_xml, new_id
 
 
+def strip_linesegarrays(xml: str) -> str:
+    """모든 <hp:linesegarray>…</hp:linesegarray> 를 빈 껍데기로 만든다.
+
+    linesegarray 는 '줄바꿈 위치 캐시'라서, 템플릿 값이 새 글자수와 안 맞으면
+    글자가 셀 밖으로 삐져나온다. 비워 두면 한글이 열 때 스스로 다시 계산한다.
+    (직접 줄 수를 추정해 만들어 넣는 방식은 페이지 배치가 밀려 실패했음)
+    """
+    return re.sub(r'<hp:linesegarray>.*?</hp:linesegarray>',
+                  '<hp:linesegarray/>', xml, flags=re.DOTALL)
+
+
 def build_report(template_bytes: bytes, submissions: dict,
                  title_date: str,
                  period_start: str, period_end: str,
                  plan_start: str, plan_end: str,
-                 calendar_bmp: bytes | None = None) -> bytes:
+                 calendar_bmp: bytes | None = None,
+                 relayout: bool = False) -> bytes:
     """submissions = {이름: {필드키: 텍스트, ...}}"""
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:
         xml = zin.read('Contents/section0.xml').decode('utf-8')
@@ -337,6 +349,10 @@ def build_report(template_bytes: bytes, submissions: dict,
             xml = replace_cell(xml, col, row, text,
                                override_color_id=override,
                                nth=nth)
+
+    # 표 밖 넘침 보정(선택): 줄바꿈 캐시를 비워 한글이 다시 계산하게 함
+    if relayout:
+        xml = strip_linesegarrays(xml)
 
     all_files['Contents/section0.xml'] = xml.encode('utf-8')
     all_files['Contents/header.xml'] = header.encode('utf-8')

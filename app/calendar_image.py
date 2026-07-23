@@ -31,6 +31,12 @@ _FONT_BOLD_CANDIDATES = [
 ] + _FONT_CANDIDATES
 
 
+def has_korean_font() -> bool:
+    """한글 렌더 가능한 폰트가 있는지. 없으면 달력 교체를 아예 건너뛴다
+    (한글이 네모(두부)로 깨진 달력이 취합본에 박히는 것을 방지)."""
+    return any(os.path.exists(p) for p in _FONT_CANDIDATES)
+
+
 def _font(size: int, bold: bool = False):
     for p in (_FONT_BOLD_CANDIDATES if bold else _FONT_CANDIDATES):
         if os.path.exists(p):

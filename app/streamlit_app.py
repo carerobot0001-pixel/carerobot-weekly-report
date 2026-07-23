@@ -18,7 +18,6 @@ import account_store
 import todo_store
 import resource_store
 import mail_store
-import calendar_image
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
@@ -2539,6 +2538,13 @@ def _report_collect():
         index=len(template_files) - 1 if template_files else 0,
     ) if template_files else None
 
+    st.checkbox(
+        "🧪 표 밖 넘침 보정 (실험) — 줄바꿈을 한글이 다시 계산하게 함",
+        key="hwpx_relayout",
+        help="글자가 칸 밖으로 삐져나올 때 켜보세요. 기본은 꺼짐(기존 방식 그대로)."
+             " 켠 뒤에는 반드시 한글에서 열어 페이지 배치를 확인해 주세요.",
+    )
+
     uploaded = st.file_uploader("또는 템플릿 직접 업로드", type=["hwpx"])
 
     if st.button("📥 HWPX 생성 및 다운로드", type="primary", use_container_width=True):
@@ -2569,9 +2575,14 @@ def _report_collect():
             cal_bmp = None
             try:
                 if calendar_enabled():
-                    _evs = month_events(wed.year, wed.month)
-                    cal_bmp = calendar_image.build_calendar_bmp(
-                        wed.year, wed.month, _evs)
+                    import calendar_image   # 지연 임포트(PIL 없어도 앱은 정상)
+                    if not calendar_image.has_korean_font():
+                        st.caption("※ 한글 폰트가 없어 달력 갱신을 건너뜁니다"
+                                   "(템플릿 달력 그대로). 나머지는 정상 생성됩니다.")
+                    else:
+                        _evs = month_events(wed.year, wed.month)
+                        cal_bmp = calendar_image.build_calendar_bmp(
+                            wed.year, wed.month, _evs)
             except Exception as _e:
                 st.caption(f"※ 달력 이미지 갱신을 건너뜁니다({_e}). 나머지는 정상 생성됩니다.")
             result = build_report(
@@ -2580,6 +2591,7 @@ def _report_collect():
                 period_start=period_start, period_end=period_end,
                 plan_start=plan_start, plan_end=plan_end,
                 calendar_bmp=cal_bmp,
+                relayout=st.session_state.get("hwpx_relayout", False),
             )
             filename = f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.hwpx"
             st.download_button(
