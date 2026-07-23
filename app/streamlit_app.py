@@ -2878,6 +2878,21 @@ def main():
       div.stButton>button:hover{ border-color:#E08A3C; color:#f0b483; }
       div.stButton>button[kind="primary"]{ background:#C4622D; color:#fff; }
       hr{ border-color:#3d322a !important; }
+      /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 어둡게 */
+      [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
+        background:#2a231d !important; border-color:#6a5544 !important; }
+      [data-testid="stCheckbox"] input:checked + div div[role="presentation"],
+      [data-testid="stCheckbox"] [aria-checked="true"] div[role="presentation"]{
+        background:#C4622D !important; border-color:#C4622D !important; }
+      /* 카드(그 외 일정 등) 배경을 살짝 더 밝게 — 본문과 경계 뚜렷하게 */
+      div[data-testid="stVerticalBlockBorderWrapper"]{
+        background:#26201a !important; }
+      /* 스크롤바도 다크 */
+      ::-webkit-scrollbar{ width:12px; height:12px; }
+      ::-webkit-scrollbar-track{ background:#1b1714; }
+      ::-webkit-scrollbar-thumb{ background:#3d322a; border-radius:6px; }
+      ::-webkit-scrollbar-thumb:hover{ background:#4a3c31; }
+      *{ scrollbar-color:#3d322a #1b1714; }
     </style>""", unsafe_allow_html=True)
 
     mode_options = ["🏠 홈", "🖥️ 회의 진행", "📝 업무보고 작성·취합",
