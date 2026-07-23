@@ -49,7 +49,9 @@ from calendar_store import (
 )
 from news_store import fetch_news, fetch_section, NEWS_SECTIONS
 from notice_store import (notices, add_notice, delete_notice,
-                          is_expired, sweep_expired)
+                          is_expired, sweep_expired,
+                          readers as notice_readers,
+                          mark_read as mark_notice_read)
 from common_store import (
     KEYS as COMMON_KEYS, EXTRA_KEY, EXTRA_DONE_KEY, EXTRA_PLAN_KEY, YONG_MAX, ASSET_MAX,
     HWPX_YONG_MAX, HWPX_ASSET_MAX,
@@ -576,7 +578,25 @@ def home_page():
         if is_expired(r, today_str):
             continue  # 만료일 지난 공지는 숨김(정리 전이어도)
         exp_md = f"　·　🗓️ ~{r[3]}까지" if r[3].strip() else ""
-        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}")
+        _rd = notice_readers(r)
+        _cnt = f"　·　✅ 확인 {len(_rd)}명" if _rd else ""
+        st.info(f"📌 **{r[2]}**　—　{r[1]} · {r[0]}{exp_md}{_cnt}")
+        # 확인(읽음) 체크 — 본인이 아직 확인 안 했으면 버튼, 했으면 표시
+        if my:
+            _c1, _c2 = st.columns([1, 5])
+            if my in _rd:
+                _c1.caption("✅ 확인함")
+            elif _c1.button("✅ 확인", key=f"ntc_read_{_idx}",
+                            help="이 공지를 확인했다고 표시합니다"):
+                try:
+                    mark_notice_read(_idx, r[0], my)
+                except Exception as e:
+                    st.warning(str(e))
+                st.rerun()
+            if _rd:
+                _miss = [n for n in MEMBER_NAMES if n not in _rd]
+                _c2.caption("확인: " + ", ".join(_rd)
+                            + (f"　|　미확인: {', '.join(_miss)}" if _miss else "　|　전원 확인 🎉"))
     # 문서협업 자동 공지 — 진행중 협업을 공지처럼(제출현황 체크), 완료·삭제 시 자동 소멸
     for r in active_collab:
         doners = [x.strip() for x in r[8].split(",") if x.strip()]
