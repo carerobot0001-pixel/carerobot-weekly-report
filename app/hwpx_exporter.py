@@ -40,53 +40,19 @@ DEFAULT_LINESEG = (
 )
 
 
-def build_linesegarray(base_xml: str, text: str) -> str:
-    """글자 수에 맞춰 <hp:lineseg> 를 필요한 줄 수만큼 만들어 준다.
-
-    lineseg 가 1개뿐이면 긴 문장이 '한 줄'로 처리돼 셀 밖으로 삐져나가거나
-    글자가 겹친다(표 밖 넘침의 원인). 셀 폭(horzsize)으로 한 줄 글자 수를
-    추정해 줄 수만큼 만들고, textpos/vertpos 를 줄마다 증가시킨다.
-    """
-    if not base_xml:
-        base_xml = DEFAULT_LINESEG
-    m = re.search(r'<hp:lineseg\b[^>]*/>', base_xml)
-    if not m:
-        return base_xml
-    seg = m.group(0)
-
-    def _attr(name: str, dflt: int) -> int:
-        mm = re.search(rf'{name}="(-?\d+)"', seg)
-        return int(mm.group(1)) if mm else dflt
-
-    horz = _attr("horzsize", 31508)
-    vsize = _attr("vertsize", 1100)
-    # 한글 11pt 기준 한 글자 ≈ 1000 단위 → 셀 폭으로 한 줄 글자 수 추정
-    per = max(4, horz // 1000)
-    n = max(1, -(-len(text or "") // per))     # 올림 나눗셈
-    if n == 1:
-        return base_xml
-    segs = []
-    for i in range(n):
-        s = re.sub(r'textpos="\d+"', f'textpos="{i * per}"', seg, count=1)
-        s = re.sub(r'vertpos="-?\d+"', f'vertpos="{i * vsize}"', s, count=1)
-        segs.append(s)
-    return "<hp:linesegarray>" + "".join(segs) + "</hp:linesegarray>"
-
-
 def make_paragraph_xml(text: str, char_pr_id: str = CHARPR_BLACK,
                        para_pr_id: str = "27",
                        style_id: str = "0",
                        is_first: bool = True,
                        lineseg_xml: str = DEFAULT_LINESEG) -> str:
-    """단순 하드코딩된 <hp:p> 블록 생성. lineseg 는 글자 수에 맞춰 자동 확장."""
+    """단순 하드코딩된 <hp:p> 블록 생성. lineseg 는 셀별로 바꿀 수 있음."""
     escaped = html.escape(_sanitize_for_hwpx(text))
     pid = "2147483648" if is_first else "0"
-    segs = build_linesegarray(lineseg_xml, text or "")
     return (
         f'<hp:p id="{pid}" paraPrIDRef="{para_pr_id}" styleIDRef="{style_id}" '
         f'pageBreak="0" columnBreak="0" merged="0">'
         f'<hp:run charPrIDRef="{char_pr_id}"><hp:t>{escaped}</hp:t></hp:run>'
-        f'{segs}</hp:p>'
+        f'{lineseg_xml}</hp:p>'
     )
 
 
