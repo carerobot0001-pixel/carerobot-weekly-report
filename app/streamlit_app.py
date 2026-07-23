@@ -278,12 +278,19 @@ def _mail_import_panel(uid, existing_rows):
                        "(과장님께 보고 시 carerobot0001@gmail.com 을 CC에 넣으면 여기 모입니다)")
             return
         exist = {r["내용"].strip() for r in (existing_rows or [])}
-        st.caption(f"내 메일 {len(mails)}건 — 할 일로 만들 것을 고르세요. "
+        # 키워드 자동 분류 → 태그 + 우선순위(높은 것 먼저, 같으면 최신순)
+        tagged = []
+        for m in mails:
+            tag, pri = mail_store.classify(m.get("제목", ""), m.get("본문", ""))
+            tagged.append((pri, m.get("날짜", ""), tag, m))
+        tagged.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        st.caption(f"내 메일 {len(mails)}건 — 긴급·결재 순으로 정렬됨. 할 일로 만들 것을 고르세요. "
                    f"({', '.join(my_emails)})")
         picks = []
-        for i, m in enumerate(mails[:30]):
-            label = f"{(m.get('날짜','') or '')[:10]} · {m.get('제목','(제목 없음)')}"
-            item = f"📧 {m.get('제목','(제목 없음)')}"
+        for i, (_pri, _dt, tag, m) in enumerate(tagged[:30]):
+            subj = m.get("제목", "(제목 없음)")
+            label = f"{tag} · {(m.get('날짜', '') or '')[:10]} · {subj}"
+            item = f"📧 {tag} · {subj}"
             if item in exist:
                 continue
             if st.checkbox(label, key=f"mimp_{i}"):
