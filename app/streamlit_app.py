@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, time
 from urllib.parse import quote
 import json
 import base64
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -254,6 +255,70 @@ def _me_index(options, default=0):
     me가 없거나 목록에 없으면 default(기본 0=첫 항목, 기존 동작 유지)."""
     me = st.session_state.get("me")
     return options.index(me) if me in options else default
+
+
+def _auto_import(uid, name):
+    """주간보고 계획(번호 붙은 줄) + 내 CC 메일을 '내 할 일'에 자동 추가.
+
+    이미 가져온 지점(todo_store의 _sync)을 기록해 **새 것만** 넣는다.
+    → 사용자가 ✓로 지운 항목이 다시 살아나지 않는다. 세션당 1회만 실행.
+    """
+    if not uid or st.session_state.get("_auto_imp_done"):
+        return
+    st.session_state["_auto_imp_done"] = True
+    try:
+        existing = {r["내용"].strip() for r in todo_store.list_todos(uid)}
+    except Exception:
+        return
+    added = 0
+
+    # ① 주간보고 계획 — '1.' '2)' 처럼 번호로 시작하는 줄만, 새 주차일 때만
+    try:
+        last_wk = todo_store.get_sync(uid, "report")
+        latest = latest_submission(name)
+        if latest:
+            wk, data = latest
+            if wk and wk != last_wk:
+                for fk in ("research_plan", "task_plan"):
+                    for ln in (data.get(fk, "") or "").replace("\r", "").split("\n"):
+                        s = ln.strip()
+                        if not re.match(r"^\d+\s*[.)]\s*\S", s):
+                            continue
+                        item = f"📄 {s}"
+                        if item in existing:
+                            continue
+                        todo_store.add_todo(uid, item)
+                        existing.add(item)
+                        added += 1
+                todo_store.set_sync(uid, "report", wk)
+    except Exception:
+        pass
+
+    # ② 메일 — 내 등록 이메일로 보낸 것만(mails_for), 마지막 수집시각 이후만
+    try:
+        acc = account_store.get_account(uid) or {}
+        emails = [acc.get("이메일_korea", ""), acc.get("이메일_gmail", "")]
+        last_dt = todo_store.get_sync(uid, "mail")
+        newest = last_dt
+        for m in mail_store.mails_for(emails):
+            dt = (m.get("날짜", "") or "").strip()
+            if last_dt and dt <= last_dt:
+                continue
+            tag, _pri = mail_store.classify(m.get("제목", ""), m.get("본문", ""))
+            item = f"📧 {tag} · {m.get('제목', '(제목 없음)')}"
+            if item not in existing:
+                todo_store.add_todo(uid, item)
+                existing.add(item)
+                added += 1
+            if dt > newest:
+                newest = dt
+        if newest and newest != last_dt:
+            todo_store.set_sync(uid, "mail", newest)
+    except Exception:
+        pass
+
+    if added:
+        st.toast(f"📥 새 항목 {added}건을 '내 할 일'에 자동 추가했습니다.")
 
 
 def _mail_import_panel(uid, existing_rows):
@@ -579,6 +644,7 @@ def home_page():
     left, right = st.columns([1, 1])
     with left:
         uid = st.session_state.get("uid", "")
+        _auto_import(uid, my)   # 보고(번호줄)·내 메일을 새 것만 자동 추가(세션당 1회)
         _care_open = st.session_state.get("care_add_open", False)
         if uid:
             _inline_plus("🔔 오늘 챙길 것", "care", _care_open,

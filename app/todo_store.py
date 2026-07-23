@@ -14,6 +14,43 @@ TODO_WS = "개인할일"
 # '구분'은 맨 뒤에 둠 — 옛 3열 행(구분 없음)은 기본 '할일'로 처리(데이터 안 밀림).
 TODO_HEADER = ["아이디", "내용", "등록일시", "구분"]
 KIND_TODO, KIND_CARE = "할일", "챙길것"
+# 자동 가져오기 진행지점 기록용(화면엔 안 보임 — list_todos가 구분으로 걸러냄).
+# 이걸 두는 이유: 이미 가져온 걸 또 넣지 않기 위해서. 특히 사용자가 ✓로 지운
+# 항목이 자동 가져오기 때문에 되살아나는 것을 막는다.
+KIND_SYNC = "_sync"
+
+
+def get_sync(uid, key):
+    """uid의 key 진행지점 값(없으면 '')."""
+    uid = (uid or "").strip()
+    pre = f"{key}="
+    for d in _rows():
+        if d["아이디"].strip() == uid and d.get("구분", "").strip() == KIND_SYNC:
+            c = (d.get("내용", "") or "").strip()
+            if c.startswith(pre):
+                return c[len(pre):]
+    return ""
+
+
+def set_sync(uid, key, value):
+    """uid의 key 진행지점 저장(있으면 갱신, 없으면 추가)."""
+    uid = (uid or "").strip()
+    if not uid:
+        return
+    ws = _ws()
+    pre = f"{key}="
+    vals = ws.get_all_values()
+    for i, r in enumerate(vals[1:], start=2):
+        r = (list(r) + [""] * len(TODO_HEADER))[:len(TODO_HEADER)]
+        if r[0].strip() == uid and r[3].strip() == KIND_SYNC \
+                and (r[1] or "").strip().startswith(pre):
+            ws.update_cell(i, 2, f"{key}={value}")
+            _rows.clear()
+            return
+    now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+    ws.append_row([uid, f"{key}={value}", now, KIND_SYNC],
+                  value_input_option="RAW")
+    _rows.clear()
 
 
 @st.cache_resource
