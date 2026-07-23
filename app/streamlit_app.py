@@ -519,6 +519,13 @@ def home_page():
         background:transparent !important; border:none !important; }
     </style>""", unsafe_allow_html=True)
 
+    # 다크모드일 때 바로가기 라벨(진갈색 #8A5A2B)이 배경에 묻혀 안 보임 → 밝은 톤으로.
+    # 이 홈 CSS가 전역 다크 CSS보다 나중에 주입돼 덮어써지지 않으므로 여기서 처리.
+    if st.session_state.get("dark"):
+        st.markdown(
+            "<style>.dsbar .dstile .lb{ color:#e8c9a8 !important; }</style>",
+            unsafe_allow_html=True)
+
     today_str = today.strftime("%Y-%m-%d")
 
     def _pdate(d):
