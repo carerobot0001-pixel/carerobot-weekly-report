@@ -952,6 +952,29 @@ def _report_write():
         existing = {}
         st.caption(f"ℹ️ 지난주({last_week or '-'}) 제출 기록도 없어 빈 칸으로 시작합니다.")
 
+    # 📌 미처리 할 일 → 업무계획으로 넘기기 (form 안에서는 st.button 사용 불가 → 폼 밖에 배치)
+    _uid_w = st.session_state.get("uid", "")
+    if _uid_w:
+        with st.expander("📌 미처리 할 일을 업무계획에 넣기", expanded=False):
+            try:
+                _undone = todo_store.list_todos(_uid_w)      # 남아 있는 업무 할 일
+            except Exception:
+                _undone = []
+            if not _undone:
+                st.caption("남은 업무 할 일이 없습니다. (완료한 항목은 ✓로 지워집니다)")
+            else:
+                st.caption("체크 후 버튼을 누르면 아래 '업무계획' 칸에 채워집니다.")
+                _picks = [t["내용"] for t in _undone
+                          if st.checkbox(t["내용"], key=f"carry_{t['_row']}")]
+                if st.button("⬇️ 업무계획에 넣기", key="carry_btn"):
+                    if _picks:
+                        _base = existing.get("task_plan", "")
+                        st.session_state["_task_plan_val"] = (
+                            (_base + "\n" + "\n".join(_picks)).strip("\n"))
+                        st.rerun()
+                    else:
+                        st.warning("먼저 넣을 항목을 체크해 주세요.")
+
     values = {}
     with st.form("report_form", clear_on_submit=False):
         if "acquired_data" in fields:
@@ -983,28 +1006,8 @@ def _report_write():
 
         if "task_done" in fields:
             st.subheader("📝 업무")
-            # 📌 아직 처리 못한 '내 할 일'을 업무계획으로 넘기기
-            _uid_w = st.session_state.get("uid", "")
-            if _uid_w:
-                with st.expander("📌 미처리 할 일을 업무계획에 넣기", expanded=False):
-                    try:
-                        _undone = todo_store.list_todos(_uid_w)   # 업무 할 일(남아있는 것)
-                    except Exception:
-                        _undone = []
-                    if not _undone:
-                        st.caption("남은 업무 할 일이 없습니다. (완료한 항목은 ✓로 지워집니다)")
-                    else:
-                        st.caption("체크한 항목이 아래 '업무계획' 칸에 추가됩니다.")
-                        _picks = [t["내용"] for i, t in enumerate(_undone)
-                                  if st.checkbox(t["내용"], key=f"carry_{t['_row']}")]
-                        if st.button("⬇️ 업무계획에 넣기", key="carry_btn") and _picks:
-                            st.session_state["_carry_plan"] = "\n".join(_picks)
-                            st.rerun()
-            _carry = st.session_state.pop("_carry_plan", "")
-            _tp_val = existing.get("task_plan", "")
-            if _carry:
-                _tp_val = (_tp_val + "\n" + _carry).strip("\n")
-
+            _tp_val = st.session_state.get("_task_plan_val",
+                                           existing.get("task_plan", ""))
             tc1, tc2 = st.columns(2)
             with tc1:
                 values["task_done"] = st.text_area(
@@ -1038,6 +1041,7 @@ def _report_write():
     if submitted:
         try:
             action = save_submission(name, week, values)
+            st.session_state.pop("_task_plan_val", None)   # 넘겨넣기 임시값 정리
             st.success(f"저장 완료 ({'신규 제출' if action=='created' else '기존 내용 수정'})")
             # 개인 백업 텍스트 생성 → 다운로드 버튼 제공
             lines = [f"=== {name} / {week} ===\n"]
