@@ -261,7 +261,8 @@ def ensure_black_charpr(header_xml: str, base_id: str,
 def build_report(template_bytes: bytes, submissions: dict,
                  title_date: str,
                  period_start: str, period_end: str,
-                 plan_start: str, plan_end: str) -> bytes:
+                 plan_start: str, plan_end: str,
+                 calendar_bmp: bytes | None = None) -> bytes:
     """submissions = {이름: {필드키: 텍스트, ...}}"""
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:
         xml = zin.read('Contents/section0.xml').decode('utf-8')
@@ -339,6 +340,14 @@ def build_report(template_bytes: bytes, submissions: dict,
 
     all_files['Contents/section0.xml'] = xml.encode('utf-8')
     all_files['Contents/header.xml'] = header.encode('utf-8')
+
+    # 월간 달력 이미지 교체 — 템플릿에 박힌 옛 달력이 그대로 나오는 문제 해결.
+    # 원본과 '같은 픽셀 크기'의 BMP만 넣으면 section0.xml 의 크기 정보는 그대로 OK.
+    if calendar_bmp:
+        for _name in list(all_files):
+            if _name.startswith('BinData/') and _name.lower().endswith('.bmp'):
+                all_files[_name] = calendar_bmp
+                break
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w') as zout:
