@@ -2224,14 +2224,21 @@ def meeting_page():
         else:
             st.caption(f"제출 {len(submitted)}명 — 취합본과 같은 '실적 | 계획' 표. 아래로 스크롤하며 진행.")
             # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
-            _BD = "#efe2d2"
+            # 다크모드면 표도 어두운 팔레트로(전체 다크). 밝을 땐 기존 색 그대로.
+            _dark = bool(st.session_state.get("dark"))
+            _BD = "#4a3c31" if _dark else "#efe2d2"
+            _TXT = "#e8e0d6" if _dark else "#000"
+            _HDBG = "#2f2720" if _dark else "#fdf5ec"
+            _ADBG = "#222b3a" if _dark else "#ffffff"
+            _ADFG = "#8ab4f8" if _dark else "#1a56db"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
                    "text-align:left;word-break:break-word;overflow-wrap:anywhere;"
-                   "overflow:hidden;color:#000;")
-            _LBL = _TD + "font-weight:700;background:#fdf5ec;color:#000;"
+                   f"overflow:hidden;color:{_TXT};")
+            _LBL = _TD + f"font-weight:700;background:{_HDBG};color:{_TXT};"
             # height:1px → 이 행들은 내용 높이만 차지(안 늘어남). 남는 높이는 내용 행이 흡수.
-            _TH = _TD + "height:1px;background:#fdf5ec;color:#000;font-weight:700;text-align:center;"
-            _ADS = _TD + "height:1px;background:#ffffff;color:#1a56db;font-weight:700;"
+            _TH = _TD + (f"height:1px;background:{_HDBG};color:{_TXT};"
+                         "font-weight:700;text-align:center;")
+            _ADS = _TD + f"height:1px;background:{_ADBG};color:{_ADFG};font-weight:700;"
 
             def _esc(s):
                 s = (s or "").strip()
@@ -2270,11 +2277,15 @@ def meeting_page():
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
+            _BARFG = "#f0e4d6" if _dark else "#000"
+
             def _barhtml(bg, txt, right=""):
-                return (f"<div style='background:{bg};color:#000;padding:6px 12px;"
+                if _dark:
+                    bg = "#4a3527" if bg == "#fbe6d3" else "#3c2a1e"
+                return (f"<div style='background:{bg};color:{_BARFG};padding:6px 12px;"
                         f"border-radius:7px 7px 0 0;font-weight:700;font-size:1.08rem;'>"
                         f"{txt}<span style='float:right;font-size:0.72rem;font-weight:400;"
-                        f"opacity:.75;color:#000;'>{right}</span></div>")
+                        f"opacity:.75;color:{_BARFG};'>{right}</span></div>")
 
             def _bar(bg, txt, right=""):
                 st.markdown(_barhtml(bg, txt, right), unsafe_allow_html=True)
@@ -2387,7 +2398,7 @@ def meeting_page():
             for gname, gmembers in plan:
                 if not gmembers:
                     continue
-                HTML += (f"<div style='color:#000;font-weight:700;font-size:0.98rem;"
+                HTML += (f"<div style='color:{_BARFG};font-weight:700;font-size:0.98rem;"
                          f"margin:12px 0 4px;border-left:5px solid #C4622D;"
                          f"padding-left:8px;'>🏛️ 본부과제 · {gname}</div>")
                 for name in gmembers:
@@ -2756,6 +2767,45 @@ def main():
       }
     </style>""", unsafe_allow_html=True)
 
+    # 🌙 다크모드(계정별 선택). 세션에 없으면 저장된 설정에서 1회 불러옴.
+    if "dark" not in st.session_state:
+        try:
+            st.session_state["dark"] = (
+                todo_store.get_sync(st.session_state.get("uid", ""), "theme")
+                == "dark")
+        except Exception:
+            st.session_state["dark"] = False
+    if st.session_state.get("dark"):
+        st.markdown("""<style>
+      /* 다크모드 — 배경·글씨·카드·입력창 전환(사이드바는 원래 어두움) */
+      .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"]{
+        background:#1b1714 !important; }
+      [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+      p, li, span, label, .stCaption, [data-testid="stCaptionContainer"]{
+        color:#e8e0d6 !important; }
+      h1,h2,h3,h4,h5,h6{ color:#f0b483 !important; }
+      [data-testid="stMarkdownContainer"] strong{ color:#f0b483 !important; }
+      a, a:visited{ color:#e8a76a !important; }
+      /* 알림/카드/펼치기 */
+      [data-testid="stAlert"]{ background:#2a231d !important; border:1px solid #3d322a; }
+      [data-testid="stAlert"] *{ color:#e8e0d6 !important; }
+      [data-testid="stExpander"], [data-testid="stExpander"] details{
+        background:#221c17 !important; border-color:#3d322a !important; }
+      div[data-testid="stVerticalBlockBorderWrapper"]{
+        background:#221c17 !important; border-color:#3d322a !important; }
+      /* 입력 요소 */
+      input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
+        background:#2a231d !important; color:#e8e0d6 !important;
+        border-color:#4a3c31 !important; }
+      [data-testid="stDataFrame"], [data-testid="stTable"]{
+        background:#221c17 !important; }
+      /* 버튼 */
+      div.stButton>button{ background:#2a231d; border-color:#4a3c31; color:#e8c9a8; }
+      div.stButton>button:hover{ border-color:#E08A3C; color:#f0b483; }
+      div.stButton>button[kind="primary"]{ background:#C4622D; color:#fff; }
+      hr{ border-color:#3d322a !important; }
+    </style>""", unsafe_allow_html=True)
+
     mode_options = ["🏠 홈", "🖥️ 회의 진행", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
@@ -2786,6 +2836,18 @@ def main():
 
     with st.sidebar:
         st.markdown(_brand("sidebar"), unsafe_allow_html=True)
+        # 🌙 다크모드 토글 — 선택은 계정별로 저장(다음 접속에도 유지)
+        _tg = getattr(st, "toggle", st.checkbox)
+        _dk = _tg("🌙 다크모드", value=st.session_state.get("dark", False),
+                  key="dark_toggle")
+        if bool(_dk) != bool(st.session_state.get("dark")):
+            st.session_state["dark"] = bool(_dk)
+            try:
+                todo_store.set_sync(st.session_state.get("uid", ""), "theme",
+                                    "dark" if _dk else "light")
+            except Exception:
+                pass
+            st.rerun()
         # 홈의 바로가기 버튼(_nav_to)이 있으면 그 메뉴로 이동
         nav = st.session_state.pop("_nav_to", None)
         if nav and nav in mode_options:
