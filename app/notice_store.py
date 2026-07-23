@@ -12,8 +12,7 @@ from datetime import datetime
 from sheets_store import _get_client, KST
 
 NOTICE_WS_TITLE = "공지"
-# 확인자는 맨 뒤에 추가 — 옛 4열 행도 그대로 읽힘(데이터 안 밀림)
-NOTICE_HEADER = ["등록일시", "작성자", "내용", "만료일", "확인자"]
+NOTICE_HEADER = ["등록일시", "작성자", "내용", "만료일"]
 
 
 @st.cache_resource
@@ -43,13 +42,13 @@ def notices() -> list:
     for i, r in enumerate(vals[1:], start=2):
         if not any(c.strip() for c in r):
             continue
-        out.append((i, (list(r) + [""] * len(NOTICE_HEADER))[:len(NOTICE_HEADER)]))
+        out.append((i, (list(r) + [""] * 4)[:4]))
     return out
 
 
 def is_expired(row, today_str: str) -> bool:
     """만료일(YYYY-MM-DD)이 today_str 보다 이전이면 만료(표시 종료). 비어있으면 영구."""
-    exp = (list(row) + [""] * len(NOTICE_HEADER))[3].strip()
+    exp = (list(row) + [""] * 4)[3].strip()
     return bool(exp) and exp < today_str
 
 
@@ -58,7 +57,7 @@ def add_notice(author: str, text: str, expire: str = "") -> None:
     ts = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     # RAW: 날짜/시각 문자열을 시트가 네이티브 날짜로 변환해 로케일별 표기로
     # 되돌리는 걸 막음(만료일 "YYYY-MM-DD" 문자열 비교와 행 재확인이 정확해짐).
-    ws.append_row([ts, author, text, expire.strip(), ""],
+    ws.append_row([ts, author, text, expire.strip()],
                   value_input_option="RAW")
     notices.clear()
 
@@ -96,27 +95,3 @@ def sweep_expired(today_str: str) -> int:
             ws.delete_rows(i)
     notices.clear()
     return len(stale)
-
-
-def readers(row) -> list:
-    """그 공지를 확인(읽음)한 사람 목록."""
-    v = (list(row) + [""] * len(NOTICE_HEADER))[4]
-    return [n.strip() for n in (v or "").split(",") if n.strip()]
-
-
-def mark_read(row_idx: int, expected_ts: str, name: str) -> list:
-    """확인자에 name 추가(중복 방지). 쓰기 직전 등록일시 재확인 → 행 밀림 방지."""
-    name = (name or "").strip()
-    if not name:
-        return []
-    ws = _ws()
-    cur = ws.row_values(row_idx)
-    if (cur[0].strip() if cur else "") != expected_ts.strip():
-        raise RuntimeError("공지 행이 바뀌었습니다. 새로고침 후 다시 시도해 주세요.")
-    cur = (list(cur) + [""] * len(NOTICE_HEADER))[:len(NOTICE_HEADER)]
-    names = [n.strip() for n in (cur[4] or "").split(",") if n.strip()]
-    if name not in names:
-        names.append(name)
-        ws.update_cell(row_idx, 5, ", ".join(names))   # E열 = 확인자
-        notices.clear()
-    return names
