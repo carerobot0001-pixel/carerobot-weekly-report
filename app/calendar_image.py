@@ -47,21 +47,33 @@ def _font(size: int, bold: bool = False):
     return ImageFont.load_default()
 
 
-def _ev_day_and_label(ev: dict):
-    """이벤트 → (날짜(1~31), 표시문자열). 파싱 실패 시 (None, '')."""
+# 구글 캘린더 이벤트 색상(colorId) → 실제 색. 지정 없으면 캘린더 기본색(빨강).
+GOOGLE_COLORS = {
+    "1": (121, 134, 203), "2": (51, 182, 121), "3": (142, 36, 170),
+    "4": (230, 124, 115), "5": (246, 191, 38), "6": (244, 81, 30),
+    "7": (3, 155, 229), "8": (97, 97, 97), "9": (63, 81, 181),
+    "10": (11, 128, 67), "11": (213, 0, 0),
+}
+DEFAULT_EV_COLOR = (213, 0, 0)      # #D50000 — 사업단 캘린더 기본 빨강
+
+
+def _ev_info(ev: dict):
+    """이벤트 → (날짜, 표시문자열, 색, 종일여부). 실패 시 (None, '', ..., False)."""
     s = ev.get("start", {}) or {}
+    color = GOOGLE_COLORS.get(str(ev.get("colorId", "")), DEFAULT_EV_COLOR)
     if "date" in s:                       # 종일
         d = s["date"][:10]
         label = ev.get("summary", "") or ""
+        all_day = True
     else:
         dt = (s.get("dateTime", "") or "")[:16]
         d = dt[:10]
-        hhmm = dt[11:16]
-        label = f"{hhmm} {ev.get('summary', '') or ''}".strip()
+        label = f"{dt[11:16]} {ev.get('summary', '') or ''}".strip()
+        all_day = False
     try:
-        return int(d[8:10]), label
+        return int(d[8:10]), label, color, all_day
     except Exception:
-        return None, ""
+        return None, "", color, all_day
 
 
 def build_calendar_bmp(year: int, month: int, events: list,
@@ -101,12 +113,14 @@ def build_calendar_bmp(year: int, month: int, events: list,
         dr.text((x0 + cell_w / 2 - tw / 2, top + 7), nm, font=f_wd,
                 fill=wd_color[i])
 
-    # 날짜별 일정 모으기
+    # 날짜별 일정 모으기 (종일 일정을 위로 — 구글 캘린더와 같은 순서)
     by_day: dict = {}
     for ev in events or []:
-        d, label = _ev_day_and_label(ev)
+        d, label, color, all_day = _ev_info(ev)
         if d and label:
-            by_day.setdefault(d, []).append(label)
+            by_day.setdefault(d, []).append((label, color, all_day))
+    for d in by_day:
+        by_day[d].sort(key=lambda x: (not x[2],))
 
     for r, week in enumerate(weeks):
         for c, day in enumerate(week):
@@ -120,15 +134,30 @@ def build_calendar_bmp(year: int, month: int, events: list,
             # 일정 텍스트 (칸 높이에 맞춰 잘라내기)
             ys = y0 + 28
             items = by_day.get(day, [])
-            line_h = 18
+            line_h = 21
             maxn = max(0, int((cell_h - 30) // line_h))
-            for label in items[:maxn]:
-                txt = label
-                while dr.textlength(txt, font=f_ev) > cell_w - 14 and len(txt) > 1:
-                    txt = txt[:-1]
-                if txt != label:
-                    txt = txt[:-1] + "…"
-                dr.text((x0 + 7, ys), txt, font=f_ev, fill=(60, 60, 60))
+            for label, color, all_day in items[:maxn]:
+                if all_day:
+                    # 종일: 색 채운 막대 + 흰 글씨 (구글 캘린더와 동일)
+                    avail = cell_w - 12
+                    txt = label
+                    while dr.textlength(txt, font=f_ev) > avail - 8 and len(txt) > 1:
+                        txt = txt[:-1]
+                    if txt != label:
+                        txt = txt[:-1] + "…"
+                    dr.rectangle([x0 + 5, ys, x0 + 5 + avail, ys + 18], fill=color)
+                    dr.text((x0 + 9, ys + 1), txt, font=f_ev, fill=(255, 255, 255))
+                else:
+                    # 시간 지정: 색 점 + 글씨
+                    cy = ys + 9
+                    dr.ellipse([x0 + 7, cy - 3, x0 + 13, cy + 3], fill=color)
+                    avail = cell_w - 24
+                    txt = label
+                    while dr.textlength(txt, font=f_ev) > avail and len(txt) > 1:
+                        txt = txt[:-1]
+                    if txt != label:
+                        txt = txt[:-1] + "…"
+                    dr.text((x0 + 18, ys + 1), txt, font=f_ev, fill=(50, 50, 50))
                 ys += line_h
             if len(items) > maxn:
                 dr.text((x0 + 7, ys), f"+{len(items) - maxn}건", font=f_ev,

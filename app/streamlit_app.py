@@ -2592,6 +2592,7 @@ def _report_collect():
                 plan_start=plan_start, plan_end=plan_end,
                 calendar_bmp=cal_bmp,
                 relayout=st.session_state.get("hwpx_relayout", False),
+                calendar_ym=(wed.year, wed.month),
             )
             filename = f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.hwpx"
             st.download_button(

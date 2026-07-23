@@ -274,7 +274,8 @@ def build_report(template_bytes: bytes, submissions: dict,
                  period_start: str, period_end: str,
                  plan_start: str, plan_end: str,
                  calendar_bmp: bytes | None = None,
-                 relayout: bool = False) -> bytes:
+                 relayout: bool = False,
+                 calendar_ym: tuple | None = None) -> bytes:
     """submissions = {이름: {필드키: 텍스트, ...}}"""
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:
         xml = zin.read('Contents/section0.xml').decode('utf-8')
@@ -349,6 +350,12 @@ def build_report(template_bytes: bytes, submissions: dict,
             xml = replace_cell(xml, col, row, text,
                                override_color_id=override,
                                nth=nth)
+
+    # 달력 캡션 "…일정 (2026년 06월)" 도 보고 주차의 달로 갱신
+    if calendar_ym:
+        _y, _m = calendar_ym
+        xml = re.sub(r'(일정\s*\()\d{4}년\s*\d{1,2}월(\))',
+                     rf'\g<1>{_y}년 {_m:02d}월\g<2>', xml)
 
     # 표 밖 넘침 보정(선택): 줄바꿈 캐시를 비워 한글이 다시 계산하게 함
     if relayout:
