@@ -16,6 +16,7 @@ from team_config import (
 import account_store
 import todo_store
 import resource_store
+import mail_store
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
@@ -253,6 +254,55 @@ def _me_index(options, default=0):
     me가 없거나 목록에 없으면 default(기본 0=첫 항목, 기존 동작 유지)."""
     me = st.session_state.get("me")
     return options.index(me) if me in options else default
+
+
+def _mail_import_panel(uid, existing_rows):
+    """CC로 받은 '내' 보고 메일(보낸이메일=내 등록 이메일)을 골라 할 일로 추가."""
+    with st.container(border=True):
+        try:
+            acc = account_store.get_account(uid) or {}
+        except Exception:
+            acc = {}
+        my_emails = [acc.get("이메일_korea", ""), acc.get("이메일_gmail", "")]
+        my_emails = [e for e in my_emails if (e or "").strip()]
+        if not my_emails:
+            st.caption("계정에 이메일이 없습니다. 회원 정보에 이메일을 등록해 주세요.")
+            return
+        try:
+            mails = mail_store.mails_for(my_emails)
+        except Exception as e:
+            st.error(f"메일함을 불러오지 못했습니다: {e}")
+            return
+        if not mails:
+            st.caption("CC로 받은 내 메일이 아직 없습니다. "
+                       "(과장님께 보고 시 carerobot0001@gmail.com 을 CC에 넣으면 여기 모입니다)")
+            return
+        exist = {r["내용"].strip() for r in (existing_rows or [])}
+        st.caption(f"내 메일 {len(mails)}건 — 할 일로 만들 것을 고르세요. "
+                   f"({', '.join(my_emails)})")
+        picks = []
+        for i, m in enumerate(mails[:30]):
+            label = f"{(m.get('날짜','') or '')[:10]} · {m.get('제목','(제목 없음)')}"
+            item = f"📧 {m.get('제목','(제목 없음)')}"
+            if item in exist:
+                continue
+            if st.checkbox(label, key=f"mimp_{i}"):
+                picks.append(item)
+            body = (m.get("본문", "") or "").strip()
+            if body:
+                st.caption(body[:160] + ("…" if len(body) > 160 else ""))
+        c1, c2 = st.columns(2)
+        if c1.button("선택 추가", type="primary", key="mail_import_add"):
+            for p in picks:
+                try:
+                    todo_store.add_todo(uid, p)
+                except Exception:
+                    pass
+            st.session_state["mail_import_open"] = False
+            st.rerun()
+        if c2.button("닫기", key="mail_import_close"):
+            st.session_state["mail_import_open"] = False
+            st.rerun()
 
 
 def _todo_import_panel(uid, name, existing_rows):
@@ -632,6 +682,14 @@ def home_page():
                 st.rerun()
             if st.session_state.get("todo_import_open"):
                 _todo_import_panel(uid, my, _mytodos)
+            # 📧 CC로 받은 내 보고 메일을 할 일로 가져오기(팀원별 = 보낸이메일 매칭)
+            if st.button("📧 메일에서 가져오기", key="mail_import_btn",
+                         help="carerobot0001로 CC된 내 메일을 골라 할 일에 추가"):
+                st.session_state["mail_import_open"] = \
+                    not st.session_state.get("mail_import_open", False)
+                st.rerun()
+            if st.session_state.get("mail_import_open"):
+                _mail_import_panel(uid, _mytodos)
     with right:
         if common_sched_items:
             with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
