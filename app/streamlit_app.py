@@ -739,22 +739,29 @@ def home_page():
                 with st.form("todo_add_form", clear_on_submit=True):
                     _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                         placeholder="예: 백정은 님께 자료 요청")
+                    _tk = st.radio("구분", ["🏢 업무", "🙋 개인"], horizontal=True,
+                                   key="todo_kind")
                     if st.form_submit_button("추가") and _tt.strip():
                         try:
-                            todo_store.add_todo(uid, _tt)
+                            todo_store.add_todo(
+                                uid, _tt,
+                                todo_store.KIND_PERSONAL if "개인" in _tk
+                                else todo_store.KIND_TODO)
                             st.session_state["todo_add_open"] = False  # 추가 후 닫기
                         except Exception as e:
                             st.error(f"저장 실패: {e}")
                         st.rerun()
-            # 시스템 할 일(주간보고·협업·일정)
+            # 🏢 업무: 시스템 할 일(주간보고·협업·일정) + 업무 메모·가져온 항목
             todo_lines = list(todos) + [f"📅 {s}" for s in sched_items]
+            try:
+                _mytodos = todo_store.list_todos(uid)                      # 업무
+                _myper = todo_store.list_todos(uid, todo_store.KIND_PERSONAL)
+            except Exception:
+                _mytodos, _myper = [], []
+            if todo_lines or _mytodos:
+                st.markdown("**🏢 업무**")
             if todo_lines:
                 st.markdown("\n".join(f"- {t}" for t in todo_lines))
-            # 개인 메모(본인만) — 각 항목 옆 완료(삭제) 버튼
-            try:
-                _mytodos = todo_store.list_todos(uid)
-            except Exception:
-                _mytodos = []
             for _p in _mytodos:
                 _pc1, _pc2 = st.columns([8, 1])
                 _pc1.markdown(f"- 📝 {_p['내용']}")
@@ -765,7 +772,20 @@ def home_page():
                     except Exception as e:
                         st.error(f"삭제 실패: {e}")
                     st.rerun()
-            if not todo_lines and not _mytodos:
+            # 🙋 개인: 업무와 분리해서 표시
+            if _myper:
+                st.markdown("**🙋 개인**")
+                for _p in _myper:
+                    _pc1, _pc2 = st.columns([8, 1])
+                    _pc1.markdown(f"- 🏠 {_p['내용']}")
+                    if _pc2.button("✓", key=f"per_done_{_p['_row']}",
+                                   help="완료(삭제)"):
+                        try:
+                            todo_store.delete_todo(uid, _p["_row"], _p["내용"])
+                        except Exception as e:
+                            st.error(f"삭제 실패: {e}")
+                        st.rerun()
+            if not todo_lines and not _mytodos and not _myper:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
             # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
             # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
@@ -963,6 +983,28 @@ def _report_write():
 
         if "task_done" in fields:
             st.subheader("📝 업무")
+            # 📌 아직 처리 못한 '내 할 일'을 업무계획으로 넘기기
+            _uid_w = st.session_state.get("uid", "")
+            if _uid_w:
+                with st.expander("📌 미처리 할 일을 업무계획에 넣기", expanded=False):
+                    try:
+                        _undone = todo_store.list_todos(_uid_w)   # 업무 할 일(남아있는 것)
+                    except Exception:
+                        _undone = []
+                    if not _undone:
+                        st.caption("남은 업무 할 일이 없습니다. (완료한 항목은 ✓로 지워집니다)")
+                    else:
+                        st.caption("체크한 항목이 아래 '업무계획' 칸에 추가됩니다.")
+                        _picks = [t["내용"] for i, t in enumerate(_undone)
+                                  if st.checkbox(t["내용"], key=f"carry_{t['_row']}")]
+                        if st.button("⬇️ 업무계획에 넣기", key="carry_btn") and _picks:
+                            st.session_state["_carry_plan"] = "\n".join(_picks)
+                            st.rerun()
+            _carry = st.session_state.pop("_carry_plan", "")
+            _tp_val = existing.get("task_plan", "")
+            if _carry:
+                _tp_val = (_tp_val + "\n" + _carry).strip("\n")
+
             tc1, tc2 = st.columns(2)
             with tc1:
                 values["task_done"] = st.text_area(
@@ -972,8 +1014,7 @@ def _report_write():
                 )
             with tc2:
                 values["task_plan"] = st.text_area(
-                    FIELD_LABELS["task_plan"],
-                    value=existing.get("task_plan", ""),
+                    FIELD_LABELS["task_plan"], value=_tp_val,
                     height=220, placeholder="한 줄에 한 항목씩 작성",
                 )
 
@@ -2213,6 +2254,32 @@ def meeting_page():
         help="달력에서 아무 날짜나 고르면 그 주(수요일 기준)로 조회됩니다.")
     week = (_wd + timedelta(days=(2 - _wd.weekday()))).strftime("%Y-%m-%d")
     st.caption(f"📅 조회 주차: **{week} (수)**")
+
+    # 🔗 줌 회의 링크 — 팀 공용(한 번 저장해두면 모두에게 버튼으로 보임)
+    try:
+        _zoom = todo_store.get_sync("_team", "zoom")
+    except Exception:
+        _zoom = ""
+    _zc1, _zc2 = st.columns([3, 1])
+    if _zoom:
+        _zc1.link_button("🎥 Zoom 회의 참여", _zoom, use_container_width=True)
+    else:
+        _zc1.caption("🎥 줌 회의 링크가 아직 없습니다. 오른쪽에서 설정하세요.")
+    if _zc2.button("⚙️ 링크 설정", key="zoom_set_btn", use_container_width=True):
+        st.session_state["zoom_edit"] = not st.session_state.get("zoom_edit", False)
+        st.rerun()
+    if st.session_state.get("zoom_edit"):
+        with st.form("zoom_form"):
+            _zurl = st.text_input("Zoom 회의 링크", value=_zoom,
+                                  placeholder="https://zoom.us/j/…")
+            if st.form_submit_button("저장"):
+                try:
+                    todo_store.set_sync("_team", "zoom", _zurl.strip())
+                    st.session_state["zoom_edit"] = False
+                except Exception as e:
+                    st.error(f"저장 실패: {e}")
+                st.rerun()
+
     # 섹션(st.markdown)들 사이 흰 여백 제거 — Streamlit 기본 블록 간격 축소
     st.markdown("<style>[data-testid='stVerticalBlock']{gap:0.1rem !important;}</style>",
                 unsafe_allow_html=True)
@@ -2496,8 +2563,11 @@ def _report_collect():
     missing = [s["name"] for s in status if not s["submitted"]]
     if missing:
         st.warning(f"미제출: {', '.join(missing)}")
+        # 카톡 등에 붙여넣어 독촉할 수 있게 명단 복사용 텍스트 제공
+        st.code(" ".join(f"@{n}" for n in missing) + " 주간보고 부탁드립니다 🙏",
+                language=None)
     else:
-        st.success("전원 제출 완료 🎉")
+        st.success("🎉 전원 제출 완료 — 취합본 생성/발송 가능합니다 (담당: 정지수 연구원)")
 
     with st.expander("🔍 제출 내용 미리보기"):
         data = load_week(week)
