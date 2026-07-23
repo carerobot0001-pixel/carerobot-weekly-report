@@ -747,22 +747,25 @@ def home_page():
                     st.rerun()
             if not todo_lines and not _mytodos:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
-            # 📥 지난 주간보고 '계획'을 할 일로 가져오기
-            if st.button("📥 지난 보고에서 가져오기", key="todo_import_btn",
-                         help="최근 주간보고의 연구·업무 계획을 골라 할 일에 추가"):
-                st.session_state["todo_import_open"] = \
-                    not st.session_state.get("todo_import_open", False)
-                st.rerun()
-            if st.session_state.get("todo_import_open"):
-                _todo_import_panel(uid, my, _mytodos)
-            # 📧 CC로 받은 내 보고 메일을 할 일로 가져오기(팀원별 = 보낸이메일 매칭)
-            if st.button("📧 메일에서 가져오기", key="mail_import_btn",
-                         help="carerobot0001로 CC된 내 메일을 골라 할 일에 추가"):
-                st.session_state["mail_import_open"] = \
-                    not st.session_state.get("mail_import_open", False)
-                st.rerun()
-            if st.session_state.get("mail_import_open"):
-                _mail_import_panel(uid, _mytodos)
+            # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
+            # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
+            with st.expander("⚙️ 지난 항목 가져오기", expanded=False):
+                st.caption("새 보고·새 메일은 자동으로 들어옵니다. "
+                           "여기서는 **지난 것**을 골라 담을 수 있어요.")
+                if st.button("📥 지난 보고에서 가져오기", key="todo_import_btn",
+                             help="최근 주간보고의 연구·업무 계획을 골라 할 일에 추가"):
+                    st.session_state["todo_import_open"] = \
+                        not st.session_state.get("todo_import_open", False)
+                    st.rerun()
+                if st.session_state.get("todo_import_open"):
+                    _todo_import_panel(uid, my, _mytodos)
+                if st.button("📧 메일에서 가져오기", key="mail_import_btn",
+                             help="carerobot0001로 CC된 내 메일을 골라 할 일에 추가"):
+                    st.session_state["mail_import_open"] = \
+                        not st.session_state.get("mail_import_open", False)
+                    st.rerun()
+                if st.session_state.get("mail_import_open"):
+                    _mail_import_panel(uid, _mytodos)
     with right:
         if common_sched_items:
             with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
