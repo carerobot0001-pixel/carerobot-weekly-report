@@ -2880,10 +2880,11 @@ def main():
         border-color:#4a3c31 !important; }
       [data-testid="stDataFrame"], [data-testid="stTable"]{
         background:#221c17 !important; }
-      /* 버튼 */
-      div.stButton>button{ background:#2a231d; border-color:#4a3c31; color:#e8c9a8; }
-      div.stButton>button:hover{ border-color:#E08A3C; color:#f0b483; }
-      div.stButton>button[kind="primary"]{ background:#C4622D; color:#fff; }
+      /* 버튼 — !important 없으면 Streamlit 기본 흰 배경이 이겨서 흰 박스로 튐 */
+      div.stButton>button{ background:#2a231d !important; border-color:#4a3c31 !important;
+        color:#e8c9a8 !important; }
+      div.stButton>button:hover{ border-color:#E08A3C !important; color:#f0b483 !important; }
+      div.stButton>button[kind="primary"]{ background:#C4622D !important; color:#fff !important; }
       hr{ border-color:#3d322a !important; }
       /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 어둡게 */
       [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
