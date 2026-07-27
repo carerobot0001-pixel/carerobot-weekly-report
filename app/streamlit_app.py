@@ -773,11 +773,12 @@ def home_page():
                 _pc1, _pc2 = st.columns([8, 1])
                 _pc1.markdown(f"- 📝 {_p['내용']}")
                 if _pc2.button("✓", key=f"todo_done_{_p['_row']}",
-                               help="완료(삭제)"):
+                               help="완료 — 업무보고 '업무실적'에 넣을 수 있게 기록됨"):
                     try:
-                        todo_store.delete_todo(uid, _p["_row"], _p["내용"])
+                        # 업무 할 일은 완료 기록을 남김(보고 작성 때 실적으로 불러오기)
+                        todo_store.complete_todo(uid, _p["_row"], _p["내용"])
                     except Exception as e:
-                        st.error(f"삭제 실패: {e}")
+                        st.error(f"완료 처리 실패: {e}")
                     st.rerun()
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
@@ -982,6 +983,34 @@ def _report_write():
                     else:
                         st.warning("먼저 넣을 항목을 체크해 주세요.")
 
+        # ✅ 완료한 할 일 → 업무실적으로 넣기 (홈에서 ✓로 완료하면 여기에 모임)
+        if _uid_w and "task_done" in fields:
+            try:
+                _since = (wednesday_of_week(week)
+                          - timedelta(days=7)).strftime("%Y-%m-%d")
+            except Exception:
+                _since = None
+            with st.expander("✅ 완료한 할 일을 업무실적에 넣기", expanded=False):
+                try:
+                    _done = todo_store.completed_todos(_uid_w, since=_since)
+                except Exception:
+                    _done = []
+                if not _done:
+                    st.caption("이번 주기에 완료 처리한 업무 할 일이 없습니다. "
+                               "(홈 '내 할 일'의 🏢 업무에서 ✓로 완료하면 여기에 모입니다)")
+                else:
+                    st.caption("체크 후 버튼을 누르면 아래 '업무실적' 칸에 채워집니다.")
+                    _dpicks = [t["내용"] for t in _done
+                               if st.checkbox(t["내용"], key=f"done_{t['_row']}")]
+                    if st.button("⬇️ 업무실적에 넣기", key="done_btn"):
+                        if _dpicks:
+                            _dbase = existing.get("task_done", "")
+                            st.session_state["_task_done_val"] = (
+                                (_dbase + "\n" + "\n".join(_dpicks)).strip("\n"))
+                            st.rerun()
+                        else:
+                            st.warning("먼저 넣을 항목을 체크해 주세요.")
+
     values = {}
     with st.form("report_form", clear_on_submit=False):
         if "acquired_data" in fields:
@@ -1015,11 +1044,13 @@ def _report_write():
             st.subheader("📝 업무")
             _tp_val = st.session_state.get("_task_plan_val",
                                            existing.get("task_plan", ""))
+            _td_val = st.session_state.get("_task_done_val",
+                                           existing.get("task_done", ""))
             tc1, tc2 = st.columns(2)
             with tc1:
                 values["task_done"] = st.text_area(
                     FIELD_LABELS["task_done"],
-                    value=existing.get("task_done", ""),
+                    value=_td_val,
                     height=220, placeholder="한 줄에 한 항목씩 작성",
                 )
             with tc2:
@@ -1049,6 +1080,7 @@ def _report_write():
         try:
             action = save_submission(name, week, values)
             st.session_state.pop("_task_plan_val", None)   # 넘겨넣기 임시값 정리
+            st.session_state.pop("_task_done_val", None)   # 실적 넣기 임시값 정리
             st.success(f"저장 완료 ({'신규 제출' if action=='created' else '기존 내용 수정'})")
             # 개인 백업 텍스트 생성 → 다운로드 버튼 제공
             lines = [f"=== {name} / {week} ===\n"]
