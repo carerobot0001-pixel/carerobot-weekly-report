@@ -818,43 +818,7 @@ def home_page():
                         except Exception as e:
                             st.error(f"완료 처리 실패: {e}")
                         st.rerun()
-            # 📨 팀원에게 요청하기 + 내가 보낸 요청 현황
-            with st.expander("📨 팀원에게 요청하기", expanded=False):
-                _others = [n for n in MEMBER_NAMES if n != my]
-                with st.form("req_add_form", clear_on_submit=True):
-                    _rtarget = st.selectbox("요청 대상", _others, key="req_target")
-                    _rtext = st.text_input(
-                        "요청 내용", key="req_text",
-                        placeholder="예: 센서 데이터 공유해주세요")
-                    if st.form_submit_button("보내기") and _rtext.strip():
-                        try:
-                            request_store.add_request(my, _rtarget, _rtext)
-                            st.toast(f"📨 {_rtarget} 님에게 요청을 보냈습니다.")
-                        except Exception as e:
-                            st.error(f"요청 실패: {e}")
-                        st.rerun()
-                try:
-                    _sent = request_store.sent_by(my)
-                except Exception:
-                    _sent = []
-                if _sent:
-                    st.caption("내가 보낸 요청")
-                    for _sq in _sent:
-                        _done = _sq["상태"].strip() == request_store.ST_DONE
-                        _mark = "✅" if _done else "⏳"
-                        _sc1, _sc2 = st.columns([8, 1])
-                        _sc1.markdown(
-                            f"- {_mark} {_sq['대상']}: {_sq['내용']}"
-                            + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
-                               f"완료 {_sq['완료일시']}</span>" if _done else ""),
-                            unsafe_allow_html=True)
-                        if _sc2.button("🗑", key=f"req_del_{_sq['_row']}",
-                                       help="이 요청 삭제"):
-                            try:
-                                request_store.delete_request(_sq["요청ID"], my)
-                            except Exception as e:
-                                st.error(f"삭제 실패: {e}")
-                            st.rerun()
+            # (요청 보내기 폼은 오른쪽 컬럼 '정보 미입력 일정' 아래에 있음 — 좌우 균형)
             # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
             # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
             with st.expander("⚙️ 지난 항목 가져오기", expanded=False):
@@ -911,6 +875,46 @@ def home_page():
                         f"- {_vv['date'][5:].replace('-', '/')} · {_vv['title']} "
                         f"— {'·'.join(_m)} 없음")
                 st.caption("‘📅 사업단 일정 ＋’에서 해당 일정을 열어 채워주세요.")
+
+        # 📨 팀원에게 요청하기 + 내가 보낸 요청 현황
+        #   (받은 요청은 왼쪽 '내 할 일'에 — 내가 할 일이므로. 여기엔 보내는 쪽만)
+        if my:
+            with st.expander("📨 팀원에게 요청하기", expanded=False):
+                _others = [n for n in MEMBER_NAMES if n != my]
+                with st.form("req_add_form", clear_on_submit=True):
+                    _rtarget = st.selectbox("요청 대상", _others, key="req_target")
+                    _rtext = st.text_input(
+                        "요청 내용", key="req_text",
+                        placeholder="예: 센서 데이터 공유해주세요")
+                    if st.form_submit_button("보내기") and _rtext.strip():
+                        try:
+                            request_store.add_request(my, _rtarget, _rtext)
+                            st.toast(f"📨 {_rtarget} 님에게 요청을 보냈습니다.")
+                        except Exception as e:
+                            st.error(f"요청 실패: {e}")
+                        st.rerun()
+                try:
+                    _sent = request_store.sent_by(my)
+                except Exception:
+                    _sent = []
+                if _sent:
+                    st.caption("내가 보낸 요청")
+                    for _sq in _sent:
+                        _done = _sq["상태"].strip() == request_store.ST_DONE
+                        _mark = "✅" if _done else "⏳"
+                        _sc1, _sc2 = st.columns([8, 1])
+                        _sc1.markdown(
+                            f"- {_mark} {_sq['대상']}: {_sq['내용']}"
+                            + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
+                               f"완료 {_sq['완료일시']}</span>" if _done else ""),
+                            unsafe_allow_html=True)
+                        if _sc2.button("🗑", key=f"req_del_{_sq['_row']}",
+                                       help="이 요청 삭제"):
+                            try:
+                                request_store.delete_request(_sq["요청ID"], my)
+                            except Exception as e:
+                                st.error(f"삭제 실패: {e}")
+                            st.rerun()
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
