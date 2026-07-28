@@ -16,6 +16,7 @@ from team_config import (
 )
 import account_store
 import todo_store
+import request_store
 import resource_store
 import mail_store
 from sheets_store import (
@@ -795,6 +796,65 @@ def home_page():
                         st.rerun()
             if not todo_lines and not _mytodos and not _myper:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
+            # 📨 받은 요청 — 다른 팀원이 나(my)에게 요청한 일
+            try:
+                _reqs = request_store.open_for(my)
+            except Exception:
+                _reqs = []
+            if _reqs:
+                st.markdown("**📨 받은 요청**")
+                for _rq in _reqs:
+                    _rc1, _rc2 = st.columns([8, 1])
+                    _rc1.markdown(
+                        f"- 📨 {_rq['내용']}  \n"
+                        f"  <span style='opacity:.65;font-size:.85em'>"
+                        f"— {_rq['요청자']} 요청</span>",
+                        unsafe_allow_html=True)
+                    if _rc2.button("✓", key=f"req_done_{_rq['_row']}",
+                                   help="완료 처리(요청자에게 표시됨)"):
+                        try:
+                            request_store.complete_request(
+                                _rq["요청ID"], my, _rq["내용"])
+                        except Exception as e:
+                            st.error(f"완료 처리 실패: {e}")
+                        st.rerun()
+            # 📨 팀원에게 요청하기 + 내가 보낸 요청 현황
+            with st.expander("📨 팀원에게 요청하기", expanded=False):
+                _others = [n for n in MEMBER_NAMES if n != my]
+                with st.form("req_add_form", clear_on_submit=True):
+                    _rtarget = st.selectbox("요청 대상", _others, key="req_target")
+                    _rtext = st.text_input(
+                        "요청 내용", key="req_text",
+                        placeholder="예: 센서 데이터 공유해주세요")
+                    if st.form_submit_button("보내기") and _rtext.strip():
+                        try:
+                            request_store.add_request(my, _rtarget, _rtext)
+                            st.toast(f"📨 {_rtarget} 님에게 요청을 보냈습니다.")
+                        except Exception as e:
+                            st.error(f"요청 실패: {e}")
+                        st.rerun()
+                try:
+                    _sent = request_store.sent_by(my)
+                except Exception:
+                    _sent = []
+                if _sent:
+                    st.caption("내가 보낸 요청")
+                    for _sq in _sent:
+                        _done = _sq["상태"].strip() == request_store.ST_DONE
+                        _mark = "✅" if _done else "⏳"
+                        _sc1, _sc2 = st.columns([8, 1])
+                        _sc1.markdown(
+                            f"- {_mark} {_sq['대상']}: {_sq['내용']}"
+                            + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
+                               f"완료 {_sq['완료일시']}</span>" if _done else ""),
+                            unsafe_allow_html=True)
+                        if _sc2.button("🗑", key=f"req_del_{_sq['_row']}",
+                                       help="이 요청 삭제"):
+                            try:
+                                request_store.delete_request(_sq["요청ID"], my)
+                            except Exception as e:
+                                st.error(f"삭제 실패: {e}")
+                            st.rerun()
             # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
             # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
             with st.expander("⚙️ 지난 항목 가져오기", expanded=False):
