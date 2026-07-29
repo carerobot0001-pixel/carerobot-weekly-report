@@ -17,9 +17,11 @@ from sheets_store import _get_client, KST
 REQ_WS = "팀요청"
 # '링크'는 맨 뒤에 둠 — 옛 7열 행(링크 없음)도 그대로 읽힘(데이터 안 밀림).
 REQ_HEADER = ["요청ID", "요청자", "대상", "내용", "등록일시", "상태", "완료일시",
-              "링크"]
+              "링크", "회신", "확인"]
 _COL_STATUS = REQ_HEADER.index("상태") + 1        # 상태 열(1-indexed)
 _COL_DONE_AT = REQ_HEADER.index("완료일시") + 1   # 완료일시 열
+_COL_REPLY = REQ_HEADER.index("회신") + 1         # 대상자가 남긴 한 줄 답
+_COL_ACK = REQ_HEADER.index("확인") + 1           # 요청자가 결과를 확인한 시각
 ST_OPEN, ST_DONE = "대기", "완료"
 
 
@@ -64,8 +66,8 @@ def add_request(requester, target, text, link=""):
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     req_id = datetime.now(KST).strftime("%Y%m%d-%H%M%S-") + requester
-    _ws().append_row([req_id, requester, target, text, now, ST_OPEN, "", link],
-                     value_input_option="RAW")
+    _ws().append_row([req_id, requester, target, text, now, ST_OPEN, "", link,
+                      "", ""], value_input_option="RAW")
     _rows.clear()
 
 
@@ -102,6 +104,62 @@ def complete_request(req_id, target, text):
             ws.update_cell(i, _COL_DONE_AT, now)
             _rows.clear()
             return
+
+
+def _find_row(ws, req_id):
+    """요청ID로 시트의 실제 행 번호 찾기(캐시 아닌 최신 값 — 행밀림 방지)."""
+    for i, r in enumerate(ws.get_all_values()[1:], start=2):
+        if r and r[0].strip() == req_id:
+            return i
+    return None
+
+
+def set_reply(req_id, text):
+    """대상자가 남기는 한 줄 회신. 요청자가 아직 확인 안 한 상태로 되돌린다
+    (회신을 새로 달면 요청자 홈에 다시 알림이 뜨게)."""
+    req_id = (req_id or "").strip()
+    text = (text or "").strip()
+    if not req_id:
+        return
+    ws = _ws()
+    i = _find_row(ws, req_id)
+    if i:
+        ws.update_cell(i, _COL_REPLY, text)
+        ws.update_cell(i, _COL_ACK, "")
+        _rows.clear()
+
+
+def ack_request(req_id, requester):
+    """요청자가 결과(완료/회신)를 확인 — 홈 알림에서 사라짐."""
+    req_id = (req_id or "").strip()
+    requester = (requester or "").strip()
+    if not req_id:
+        return
+    ws = _ws()
+    for i, r in enumerate(ws.get_all_values()[1:], start=2):
+        r = (list(r) + [""] * len(REQ_HEADER))[:len(REQ_HEADER)]
+        if r[0].strip() == req_id and r[1].strip() == requester:
+            ws.update_cell(i, _COL_ACK,
+                           datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
+            _rows.clear()
+            return
+
+
+def updates_for(requester):
+    """내가 보낸 요청 중 '결과가 왔는데 아직 확인 안 한' 것들(홈 알림용).
+    = 완료됐거나 회신이 달렸는데 '확인' 칸이 비어 있는 요청."""
+    requester = (requester or "").strip()
+    if not requester:
+        return []
+    out = []
+    for d in _rows():
+        if d["요청자"].strip() != requester:
+            continue
+        if d.get("확인", "").strip():
+            continue
+        if d["상태"].strip() == ST_DONE or d.get("회신", "").strip():
+            out.append(d)
+    return out
 
 
 def delete_request(req_id, requester):

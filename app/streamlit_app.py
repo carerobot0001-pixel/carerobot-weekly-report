@@ -810,6 +810,29 @@ def home_page():
                 tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
                 st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
                 any_reminder = True
+        # 📨 내가 보낸 요청의 결과(완료·회신) 알림 — 확인 누르면 사라짐
+        try:
+            _upd = request_store.updates_for(my) if my else []
+        except Exception:
+            _upd = []
+        for _u in _upd:
+            _urp = (_u.get("회신", "") or "").strip()
+            _udone = _u["상태"].strip() == request_store.ST_DONE
+            _umsg = (f"✅ **{_u['대상']}** 님이 완료: {_u['내용']}"
+                     if _udone else f"💬 **{_u['대상']}** 님 회신: {_urp}")
+            if _udone and _urp:
+                _umsg += f"  \n💬 {_urp}"
+            _uc1, _uc2 = st.columns([8, 1])
+            _uc1.success(_umsg) if _udone else _uc1.info(_umsg)
+            if _uc2.button("확인", key=f"req_ack_{_u['_row']}",
+                           help="확인했습니다(알림 지우기)"):
+                try:
+                    request_store.ack_request(_u["요청ID"], my)
+                except Exception as e:
+                    st.error(f"확인 실패: {e}")
+                st.rerun()
+            any_reminder = True
+
         # ⚠️ 취합본을 만든 뒤에 보고를 고친 사람 — 받아둔 파일이 옛 것이 되므로 알림.
         #   제출시간·생성시각 모두 'YYYY-MM-DD HH:MM'이라 문자열 비교로 시간순 판정.
         try:
@@ -947,15 +970,23 @@ def home_page():
             if _reqs:
                 st.markdown("**📨 받은 요청**")
                 for _rq in _reqs:
-                    _rc1, _rc2 = st.columns([8, 1])
+                    _rc1, _rc2, _rc3 = st.columns([8, 1, 1])
                     _rlk = (_rq.get("링크", "") or "").strip()
+                    _rrp = (_rq.get("회신", "") or "").strip()
                     _rc1.markdown(
                         f"- 📨 {_rq['내용']}"
                         + (f" [🔗 열기]({_rlk})" if _rlk else "")
                         + f"  \n  <span style='opacity:.65;font-size:.85em'>"
-                          f"— {_rq['요청자']} 요청</span>",
+                          f"— {_rq['요청자']} 요청"
+                        + (f" · 내 회신: {_rrp}" if _rrp else "") + "</span>",
                         unsafe_allow_html=True)
-                    if _rc2.button("✓", key=f"req_done_{_rq['_row']}",
+                    # 💬 한 줄 회신 — 완료 말고 상황만 알릴 때(예: "8/5까지 드릴게요")
+                    _rkey = f"reply_open_{_rq['_row']}"
+                    if _rc2.button("💬", key=f"req_reply_{_rq['_row']}",
+                                   help="한 줄 회신 보내기"):
+                        st.session_state[_rkey] = not st.session_state.get(_rkey)
+                        st.rerun()
+                    if _rc3.button("✓", key=f"req_done_{_rq['_row']}",
                                    help="완료 처리(요청자에게 표시됨)"):
                         try:
                             request_store.complete_request(
@@ -963,6 +994,18 @@ def home_page():
                         except Exception as e:
                             st.error(f"완료 처리 실패: {e}")
                         st.rerun()
+                    if st.session_state.get(_rkey):
+                        _rt = st.text_input(
+                            "회신", value=_rrp, key=f"reply_txt_{_rq['_row']}",
+                            placeholder="예: 8/5까지 드릴게요",
+                            label_visibility="collapsed")
+                        if st.button("보내기", key=f"reply_send_{_rq['_row']}"):
+                            try:
+                                request_store.set_reply(_rq["요청ID"], _rt)
+                                st.session_state[_rkey] = False
+                            except Exception as e:
+                                st.error(f"회신 실패: {e}")
+                            st.rerun()
             # (요청 보내기 폼은 오른쪽 컬럼 '정보 미입력 일정' 아래에 있음 — 좌우 균형)
             # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
             # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
@@ -1053,11 +1096,15 @@ def home_page():
                         _mark = "✅" if _done else "⏳"
                         _sc1, _sc2 = st.columns([8, 1])
                         _slk = (_sq.get("링크", "") or "").strip()
+                        _srp = (_sq.get("회신", "") or "").strip()
+                        _sub = (f"완료 {_sq['완료일시']}" if _done else "")
+                        if _srp:
+                            _sub += (" · " if _sub else "") + f"💬 {_srp}"
                         _sc1.markdown(
                             f"- {_mark} {_sq['대상']}: {_sq['내용']}"
                             + (f" [🔗]({_slk})" if _slk else "")
                             + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
-                               f"완료 {_sq['완료일시']}</span>" if _done else ""),
+                               f"{_sub}</span>" if _sub else ""),
                             unsafe_allow_html=True)
                         if _sc2.button("🗑", key=f"req_del_{_sq['_row']}",
                                        help="이 요청 삭제"):
