@@ -642,7 +642,7 @@ def home_page():
 
     # 공통확인은 '업무보고 작성·취합' 탭, 회의록은 사이드바 메뉴로 접근 → 바로가기에선 제외
     shortcuts = [
-        ("🖥️", "발표화면", "🖥️ 발표화면"),
+        ("🖥️", "주간취합", "🖥️ 주간취합"),
         ("📝", "주간보고", "📝 업무보고 작성·취합"),
         ("🛒", "구매요청", "🛒 구매요청서"),
         ("📋", "문서협업", "📋 문서 협업"),
@@ -661,9 +661,9 @@ def home_page():
               for _e, _l, _key in _tiles]
     # 🎥 줌 회의 — 회의 진행 모드에 저장해 둔 팀 공용 링크로 바로 접속.
     #   링크가 저장돼 있을 때만 타일이 보인다(빈 링크 클릭 방지). 위치는 회의진행 옆.
-    _at = next((i for i, _it in enumerate(_items) if _it[1] == "발표화면"),
+    _at = next((i for i, _it in enumerate(_items) if _it[1] == "주간취합"),
                len(_items) - 1)
-    for _zn, _zu in reversed(zoom_links()):      # 발표화면 바로 뒤에 순서대로
+    for _zn, _zu in reversed(zoom_links()):      # 주간취합 바로 뒤에 순서대로
         _items.insert(_at + 1, (_ZOOM_SVG, _zn,
                                 html_escape(_zu, quote=True), "_blank"))
     _html = '<div class="dsbar">'
@@ -2504,7 +2504,7 @@ def _backup_section():
 
 def meeting_page():
     """주간 회의용 회의 진행 모드 — 전용 페이지(사이드바 홈 바로 밑)."""
-    st.header("🖥️ 발표화면")
+    st.header("🖥️ 주간취합")
     st.caption("주간 회의용 — 연구원별 실적/계획을 취합본 형식으로. 한 명씩 한 화면.")
     _wd = st.date_input(
         "조회 주차", key="meet_week",
@@ -3192,7 +3192,7 @@ def main():
       *{ scrollbar-color:#3d322a #1b1714; }
     </style>""", unsafe_allow_html=True)
 
-    mode_options = ["🏠 홈", "🖥️ 발표화면", "📝 업무보고 작성·취합",
+    mode_options = ["🏠 홈", "🖥️ 주간취합", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
                     "📚 과거 회의록 열람"]
@@ -3246,7 +3246,7 @@ def main():
         if mode not in mode_options:
             mode = "🏠 홈"
         # 카테고리별 정리 + 큰 글씨 버튼 네비게이션
-        _cats = [("", ["🏠 홈", "🖥️ 발표화면"]),
+        _cats = [("", ["🏠 홈", "🖥️ 주간취합"]),
                  ("업무", ["📝 업무보고 작성·취합", "🛒 구매요청서", "📋 문서 협업"]),
                  ("자료·장비", ["📁 자료실", "🔧 장비 사용현황",
                               "📍 실증 방문 일지", "📚 과거 회의록 열람"]),
@@ -3286,7 +3286,7 @@ def main():
 
     if mode == "🏠 홈":
         home_page()
-    elif mode == "🖥️ 발표화면":
+    elif mode == "🖥️ 주간취합":
         meeting_page()
     elif mode == "📝 업무보고 작성·취합":
         member_page()
