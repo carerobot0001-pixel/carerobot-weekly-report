@@ -479,20 +479,28 @@ def _todo_import_panel(uid, name, existing_rows):
             st.rerun()
 
 
-def _inline_plus(title, go, is_open, help_txt="추가"):
+def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     """제목 옆에 '사업단 일정 ＋'과 같은 작은 인라인 ＋를 렌더.
-    열림 여부에 따라 go=<name>_open/_close 를 명시(토글 아님 → 중복 처리에도 안전)."""
+    열림 여부에 따라 go=<name>_open/_close 를 명시(토글 아님 → 중복 처리에도 안전).
+    extra=(기호, go키, 툴팁)이면 ＋ 옆에 아이콘 하나를 더 붙인다(같은 줄 정렬 보장 —
+    st.columns로 붙이면 버튼이 제목과 어긋나 보임)."""
     uid = st.session_state.get("uid", "")
     tok = st.session_state.get("tok", "")
     cb = f"uid={quote(uid)}&tok={quote(tok)}"
     sym = "－" if is_open else "＋"
     act = "close" if is_open else "open"
+    _ex = ""
+    if extra:
+        _es, _eg, _eh = extra
+        _ex = (f"<a href='?{cb}&go={_eg}' target='_self' title='{_eh}' "
+               "style='text-decoration:none;color:#C4622D;font-size:1rem;"
+               f"line-height:1;opacity:.6;'>{_es}</a>")
     st.markdown(
         "<div style='display:flex;align-items:center;gap:9px;margin:2px 0 6px;'>"
         f"<span style='font-weight:700;color:#A8501A;font-size:1.05rem;'>{title}</span>"
         f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
         "style='text-decoration:none;color:#C4622D;font-size:1.4rem;"
-        f"line-height:1;font-weight:700;'>{sym}</a></div>",
+        f"line-height:1;font-weight:700;'>{sym}</a>{_ex}</div>",
         unsafe_allow_html=True)
 
 
@@ -541,13 +549,6 @@ def home_page():
       .st-key-me_widget div[data-baseweb="select"] div[value],
       .st-key-me_widget div[data-baseweb="select"] input{
         font-size:1.1rem; text-align:center; }
-      /* 할 일 머리글 옆 🔀 버튼: 테두리·배경 없이 작게(제목에 붙어 보이게) */
-      .st-key-todo_move_btn button, .st-key-per_move_btn button{
-        min-height:0; padding:0 0.3rem; border:none !important;
-        background:transparent !important; box-shadow:none;
-        font-size:0.95rem; line-height:1.4; opacity:.55; }
-      .st-key-todo_move_btn button:hover, .st-key-per_move_btn button:hover{
-        opacity:1; background:transparent !important; border:none !important; }
       /* 사업단 일정 제목 옆 ➕ 버튼: 테두리·배경 없는 주황 아이콘 */
       .st-key-home_cal_open_btn button{ min-height:0; padding:0 0.35rem;
         border:none !important; background:transparent !important; box-shadow:none;
@@ -796,13 +797,9 @@ def home_page():
             st.caption("✅ 급히 챙길 건 없습니다.")
 
         # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
+        # 제목('내 할 일 — 이름')은 없앰 — 업무/개인 머리글만으로 충분.
+        # ＋(추가)는 아래 '🏢 업무' 머리글 옆으로 이동.
         _todo_open = st.session_state.get("todo_add_open", False)
-        _todo_title = "🙋 내 할 일 (7일)" + (f" — {my}" if my else "")
-        if uid:
-            _inline_plus(_todo_title, "todo", _todo_open,
-                         "나만 보는 할 일 추가(캘린더에 안 들어감)")
-        else:
-            st.markdown(f"**{_todo_title}**")
         if not my:
             st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         else:
@@ -831,14 +828,15 @@ def home_page():
                 _mytodos, _myper = [], []
             # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
             _mv = st.session_state.get("todo_move_mode", False)
-            if todo_lines or _mytodos:
-                _wc1, _wc2, _ = st.columns([1.15, 1, 4])   # 제목 바로 옆에 붙게
-                _wc1.markdown("**🏢 업무**")
-                if _mytodos and _wc2.button(
-                        "🔀", key="todo_move_btn",
-                        help="개인 할 일로 옮기기 (누르면 각 항목에 🙋 버튼이 보임)"):
-                    st.session_state["todo_move_mode"] = not _mv
-                    st.rerun()
+            # 머리글 = 🏢 업무 ＋(추가) 🔀(옮기기). 한 HTML 줄이라 정렬이 어긋나지 않음.
+            _extra = (("🔁", "move_off", "옮기기 모드 끄기") if _mv else
+                      ("🔀", "move_on", "업무↔개인 옮기기")) if _mytodos or _myper \
+                else None
+            if uid:
+                _inline_plus("🏢 업무", "todo", _todo_open,
+                             "할 일 추가(나만 보임·캘린더에 안 들어감)", extra=_extra)
+            else:
+                st.markdown("**🏢 업무**")
             if todo_lines:
                 st.markdown("\n".join(f"- {t}" for t in todo_lines))
             for _p in _mytodos:
@@ -867,13 +865,8 @@ def home_page():
                     st.rerun()
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
-                _pc_h1, _pc_h2, _ = st.columns([1.15, 1, 4])
-                _pc_h1.markdown("**🙋 개인**")
-                # 업무 머리글이 없을 때(개인만 있을 때)도 옮기기 모드를 켤 수 있게
-                if not (todo_lines or _mytodos) and _pc_h2.button(
-                        "🔀", key="per_move_btn", help="업무 할 일로 되돌리기"):
-                    st.session_state["todo_move_mode"] = not _mv
-                    st.rerun()
+                # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
+                st.markdown("**🙋 개인**")
                 st.caption("개인 할 일은 주간보고에 들어가지 않습니다.")
                 for _p in _myper:
                     if _mv:
@@ -3167,6 +3160,9 @@ def main():
         elif _go == "cal":
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
+            st.session_state["main_menu"] = "🏠 홈"
+        elif _go in ("move_on", "move_off"):     # 할 일 업무↔개인 옮기기 모드
+            st.session_state["todo_move_mode"] = (_go == "move_on")
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in ("care_open", "care_close", "todo_open", "todo_close"):
             _nm, _act = _go.rsplit("_", 1)   # 명시적 열기/닫기(토글 아님)
