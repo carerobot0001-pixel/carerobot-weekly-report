@@ -69,6 +69,21 @@ def _brand(where="home"):
     """DS 주황 배지 + 'dolbom studio' 브랜드 블록 HTML."""
     if where == "sidebar":
         name_c, sub_c, size, badge = "#F3E9DC", "#B9A892", 19, 34
+        # 사이드바는 바로 아래에 다크모드 토글이 붙어서 여백을 넉넉히(겹침 방지)
+        return (
+            f'<div style="display:flex;align-items:center;gap:12px;'
+            f'margin:2px 0 16px;">'
+            f'<div style="flex:0 0 auto;width:{badge}px;height:{badge}px;'
+            f'border-radius:{int(badge*0.28)}px;'
+            f'background:#C4622D;color:#fff;font-weight:800;font-size:{int(badge*0.44)}px;'
+            f'display:flex;align-items:center;justify-content:center;letter-spacing:1px;'
+            f'font-family:Arial,sans-serif;box-shadow:0 2px 7px rgba(196,98,45,.35);">DS</div>'
+            f'<div style="line-height:1.15;">'
+            f'<div style="font-size:{size}px;font-weight:800;color:{name_c};">'
+            f'dolbom studio</div>'
+            f'<div style="font-size:{max(10,int(size*0.5))}px;color:{sub_c};">'
+            f'돌봄로봇 사업단 · 업무·협업 공간</div>'
+            f'</div></div>')
     else:  # home / login
         name_c, sub_c, size, badge = "#C4622D", "#8A7A6B", (34 if where == "login" else 26), (54 if where == "login" else 46)
     return (
@@ -486,16 +501,18 @@ def home_page():
         unsafe_allow_html=True)
 
     # 홈 전용 컴팩트 스타일(폰트·여백 축소). 다른 페이지엔 주입 안 됨(홈 렌더 시에만).
+    # ⚠ 본문(stMain)으로 한정 — 전역으로 두면 사이드바 간격까지 줄어 브랜드와
+    #    다크모드 토글이 겹친다.
     st.markdown("""<style>
-      [data-testid="stMetricValue"]{font-size:1.45rem;}
-      [data-testid="stMetricLabel"] p{font-size:0.7rem;}
-      div[data-testid="stVerticalBlock"]{gap:0.5rem;}
-      div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
-      div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
-      div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
-      div[data-testid="stAlert"] a{font-size:0.85rem;}
-      hr{margin:0.45rem 0;}
-      div.stButton>button{padding:0.25rem 0.5rem;}
+      section[data-testid="stMain"] [data-testid="stMetricValue"]{font-size:1.45rem;}
+      section[data-testid="stMain"] [data-testid="stMetricLabel"] p{font-size:0.7rem;}
+      section[data-testid="stMain"] div[data-testid="stVerticalBlock"]{gap:0.5rem;}
+      section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
+      section[data-testid="stMain"] div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
+      section[data-testid="stMain"] div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
+      section[data-testid="stMain"] div[data-testid="stAlert"] a{font-size:0.85rem;}
+      section[data-testid="stMain"] hr{margin:0.45rem 0;}
+      section[data-testid="stMain"] div.stButton>button{padding:0.25rem 0.5rem;}
       /* ⚡ 바로가기 — 순수 HTML 타일 그리드(네이버식): 이모지 크게·박스 작게·라벨 밑·간격 촘촘 */
       .dsbar{ display:flex; flex-wrap:wrap; gap:9px 18px; align-items:flex-start;
               justify-content:center; margin-bottom:12px; }
