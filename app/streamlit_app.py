@@ -2950,6 +2950,16 @@ def main():
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
         background:#C4622D; color:#fff !important; font-weight:700; }
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{ background:#A8501A; }
+      /* 테마 전환 버튼: 메뉴와 구분되게 테두리 있는 작은 칩 */
+      section[data-testid="stSidebar"] .st-key-theme_btn button{
+        background:#3a2c22 !important; border:1px solid #6a5544 !important;
+        font-size:0.85rem !important; font-weight:600; padding:5px 12px !important;
+        text-align:center !important; justify-content:center !important;
+        margin:0 0 10px !important; }
+      section[data-testid="stSidebar"] .st-key-theme_btn button:hover{
+        background:#4a3a2c !important; border-color:#C4622D !important; }
+      section[data-testid="stSidebar"] .st-key-theme_btn button p{
+        text-align:center !important; }
       /* 카테고리 소제목 */
       section[data-testid="stSidebar"] .navcat{
         color:#b79370 !important; font-size:0.7rem; font-weight:700;
@@ -3054,15 +3064,16 @@ def main():
 
     with st.sidebar:
         st.markdown(_brand("sidebar"), unsafe_allow_html=True)
-        # 🌙 다크모드 토글 — 선택은 계정별로 저장(다음 접속에도 유지)
-        _tg = getattr(st, "toggle", st.checkbox)
-        _dk = _tg("🌙 다크모드", value=st.session_state.get("dark", False),
-                  key="dark_toggle")
-        if bool(_dk) != bool(st.session_state.get("dark")):
-            st.session_state["dark"] = bool(_dk)
+        # 🌙/☀️ 테마 전환 — 버튼(토글 스위치는 어두운 사이드바에서 켜짐/꺼짐이
+        # 구분되지 않아 글씨로 상태가 보이는 버튼으로 대체). 선택은 계정별 저장.
+        _is_dark = bool(st.session_state.get("dark"))
+        if st.button("☀️ 라이트 모드로" if _is_dark else "🌙 다크 모드로",
+                     key="theme_btn", use_container_width=True,
+                     help="화면 밝기 테마를 바꿉니다(다음 접속에도 유지)"):
+            st.session_state["dark"] = not _is_dark
             try:
                 todo_store.set_sync(st.session_state.get("uid", ""), "theme",
-                                    "dark" if _dk else "light")
+                                    "light" if _is_dark else "dark")
             except Exception:
                 pass
             st.rerun()
