@@ -619,12 +619,16 @@ def home_page():
     # 이 홈 CSS가 전역 다크 CSS보다 나중에 주입돼 덮어써지지 않으므로 여기서 처리.
     if st.session_state.get("dark"):
         # 크림색 타일(#FCF3EA)이 어두운 배경에서 8개나 빛나 눈이 부심 → 어둡게
+        # 어두운 배경에선 '밝은 사각형 10개 + 채도 높은 이모지'가 가장 눈부시다.
+        # → 타일 면을 없애고(테두리만) 이모지 채도·밝기를 낮춘다.
         st.markdown("""<style>
-          .dsbar .dstile .lb{ color:#e8e6e1 !important; }
-          .dsbar .dstile .ic{ background:#30302e !important;
-            border-color:#43433f !important; }
-          .dsbar .dstile:hover .ic{ background:#3a3a37 !important;
-            border-color:#d97757 !important; }
+          .dsbar .dstile .lb{ color:#b0aea8 !important; }
+          .dsbar .dstile .ic{ background:transparent !important;
+            border-color:#32312e !important;
+            filter:saturate(.62) brightness(.88); }
+          .dsbar .dstile:hover .ic{ background:#1c1b1a !important;
+            border-color:#6b6862 !important; filter:none; }
+          .dsbar .dstile:hover .lb{ color:#f0efeb !important; }
         </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -3295,9 +3299,9 @@ def main():
     if st.session_state.get("dark"):
         st.markdown("""<style>
       /* 팔레트 — 톤 조정은 여기 5줄만 바꾸면 전체 반영 */
-      :root{ --ds-bg:#1f1e1d; --ds-surface:#292827; --ds-surface2:#33322f;
-             --ds-border:#3c3b38; --ds-text:#f0efeb; --ds-text2:#b0aea8;
-             --ds-accent:#c2673f; }
+      :root{ --ds-bg:#141413; --ds-surface:#1c1b1a; --ds-surface2:#262523;
+             --ds-border:#32312e; --ds-text:#e9e7e2; --ds-text2:#a3a099;
+             --ds-accent:#b85f39; }
       /* 다크모드 — Claude 데스크탑 방식: 중성 회색 배경 + 흰 글씨.
          눈부심의 원인은 글씨 밝기가 아니라 '채도 높은 주황이 곳곳에 있는 것'이라,
          주황은 포인트(버튼·아이콘)에만 남기고 글씨·제목은 흰색으로 통일한다. */
@@ -3457,7 +3461,7 @@ def main():
         background:var(--ds-accent) !important; border-color:var(--ds-accent) !important; }
       /* 사이드바도 같은 계열로(갈색 → 중성) */
       /* 사이드바는 본문보다 한 톤 더 어둡게 — 면이 구분돼야 메뉴가 떠 보임 */
-      section[data-testid="stSidebar"]{ background:#191918 !important; }
+      section[data-testid="stSidebar"]{ background:#0f0f0e !important; }
       section[data-testid="stSidebar"] *{ color:#eceae5 !important; }
       section[data-testid="stSidebar"] .navcat{ color:#96938c !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{
