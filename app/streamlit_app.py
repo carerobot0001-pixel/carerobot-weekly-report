@@ -1042,6 +1042,10 @@ def home_page():
                 if st.session_state.get("mail_import_open"):
                     _mail_import_panel(uid, _mytodos)
     with right:
+        # 왼쪽은 글자 제목으로 시작하지만 오른쪽은 '테두리 상자'로 시작해서
+        # 바로 위 구분선에 걸쳐 보인다 → 상자만 살짝 내려준다.
+        st.markdown("<div style='height:9px;margin:0;'></div>",
+                    unsafe_allow_html=True)
         if common_sched_items:
             with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
                              expanded=False):
