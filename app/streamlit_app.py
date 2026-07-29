@@ -3,6 +3,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from datetime import datetime, timedelta, time
 from urllib.parse import quote
+from html import escape as html_escape
 import json
 import base64
 import re
@@ -63,6 +64,16 @@ _ICON = Path(__file__).resolve().parent / "assets" / "dolbom_favicon.png"
 st.set_page_config(page_title="dolbom studio",
                    page_icon=str(_ICON) if _ICON.exists() else "🧡",
                    layout="wide", initial_sidebar_state="collapsed")
+
+
+# 줌 바로가기 타일 아이콘(파란 라운드 사각 + 흰 카메라) — 외부 이미지 로드 없이 인라인.
+_ZOOM_SVG = (
+    '<svg viewBox="0 0 48 48" width="30" height="30" aria-hidden="true">'
+    '<rect x="2" y="2" width="44" height="44" rx="13" fill="#2D8CFF"/>'
+    '<path d="M12 17.5h14.5c1.7 0 3 1.3 3 3v10c0 1.7-1.3 3-3 3H12c-1.7 0-3-1.3-3-3'
+    'v-10c0-1.7 1.3-3 3-3z" fill="#fff"/>'
+    '<path d="M31.5 23.6l6.2-4.3c.8-.6 1.8 0 1.8.9v10.6c0 .9-1 1.5-1.8.9l-6.2-4.3z"'
+    ' fill="#fff"/></svg>')
 
 
 def _brand(where="home"):
@@ -521,6 +532,7 @@ def home_page():
         width:52px; height:44px; margin:0 auto; font-size:1.95rem; line-height:1;
         border:1px solid #E3C6A6; border-radius:13px; background:#FCF3EA; }
       .dsbar .dstile:hover .ic{ border-color:#C4622D; background:#FCEEE1; }
+      .dsbar .dstile .ic svg{ display:block; width:30px; height:30px; }
       .dsbar .dstile .lb{ display:block; margin-top:5px; font-size:0.72rem;
         color:#8A5A2B !important; line-height:1.15; }
       /* '나는 누구' 선택박스: 타일+라벨 높이(62px)·이름 세로/가로 중앙·적당한 크기 */
@@ -594,6 +606,18 @@ def home_page():
         _html += (f'<a class="dstile" href="{_href}" target="_self">'
                   f'<span class="ic">{_e}</span>'
                   f'<span class="lb">{_l}</span></a>')
+    # 🎥 줌 회의 — 회의 진행 모드에 저장해 둔 팀 공용 링크로 바로 접속(새 탭).
+    #   링크가 저장돼 있을 때만 타일이 보인다(빈 링크 클릭 방지).
+    try:
+        _zoom_url = todo_store.get_sync("_team", "zoom")
+    except Exception:
+        _zoom_url = ""
+    if _zoom_url:
+        _html += (
+            f'<a class="dstile" href="{html_escape(_zoom_url, quote=True)}" '
+            f'target="_blank" rel="noopener">'
+            f'<span class="ic">{_ZOOM_SVG}</span>'
+            f'<span class="lb">줌 회의</span></a>')
     _html += "</div>"
     st.markdown(_html, unsafe_allow_html=True)
 
@@ -788,9 +812,17 @@ def home_page():
             if todo_lines:
                 st.markdown("\n".join(f"- {t}" for t in todo_lines))
             for _p in _mytodos:
-                _pc1, _pc2 = st.columns([8, 1])
+                _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
                 _pc1.markdown(f"- 📝 {_p['내용']}")
-                if _pc2.button("✓", key=f"todo_done_{_p['_row']}",
+                if _pc2.button("🙋", key=f"todo_toper_{_p['_row']}",
+                               help="개인 할 일로 옮기기(주간보고에 안 들어감)"):
+                    try:
+                        todo_store.set_kind(uid, _p["_row"], _p["내용"],
+                                            todo_store.KIND_PERSONAL)
+                    except Exception as e:
+                        st.error(f"이동 실패: {e}")
+                    st.rerun()
+                if _pc3.button("✓", key=f"todo_done_{_p['_row']}",
                                help="완료 — 업무보고 '업무실적'에 넣을 수 있게 기록됨"):
                     try:
                         # 업무 할 일은 완료 기록을 남김(보고 작성 때 실적으로 불러오기)
@@ -801,11 +833,20 @@ def home_page():
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
                 st.markdown("**🙋 개인**")
+                st.caption("개인 할 일은 주간보고에 들어가지 않습니다.")
                 for _p in _myper:
-                    _pc1, _pc2 = st.columns([8, 1])
+                    _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
                     _pc1.markdown(f"- 🏠 {_p['내용']}")
-                    if _pc2.button("✓", key=f"per_done_{_p['_row']}",
-                                   help="완료(삭제)"):
+                    if _pc2.button("🏢", key=f"per_towork_{_p['_row']}",
+                                   help="업무 할 일로 되돌리기"):
+                        try:
+                            todo_store.set_kind(uid, _p["_row"], _p["내용"],
+                                                todo_store.KIND_TODO)
+                        except Exception as e:
+                            st.error(f"이동 실패: {e}")
+                        st.rerun()
+                    if _pc3.button("✓", key=f"per_done_{_p['_row']}",
+                                   help="완료(삭제) — 보고에 기록되지 않음"):
                         try:
                             todo_store.delete_todo(uid, _p["_row"], _p["내용"])
                         except Exception as e:
@@ -2701,6 +2742,24 @@ def _report_collect():
     else:
         st.success("🎉 전원 제출 완료 — 취합본 생성/발송 가능합니다 (담당: 정지수 연구원)")
 
+    # ⚠️ 취합본을 만든 뒤에 보고를 고친 사람 표시 — 옛 파일을 회의에 띄우지 않도록.
+    #   제출시간·생성시각 모두 'YYYY-MM-DD HH:MM' 이라 문자열 비교로 시간순 판정 가능.
+    try:
+        _exported_at = todo_store.get_sync("_team", f"export_{week}")
+    except Exception:
+        _exported_at = ""
+    if _exported_at:
+        _late = [s["name"] for s in status
+                 if (s["submitted_at"] or "") > _exported_at]
+        if _late:
+            st.warning(
+                f"⚠️ **취합본 생성({_exported_at}) 후 수정한 사람: "
+                f"{', '.join(_late)}** — 아래에서 다시 생성하세요. "
+                "(받아둔 파일에는 이 수정이 빠져 있습니다)")
+        else:
+            st.caption(f"🗂️ 이번 주차 취합본 마지막 생성: {_exported_at} — "
+                       "이후 수정 없음(최신)")
+
     with st.expander("🔍 제출 내용 미리보기"):
         data = load_week(week)
         for name in MEMBER_NAMES:
@@ -2815,6 +2874,14 @@ def _report_collect():
                 mime="application/octet-stream",
                 use_container_width=True,
             )
+            # 생성 시각 기록(팀 공용) — 이후 누가 보고를 고치면 '취합 후 수정'으로
+            # 제출현황에 표시돼, 옛 파일을 회의에 띄우는 일을 막는다.
+            try:
+                todo_store.set_sync(
+                    "_team", f"export_{week}",
+                    datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
+            except Exception:
+                pass
             st.success("생성 완료. 위 버튼으로 다운로드하세요.")
         except Exception as e:
             st.error(f"생성 실패: {e}")

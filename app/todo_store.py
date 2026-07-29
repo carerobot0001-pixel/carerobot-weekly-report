@@ -148,6 +148,23 @@ def complete_todo(uid, row, text):
     _rows.clear()
 
 
+def set_kind(uid, row, text, kind):
+    """할 일의 구분 변경(업무 ↔ 개인). 행밀림 방지로 (아이디+내용) 재확인 후 수정.
+    개인으로 옮긴 항목은 주간보고에 안 들어간다(보고는 KIND_TODO만 읽음)."""
+    uid = (uid or "").strip()
+    text = (text or "").strip()
+    if not uid or not row or kind not in (KIND_TODO, KIND_PERSONAL, KIND_CARE):
+        return
+    ws = _ws()
+    vals = ws.get_all_values()
+    if not (1 <= row - 1 < len(vals)):
+        return
+    r = vals[row - 1]
+    if r and r[0].strip() == uid and (len(r) < 2 or r[1].strip() == text):
+        ws.update_cell(row, TODO_HEADER.index("구분") + 1, kind)
+        _rows.clear()
+
+
 def completed_todos(uid, since=None):
     """uid의 완료 기록 목록. since('YYYY-MM-DD') 지정 시 그 날짜 이후 완료분만.
     화면엔 안 뜨는 항목(list_todos는 KIND_DONE을 걸러냄) — 업무보고 작성용."""
