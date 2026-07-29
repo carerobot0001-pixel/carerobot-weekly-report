@@ -1068,13 +1068,20 @@ def home_page():
         #   (받은 요청은 왼쪽 '내 할 일'에 — 내가 할 일이므로. 여기엔 보내는 쪽만)
         if my:
             with st.expander("📨 팀원에게 요청하기", expanded=False):
-                _others = [n for n in MEMBER_NAMES if n != my]
+                # 고르는 명단엔 간부(과장·연구관·연구사)도 포함, 없는 사람은 직접 입력
+                _others = [n for n in USER_NAMES if n != my]
+                _researchers = [n for n in MEMBER_NAMES if n != my]
                 with st.form("req_add_form", clear_on_submit=True):
                     # 여러 명 선택 가능 — 사람마다 따로 완료·회신이 오간다
                     _rtargets = st.multiselect(
                         "요청 대상 (여러 명 선택 가능)", _others, key="req_target",
                         placeholder="이름을 고르세요")
-                    _rall = st.checkbox("전원에게 보내기", key="req_all")
+                    _rall = st.checkbox("연구원 전체에게 보내기", key="req_all",
+                                        help=f"연구원 {len(_researchers)}명(나 제외)")
+                    _rmanual = st.text_input(
+                        "직접 입력 (선택)", key="req_manual",
+                        placeholder="명단에 없는 사람 · 여러 명은 쉼표로",
+                        help="예: 홍길동, 김철수")
                     _rtext = st.text_input(
                         "요청 내용", key="req_text",
                         placeholder="예: 센서 데이터 공유해주세요")
@@ -1083,11 +1090,19 @@ def home_page():
                         placeholder="예: 구글문서·시트 주소 (문서 작성 요청 시)",
                         help="여러 명이 나눠 쓰는 문서는 '📋 문서 협업'을 쓰세요.")
                     if st.form_submit_button("보내기"):
-                        _tg = _others if _rall else _rtargets
+                        # 연구원전체 + 고른 사람 + 직접 입력 → 중복 제거(순서 유지)
+                        _tg, _seen = [], set()
+                        for _n in ((_researchers if _rall else []) + _rtargets
+                                   + [x.strip() for x in
+                                      (_rmanual or "").replace("·", ",").split(",")]):
+                            _n = (_n or "").strip()
+                            if _n and _n != my and _n not in _seen:
+                                _seen.add(_n)
+                                _tg.append(_n)
                         if not _rtext.strip():
                             st.warning("요청 내용을 적어주세요.")
                         elif not _tg:
-                            st.warning("받을 사람을 고르거나 '전원에게 보내기'를 켜세요.")
+                            st.warning("받을 사람을 고르거나 직접 입력해 주세요.")
                         else:
                             try:
                                 request_store.add_requests(my, _tg, _rtext, _rlink)
