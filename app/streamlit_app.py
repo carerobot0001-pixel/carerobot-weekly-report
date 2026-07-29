@@ -499,7 +499,7 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
         _ex = (f"<a href='?{cb}&go={_eg}' target='_self' title='{_eh}' "
                f"style='{_box}font-size:0.95rem;opacity:.6;'>{_es}</a>")
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:0;margin:0 0 2px;'>"
+        "<div style='display:flex;align-items:center;gap:0;margin:0 0 8px;'>"
         "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;"
         f"line-height:1.5;margin-right:2px;'>{title}</span>"
         f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
