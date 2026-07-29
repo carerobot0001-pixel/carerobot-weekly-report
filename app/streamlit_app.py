@@ -638,7 +638,7 @@ def home_page():
     if _zoom_url:
         _at = next((i for i, _it in enumerate(_items) if _it[1] == "발표화면"),
                    len(_items) - 1)
-        _items.insert(_at + 1, (_ZOOM_SVG, "줌 접속",
+        _items.insert(_at + 1, (_ZOOM_SVG, "주간회의 줌",
                                 html_escape(_zoom_url, quote=True), "_blank"))
     _html = '<div class="dsbar">'
     for _ic, _l, _href, _tgt in _items:
