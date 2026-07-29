@@ -3303,6 +3303,17 @@ def main():
       [data-testid="stAlert"] *{ color:#f0efeb !important; }
       [data-testid="stExpander"], [data-testid="stExpander"] details{
         background:#2d2d2b !important; border-color:#414140 !important; }
+      /* 펼침 헤더(summary) — 기본/hover/focus 가 밝은 값으로 남아 흰 띠로 보였음 */
+      [data-testid="stExpander"] summary,
+      [data-testid="stExpander"] details[open] > summary,
+      [data-testid="stExpander"] summary:hover,
+      [data-testid="stExpander"] summary:focus,
+      [data-testid="stExpander"] summary:active{
+        background:#2d2d2b !important; color:#f0efeb !important; }
+      [data-testid="stExpander"] summary:hover{ background:#3a3a37 !important; }
+      [data-testid="stExpander"] summary *,
+      [data-testid="stExpander"] summary svg{
+        color:#f0efeb !important; fill:#f0efeb !important; }
       div[data-testid="stVerticalBlockBorderWrapper"]{
         background:#2d2d2b !important; border-color:#414140 !important; }
       /* 입력 요소 */
