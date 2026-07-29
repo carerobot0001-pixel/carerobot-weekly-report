@@ -499,9 +499,9 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
         _ex = (f"<a href='?{cb}&go={_eg}' target='_self' title='{_eh}' "
                f"style='{_box}font-size:0.95rem;opacity:.6;'>{_es}</a>")
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:4px;margin:0 0 2px;'>"
+        "<div style='display:flex;align-items:center;gap:0;margin:0 0 2px;'>"
         "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;"
-        f"line-height:1.5;margin-right:5px;'>{title}</span>"
+        f"line-height:1.5;margin-right:2px;'>{title}</span>"
         f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
         f"style='{_box}font-size:1.35rem;font-weight:700;'>{sym}</a>{_ex}</div>",
         unsafe_allow_html=True)
@@ -529,13 +529,21 @@ def home_page():
       section[data-testid="stMain"] [data-testid="stMetricValue"]{font-size:1.45rem;}
       section[data-testid="stMain"] [data-testid="stMetricLabel"] p{font-size:0.7rem;}
       section[data-testid="stMain"] div[data-testid="stVerticalBlock"]{gap:0.3rem;}
-      /* 목록·안내문 여백 축소 — 홈에 항목이 많아 촘촘해야 한눈에 들어옴 */
+      /* 목록·안내문 여백 — 너무 붙지도, 벌어지지도 않게 */
       section[data-testid="stMain"] [data-testid="stMarkdownContainer"] ul{
         margin:0; padding-left:1.1rem; }
       section[data-testid="stMain"] [data-testid="stMarkdownContainer"] li{
-        margin:0 0 1px; }
+        margin:0 0 5px; }
       section[data-testid="stMain"] [data-testid="stCaptionContainer"]{
         margin:0 0 2px; }
+      /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·🗑): 기본 높이(38px)가 커서 줄간격이
+         벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤 */
+      [class*="st-key-todo_done_"] button, [class*="st-key-per_done_"] button,
+      [class*="st-key-care_done_"] button, [class*="st-key-req_done_"] button,
+      [class*="st-key-todo_toper_"] button, [class*="st-key-per_towork_"] button,
+      [class*="st-key-req_del_"] button{
+        min-height:0 !important; height:26px; padding:0 0.45rem !important;
+        line-height:1; }
       section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
