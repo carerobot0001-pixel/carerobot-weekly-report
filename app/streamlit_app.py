@@ -521,8 +521,12 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     act = "close" if is_open else "open"
     # 아이콘은 글리프마다 높이가 달라 그냥 나열하면 위아래로 어긋난다.
     # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
+    # 다크에선 제목이 진한 주황(#A8501A)이면 배경에 묻혀 안 보임 → 흰색으로
+    _dk = bool(st.session_state.get("dark"))
+    _tc = "#faf9f7" if _dk else "#A8501A"
+    _ic = "#d97757" if _dk else "#C4622D"
     _box = ("display:inline-flex;align-items:center;justify-content:center;"
-            "width:1.5em;height:1.5em;text-decoration:none;color:#C4622D;")
+            f"width:1.5em;height:1.5em;text-decoration:none;color:{_ic};")
     _ex = ""
     if extra:
         _es, _eg, _eh = extra
@@ -530,7 +534,7 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
                f"style='{_box}font-size:0.95rem;opacity:.6;'>{_es}</a>")
     st.markdown(
         "<div style='display:flex;align-items:center;gap:0;margin:0 0 8px;'>"
-        "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;"
+        f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
         f"line-height:1.5;margin-right:2px;'>{title}</span>"
         f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
         f"style='{_box}font-size:1.35rem;font-weight:700;'>{sym}</a>{_ex}</div>",
@@ -544,7 +548,7 @@ def home_page():
     week = this_wednesday()
     # 다크에선 글자색을 낮추고 그림자(번짐)를 없앰 — 어두운 배경에서 발광해 보임
     _dk = bool(st.session_state.get("dark"))
-    _ttl_c = "#b5744a" if _dk else "#C4622D"
+    _ttl_c = "#f0efeb" if _dk else "#C4622D"
     _ttl_sh = "none" if _dk else "0 2px 6px rgba(196,98,45,.20)"
     st.markdown(
         "<style>@import url('https://fonts.googleapis.com/css2?"
@@ -614,11 +618,11 @@ def home_page():
     if st.session_state.get("dark"):
         # 크림색 타일(#FCF3EA)이 어두운 배경에서 8개나 빛나 눈이 부심 → 어둡게
         st.markdown("""<style>
-          .dsbar .dstile .lb{ color:#c8ab8c !important; }
-          .dsbar .dstile .ic{ background:#2a231d !important;
-            border-color:#463930 !important; }
-          .dsbar .dstile:hover .ic{ background:#332a22 !important;
-            border-color:#8a5a35 !important; }
+          .dsbar .dstile .lb{ color:#e8e6e1 !important; }
+          .dsbar .dstile .ic{ background:#30302e !important;
+            border-color:#43433f !important; }
+          .dsbar .dstile:hover .ic{ background:#3a3a37 !important;
+            border-color:#d97757 !important; }
         </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -2657,10 +2661,10 @@ def meeting_page():
             # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
             # 다크모드면 표도 어두운 팔레트로(전체 다크). 밝을 땐 기존 색 그대로.
             _dark = bool(st.session_state.get("dark"))
-            _BD = "#4a3c31" if _dark else "#efe2d2"
-            _TXT = "#d5ccc1" if _dark else "#000"
-            _HDBG = "#2f2720" if _dark else "#fdf5ec"
-            _ADBG = "#222b3a" if _dark else "#ffffff"
+            _BD = "#43433f" if _dark else "#efe2d2"
+            _TXT = "#f0efeb" if _dark else "#000"
+            _HDBG = "#30302e" if _dark else "#fdf5ec"
+            _ADBG = "#2b3140" if _dark else "#ffffff"
             _ADFG = "#8ab4f8" if _dark else "#1a56db"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
                    "text-align:left;word-break:break-word;overflow-wrap:anywhere;"
@@ -2708,7 +2712,7 @@ def meeting_page():
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
-            _BARFG = "#f0e4d6" if _dark else "#000"
+            _BARFG = "#faf9f7" if _dark else "#000"
 
             def _barhtml(bg, txt, right=""):
                 if _dark:
@@ -3247,50 +3251,63 @@ def main():
             st.session_state["dark"] = False
     if st.session_state.get("dark"):
         st.markdown("""<style>
-      /* 다크모드 — 배경·글씨·카드·입력창 전환(사이드바는 원래 어두움) */
+      /* 다크모드 — Claude 데스크탑 방식: 중성 회색 배경 + 흰 글씨.
+         눈부심의 원인은 글씨 밝기가 아니라 '채도 높은 주황이 곳곳에 있는 것'이라,
+         주황은 포인트(버튼·아이콘)에만 남기고 글씨·제목은 흰색으로 통일한다. */
       .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"]{
-        background:#1b1714 !important; }
-      /* 눈부심 완화: 흰색에 가까운 본문·쨍한 주황 강조를 한 단계씩 낮춤 */
+        background:#262624 !important; }
       [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
-      p, li, span, label, .stCaption, [data-testid="stCaptionContainer"]{
-        color:#cfc6ba !important; }
-      h1,h2,h3,h4,h5,h6{ color:#c9906a !important; }
-      [data-testid="stMarkdownContainer"] strong{ color:#c9906a !important; }
-      a, a:visited{ color:#c9926a !important; }
-      /* 알림/카드/펼치기 */
-      [data-testid="stAlert"]{ background:#2a231d !important; border:1px solid #3d322a; }
-      [data-testid="stAlert"] *{ color:#cfc6ba !important; }
+      p, li, span, label{ color:#f0efeb !important; }
+      h1,h2,h3,h4,h5,h6,
+      [data-testid="stMarkdownContainer"] strong{ color:#faf9f7 !important; }
+      /* 보조 설명은 한 단계 낮춰 위계를 만든다(흐릿해서 안 보이면 안 됨) */
+      .stCaption, [data-testid="stCaptionContainer"],
+      [data-testid="stCaptionContainer"] *{ color:#b4b2ac !important; }
+      a, a:visited{ color:#e08a63 !important; }
+      /* 알림/카드/펼치기 — 배경보다 살짝 밝은 한 단계 위 면(surface) */
+      [data-testid="stAlert"]{ background:#30302e !important;
+        border:1px solid #414140 !important; }
+      [data-testid="stAlert"] *{ color:#f0efeb !important; }
       [data-testid="stExpander"], [data-testid="stExpander"] details{
-        background:#221c17 !important; border-color:#3d322a !important; }
+        background:#2d2d2b !important; border-color:#414140 !important; }
       div[data-testid="stVerticalBlockBorderWrapper"]{
-        background:#221c17 !important; border-color:#3d322a !important; }
+        background:#2d2d2b !important; border-color:#414140 !important; }
       /* 입력 요소 */
       input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
-        background:#2a231d !important; color:#cfc6ba !important;
-        border-color:#4a3c31 !important; }
+        background:#30302e !important; color:#f0efeb !important;
+        border-color:#4a4a48 !important; }
       [data-testid="stDataFrame"], [data-testid="stTable"]{
-        background:#221c17 !important; }
+        background:#2d2d2b !important; }
       /* 버튼 — !important 없으면 Streamlit 기본 흰 배경이 이겨서 흰 박스로 튐 */
-      div.stButton>button{ background:#2a231d !important; border-color:#4a3c31 !important;
-        color:#c9b49b !important; }
-      div.stButton>button:hover{ border-color:#E08A3C !important; color:#f0b483 !important; }
-      div.stButton>button[kind="primary"]{ background:#C4622D !important; color:#fff !important; }
-      hr{ border-color:#3d322a !important; }
-      /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 어둡게 */
+      div.stButton>button{ background:#30302e !important;
+        border-color:#4a4a48 !important; color:#e8e6e1 !important; }
+      div.stButton>button:hover{ border-color:#d97757 !important;
+        color:#f0efeb !important; }
+      div.stButton>button[kind="primary"]{ background:#c2673f !important;
+        border-color:#c2673f !important; color:#fff !important; }
+      hr{ border-color:#414140 !important; }
+      /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 */
       [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
-        background:#2a231d !important; border-color:#6a5544 !important; }
+        background:#30302e !important; border-color:#5a5a57 !important; }
       [data-testid="stCheckbox"] input:checked + div div[role="presentation"],
       [data-testid="stCheckbox"] [aria-checked="true"] div[role="presentation"]{
-        background:#C4622D !important; border-color:#C4622D !important; }
-      /* 카드(그 외 일정 등) 배경을 살짝 더 밝게 — 본문과 경계 뚜렷하게 */
-      div[data-testid="stVerticalBlockBorderWrapper"]{
-        background:#26201a !important; }
+        background:#c2673f !important; border-color:#c2673f !important; }
+      /* 사이드바도 같은 계열로(갈색 → 중성) */
+      section[data-testid="stSidebar"]{ background:#1f1f1e !important; }
+      section[data-testid="stSidebar"] *{ color:#eceae5 !important; }
+      section[data-testid="stSidebar"] .navcat{ color:#96938c !important; }
+      section[data-testid="stSidebar"] .stButton>button:hover{
+        background:#2f2f2d !important; }
+      section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+        background:#c2673f !important; color:#fff !important; }
+      section[data-testid="stSidebar"] .st-key-theme_btn button{
+        background:#2f2f2d !important; border-color:#4a4a48 !important; }
       /* 스크롤바도 다크 */
       ::-webkit-scrollbar{ width:12px; height:12px; }
-      ::-webkit-scrollbar-track{ background:#1b1714; }
-      ::-webkit-scrollbar-thumb{ background:#3d322a; border-radius:6px; }
-      ::-webkit-scrollbar-thumb:hover{ background:#4a3c31; }
-      *{ scrollbar-color:#3d322a #1b1714; }
+      ::-webkit-scrollbar-track{ background:#262624; }
+      ::-webkit-scrollbar-thumb{ background:#43433f; border-radius:6px; }
+      ::-webkit-scrollbar-thumb:hover{ background:#55554f; }
+      *{ scrollbar-color:#43433f #262624; }
     </style>""", unsafe_allow_html=True)
 
     mode_options = ["🏠 홈", "🖥️ 주간취합", "📝 업무보고 작성·취합",
