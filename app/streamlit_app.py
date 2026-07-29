@@ -523,7 +523,7 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
     # 다크에선 제목이 진한 주황(#A8501A)이면 배경에 묻혀 안 보임 → 흰색으로
     _dk = bool(st.session_state.get("dark"))
-    _tc = "#faf9f7" if _dk else "#A8501A"
+    _tc = "#e8e4dc" if _dk else "#A8501A"
     _ic = "#d97757" if _dk else "#C4622D"
     _box = ("display:inline-flex;align-items:center;justify-content:center;"
             f"width:1.5em;height:1.5em;text-decoration:none;color:{_ic};")
@@ -548,7 +548,7 @@ def home_page():
     week = this_wednesday()
     # 다크에선 글자색을 낮추고 그림자(번짐)를 없앰 — 어두운 배경에서 발광해 보임
     _dk = bool(st.session_state.get("dark"))
-    _ttl_c = "#f0efeb" if _dk else "#C4622D"
+    _ttl_c = "#ddd8cf" if _dk else "#C4622D"
     _ttl_sh = "none" if _dk else "0 2px 6px rgba(196,98,45,.20)"
     st.markdown(
         "<style>@import url('https://fonts.googleapis.com/css2?"
@@ -622,13 +622,13 @@ def home_page():
         # 어두운 배경에선 '밝은 사각형 10개 + 채도 높은 이모지'가 가장 눈부시다.
         # → 타일 면을 없애고(테두리만) 이모지 채도·밝기를 낮춘다.
         st.markdown("""<style>
-          .dsbar .dstile .lb{ color:#b0aea8 !important; }
+          .dsbar .dstile .lb{ color:#9e9b94 !important; }
           .dsbar .dstile .ic{ background:transparent !important;
-            border-color:#32312e !important;
+            border-color:#454541 !important;
             filter:saturate(.62) brightness(.88); }
-          .dsbar .dstile:hover .ic{ background:#1c1b1a !important;
-            border-color:#6b6862 !important; filter:none; }
-          .dsbar .dstile:hover .lb{ color:#f0efeb !important; }
+          .dsbar .dstile:hover .ic{ background:#323230 !important;
+            border-color:#7a7770 !important; filter:none; }
+          .dsbar .dstile:hover .lb{ color:#d9d5cd !important; }
         </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -2705,9 +2705,9 @@ def meeting_page():
             # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
             # 다크모드면 표도 어두운 팔레트로(전체 다크). 밝을 땐 기존 색 그대로.
             _dark = bool(st.session_state.get("dark"))
-            _BD = "#43433f" if _dark else "#efe2d2"
-            _TXT = "#f0efeb" if _dark else "#000"
-            _HDBG = "#30302e" if _dark else "#fdf5ec"
+            _BD = "#454541" if _dark else "#efe2d2"
+            _TXT = "#d9d5cd" if _dark else "#000"
+            _HDBG = "#323230" if _dark else "#fdf5ec"
             _ADBG = "#2b3140" if _dark else "#ffffff"
             _ADFG = "#8ab4f8" if _dark else "#1a56db"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
@@ -2756,7 +2756,7 @@ def meeting_page():
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
-            _BARFG = "#faf9f7" if _dark else "#000"
+            _BARFG = "#e8e4dc" if _dark else "#000"
 
             def _barhtml(bg, txt, right=""):
                 if _dark:
@@ -3299,8 +3299,11 @@ def main():
     if st.session_state.get("dark"):
         st.markdown("""<style>
       /* 팔레트 — 톤 조정은 여기 5줄만 바꾸면 전체 반영 */
-      :root{ --ds-bg:#141413; --ds-surface:#1c1b1a; --ds-surface2:#262523;
-             --ds-border:#32312e; --ds-text:#e9e7e2; --ds-text2:#a3a099;
+      /* ⚠ 검정 배경 + 흰 글씨(대비 15:1)는 '빛나는 옛날 화면'처럼 눈이 아프다.
+         종이(도화지) 같은 느낌은 '중간 어두운 회색 + 살짝 누그러진 따뜻한 흰색'
+         (대비 10:1 안팎)에서 나온다. 더 어둡게 = 더 편함이 아니다. */
+      :root{ --ds-bg:#2a2a28; --ds-surface:#323230; --ds-surface2:#3b3b38;
+             --ds-border:#454541; --ds-text:#d9d5cd; --ds-text2:#9e9b94;
              --ds-accent:#b85f39; }
       /* 다크모드 — Claude 데스크탑 방식: 중성 회색 배경 + 흰 글씨.
          눈부심의 원인은 글씨 밝기가 아니라 '채도 높은 주황이 곳곳에 있는 것'이라,
@@ -3315,33 +3318,33 @@ def main():
       [data-testid="stAppDeployButton"], [data-testid="stMainMenu"],
       [data-testid="stSidebarHeader"], [data-testid="stSidebarNavItems"],
       [data-testid="stSidebarCollapseButton"]{
-        background:var(--ds-bg) !important; color:#f0efeb !important; }
+        background:var(--ds-bg) !important; color:var(--ds-text) !important; }
       [data-testid="stSidebarHeader"]{ background:var(--ds-bg) !important; }
       [data-testid="stToolbarActions"] *, [data-testid="stActionButton"] *,
       [data-testid="stStatusWidget"] *, [data-testid="stMainMenu"] *{
-        background:transparent !important; color:#f0efeb !important; }
+        background:transparent !important; color:var(--ds-text) !important; }
       [data-testid="stSidebarCollapsedControl"] button,
       [data-testid="stExpandSidebarButton"] button,
       [data-testid="stBaseButton-headerNoPadding"],
       [data-testid="stBaseButton-header"]{
         background:var(--ds-surface) !important; border:1px solid var(--ds-border) !important;
-        color:#f0efeb !important; }
+        color:var(--ds-text) !important; }
       [data-testid="stSidebarCollapsedControl"] svg,
       [data-testid="stExpandSidebarButton"] svg,
       [data-testid="stHeader"] svg, [data-testid="stToolbar"] svg{
-        fill:#f0efeb !important; color:#f0efeb !important; }
+        fill:var(--ds-text) !important; color:var(--ds-text) !important; }
       [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
-      p, li, span, label{ color:#f0efeb !important; }
+      p, li, span, label{ color:var(--ds-text) !important; }
       h1,h2,h3,h4,h5,h6,
-      [data-testid="stMarkdownContainer"] strong{ color:#faf9f7 !important; }
+      [data-testid="stMarkdownContainer"] strong{ color:#e8e4dc !important; }
       /* 보조 설명은 한 단계 낮춰 위계를 만든다(흐릿해서 안 보이면 안 됨) */
       .stCaption, [data-testid="stCaptionContainer"],
-      [data-testid="stCaptionContainer"] *{ color:#b4b2ac !important; }
+      [data-testid="stCaptionContainer"] *{ color:var(--ds-text2) !important; }
       a, a:visited{ color:#e08a63 !important; }
       /* 알림/카드/펼치기 — 배경보다 살짝 밝은 한 단계 위 면(surface) */
       [data-testid="stAlert"]{ background:var(--ds-surface) !important;
         border:1px solid var(--ds-border) !important; }
-      [data-testid="stAlert"] *{ color:#f0efeb !important; }
+      [data-testid="stAlert"] *{ color:var(--ds-text) !important; }
       [data-testid="stExpander"], [data-testid="stExpander"] details{
         background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       /* 펼침 헤더(summary) — 기본/hover/focus 가 밝은 값으로 남아 흰 띠로 보였음 */
@@ -3350,61 +3353,61 @@ def main():
       [data-testid="stExpander"] summary:hover,
       [data-testid="stExpander"] summary:focus,
       [data-testid="stExpander"] summary:active{
-        background:var(--ds-surface) !important; color:#f0efeb !important; }
+        background:var(--ds-surface) !important; color:var(--ds-text) !important; }
       [data-testid="stExpander"] summary:hover{ background:var(--ds-surface2) !important; }
       [data-testid="stExpander"] summary *,
       [data-testid="stExpander"] summary svg{
-        color:#f0efeb !important; fill:#f0efeb !important; }
+        color:var(--ds-text) !important; fill:var(--ds-text) !important; }
       div[data-testid="stVerticalBlockBorderWrapper"]{
         background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       /* 입력 요소 */
       input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
-        background:var(--ds-surface) !important; color:#f0efeb !important;
+        background:var(--ds-surface) !important; color:var(--ds-text) !important;
         border-color:var(--ds-border) !important; }
       /* 입력칸 안내문구(placeholder) — 배경이 어두워지며 거의 안 보이게 됨.
          브라우저가 기본 opacity를 걸어둬서 opacity:1 도 같이 줘야 한다. */
       input::placeholder, textarea::placeholder,
       input::-webkit-input-placeholder, textarea::-webkit-input-placeholder{
-        color:#8f8c85 !important; opacity:1 !important; }
+        color:#8a8780 !important; opacity:1 !important; }
       [data-baseweb="select"] [class*="placeholder"],
       [data-baseweb="select"] [class*="Placeholder"]{
-        color:#8f8c85 !important; }
+        color:#8a8780 !important; }
       /* 표(st.dataframe / st.data_editor) — 캔버스로 그려서 CSS 변수로만 바뀜 */
       [data-testid="stDataFrame"], [data-testid="stTable"],
       [data-testid="stDataFrameResizable"]{
         background:var(--ds-surface) !important;
-        --gdg-bg-cell:var(--ds-surface); --gdg-bg-cell-medium:#333331;
+        --gdg-bg-cell:var(--ds-surface); --gdg-bg-cell-medium:var(--ds-surface2);
         --gdg-bg-header:var(--ds-surface2); --gdg-bg-header-hovered:var(--ds-surface2);
         --gdg-bg-header-has-focus:var(--ds-surface2);
-        --gdg-text-dark:#f0efeb; --gdg-text-medium:#d5d3cd;
-        --gdg-text-light:#a5a29c; --gdg-text-header:#f0efeb;
+        --gdg-text-dark:var(--ds-text); --gdg-text-medium:var(--ds-text);
+        --gdg-text-light:var(--ds-text2); --gdg-text-header:var(--ds-text);
         --gdg-border-color:var(--ds-border); --gdg-horizontal-border-color:var(--ds-border);
         --gdg-accent-color:var(--ds-accent); --gdg-accent-light:#3a322c;
         --gdg-bg-bubble:var(--ds-surface2); --gdg-bg-search-result:#4a3a2c; }
       [data-testid="stTable"] th, [data-testid="stTable"] td{
-        background:var(--ds-surface) !important; color:#f0efeb !important;
+        background:var(--ds-surface) !important; color:var(--ds-text) !important;
         border-color:var(--ds-border) !important; }
       /* 탭(주간취합·업무보고 등) */
       [data-baseweb="tab-list"]{ background:transparent !important;
         border-bottom-color:var(--ds-border) !important; }
       [data-baseweb="tab"]{ background:transparent !important;
-        color:#b4b2ac !important; }
-      [data-baseweb="tab"][aria-selected="true"]{ color:#f0efeb !important; }
+        color:var(--ds-text2) !important; }
+      [data-baseweb="tab"][aria-selected="true"]{ color:var(--ds-text) !important; }
       [data-baseweb="tab-highlight"]{ background:var(--ds-accent) !important; }
       /* 파일 업로더(문서 협업) — 기본 드롭존이 흰색 */
       [data-testid="stFileUploader"] section,
       [data-testid="stFileUploaderDropzone"]{
         background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
-      [data-testid="stFileUploader"] *{ color:#f0efeb !important; }
+      [data-testid="stFileUploader"] *{ color:var(--ds-text) !important; }
       /* 지표·토스트·라디오 */
       [data-testid="stMetric"]{ background:transparent !important; }
       [data-testid="stMetricValue"], [data-testid="stMetricLabel"] *{
-        color:#f0efeb !important; }
+        color:var(--ds-text) !important; }
       [data-testid="stToast"]{ background:var(--ds-surface2) !important;
-        color:#f0efeb !important; border:1px solid var(--ds-border) !important; }
-      [data-testid="stToast"] *{ color:#f0efeb !important; }
+        color:var(--ds-text) !important; border:1px solid var(--ds-border) !important; }
+      [data-testid="stToast"] *{ color:var(--ds-text) !important; }
       [data-testid="stDialog"] > div, [role="dialog"]{
-        background:var(--ds-surface) !important; color:#f0efeb !important; }
+        background:var(--ds-surface) !important; color:var(--ds-text) !important; }
       /* 버튼 — 폼 안의 버튼은 stButton이 아니라 stFormSubmitButton이라 좁게 잡으면
          '보내기'만 흰 박스로 남는다. 다운로드·링크 버튼까지 한 번에 잡는다. */
       div.stButton>button, div[data-testid="stButton"] button,
@@ -3412,7 +3415,7 @@ def main():
       div[data-testid="stDownloadButton"] button,
       div[data-testid="stLinkButton"] a, button[data-testid^="stBaseButton"]{
         background:var(--ds-surface) !important; border-color:var(--ds-border) !important;
-        color:#f0efeb !important; }
+        color:var(--ds-text) !important; }
       div.stButton>button:hover, div[data-testid="stFormSubmitButton"] button:hover,
       div[data-testid="stDownloadButton"] button:hover,
       div[data-testid="stLinkButton"] a:hover{
@@ -3425,7 +3428,7 @@ def main():
         color:#fff !important; }
       /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
       [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button{
-        color:#f0efeb !important; font-size:1rem !important; }
+        color:var(--ds-text) !important; font-size:1rem !important; }
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
       hr{ border-color:var(--ds-border) !important; }
@@ -3437,7 +3440,7 @@ def main():
       [data-baseweb="datepicker"], [data-baseweb="datepicker"] *,
       [data-baseweb="tooltip"], [data-baseweb="tooltip"] *,
       [data-baseweb="menu"], [data-baseweb="menu"] *{
-        background-color:var(--ds-surface) !important; color:#f0efeb !important;
+        background-color:var(--ds-surface) !important; color:var(--ds-text) !important;
         border-color:var(--ds-border) !important; }
       /* 선택된 날짜/항목은 주황으로 되살림(위 일괄 규칙에 묻히지 않게) */
       [data-baseweb="calendar"] [aria-selected="true"],
@@ -3450,39 +3453,39 @@ def main():
       /* 이번 달이 아닌 날짜·비활성 항목은 흐리게 */
       [data-baseweb="calendar"] [aria-disabled="true"],
       [data-baseweb="calendar"] [data-outside-month="true"]{
-        color:#807d77 !important; }
+        color:#7a7770 !important; }
       /* 선택된 항목 칩(멀티셀렉트) */
-      [data-baseweb="tag"]{ background:var(--ds-surface2) !important; color:#f0efeb !important; }
-      [data-baseweb="tag"] *{ color:#f0efeb !important; }
+      [data-baseweb="tag"]{ background:var(--ds-surface2) !important; color:var(--ds-text) !important; }
+      [data-baseweb="tag"] *{ color:var(--ds-text) !important; }
       /* 코드 표시(`아이디` 같은 백틱·st.code) — 밝은 배경이 남아 글씨가 묻힘 */
       code, kbd, pre, [data-testid="stCode"], [data-testid="stCode"] pre,
       [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] pre{
         background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       code, code span, pre, pre span, kbd,
       [data-testid="stCode"] *, [data-testid="stCodeBlock"] *{
-        color:#f0efeb !important; }
+        color:var(--ds-text) !important; }
       /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 */
       [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
-        background:var(--ds-surface) !important; border-color:#5a5a57 !important; }
+        background:var(--ds-surface) !important; border-color:#5c5c57 !important; }
       [data-testid="stCheckbox"] input:checked + div div[role="presentation"],
       [data-testid="stCheckbox"] [aria-checked="true"] div[role="presentation"]{
         background:var(--ds-accent) !important; border-color:var(--ds-accent) !important; }
       /* 사이드바도 같은 계열로(갈색 → 중성) */
       /* 사이드바는 본문보다 한 톤 더 어둡게 — 면이 구분돼야 메뉴가 떠 보임 */
-      section[data-testid="stSidebar"]{ background:#0f0f0e !important; }
-      section[data-testid="stSidebar"] *{ color:#eceae5 !important; }
-      section[data-testid="stSidebar"] .navcat{ color:#96938c !important; }
+      section[data-testid="stSidebar"]{ background:#232322 !important; }
+      section[data-testid="stSidebar"] *{ color:var(--ds-text) !important; }
+      section[data-testid="stSidebar"] .navcat{ color:#8a8780 !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{
-        background:#2f2f2d !important; }
+        background:var(--ds-surface2) !important; }
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
         background:var(--ds-accent) !important; color:#fff !important; }
       section[data-testid="stSidebar"] .st-key-theme_btn button{
-        background:#2f2f2d !important; border-color:var(--ds-border) !important; }
+        background:var(--ds-surface2) !important; border-color:var(--ds-border) !important; }
       /* 스크롤바도 다크 */
       ::-webkit-scrollbar{ width:12px; height:12px; }
       ::-webkit-scrollbar-track{ background:var(--ds-bg); }
       ::-webkit-scrollbar-thumb{ background:var(--ds-surface2); border-radius:6px; }
-      ::-webkit-scrollbar-thumb:hover{ background:#55554f; }
+      ::-webkit-scrollbar-thumb:hover{ background:#5c5c57; }
       *{ scrollbar-color:var(--ds-surface2) var(--ds-bg); }
     </style>""", unsafe_allow_html=True)
 
