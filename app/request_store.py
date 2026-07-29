@@ -22,6 +22,8 @@ _COL_STATUS = REQ_HEADER.index("상태") + 1        # 상태 열(1-indexed)
 _COL_DONE_AT = REQ_HEADER.index("완료일시") + 1   # 완료일시 열
 _COL_REPLY = REQ_HEADER.index("회신") + 1         # 대상자가 남긴 한 줄 답
 _COL_ACK = REQ_HEADER.index("확인") + 1           # 요청자가 결과를 확인한 시각
+_COL_TEXT = REQ_HEADER.index("내용") + 1
+_COL_LINK = REQ_HEADER.index("링크") + 1
 ST_OPEN, ST_DONE = "대기", "완료"
 
 
@@ -167,6 +169,24 @@ def updates_for(requester):
         if d["상태"].strip() == ST_DONE or d.get("회신", "").strip():
             out.append(d)
     return out
+
+
+def update_request(req_id, requester, text, link=""):
+    """보낸 요청의 내용·링크 수정(잘못 보냈을 때). 요청자 본인 것만.
+    완료·회신 기록은 그대로 둔다(누가 무엇을 했는지 흔적을 지우지 않기 위해)."""
+    req_id = (req_id or "").strip()
+    requester = (requester or "").strip()
+    text = (text or "").strip()
+    if not req_id or not text:
+        return
+    ws = _ws()
+    for i, r in enumerate(ws.get_all_values()[1:], start=2):
+        r = (list(r) + [""] * len(REQ_HEADER))[:len(REQ_HEADER)]
+        if r[0].strip() == req_id and r[1].strip() == requester:
+            ws.update_cell(i, _COL_TEXT, text)
+            ws.update_cell(i, _COL_LINK, (link or "").strip())
+            _rows.clear()
+            return
 
 
 def delete_request(req_id, requester):

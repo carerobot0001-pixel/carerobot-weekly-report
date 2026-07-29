@@ -1155,21 +1155,52 @@ def home_page():
                                 _lines.append(
                                     f"{g['대상']} {_st}"
                                     + (f" · 💬 {_rp}" if _rp else ""))
-                        _sc1, _sc2 = st.columns([8, 1])
+                        _sc1, _sc2, _sc3 = st.columns([7, 1, 1])
                         _sc1.markdown(
                             f"- {_mark} {_who}: {_gtext}"
                             + (f" [🔗]({_slk})" if _slk else "")
                             + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
                                + " · ".join(_lines) + "</span>" if _lines else ""),
                             unsafe_allow_html=True)
-                        if _sc2.button("🗑", key=f"req_del_{_grp[0]['_row']}",
-                                       help="이 요청 삭제(받은 사람 전원)"):
+                        # ✏️ 수정 — 잘못 보냈을 때 내용·링크를 고침(받은 사람 화면에 즉시 반영)
+                        _ekey = f"req_edit_{_grp[0]['_row']}"
+                        if _sc2.button("✏️", key=f"req_edit_btn_{_grp[0]['_row']}",
+                                       help="내용 수정(받은 사람 전원에게 반영)"):
+                            st.session_state[_ekey] = not st.session_state.get(_ekey)
+                            st.rerun()
+                        # 🗑 회수 — 받은 사람 목록에서도 사라짐
+                        if _sc3.button("🗑", key=f"req_del_{_grp[0]['_row']}",
+                                       help="회수 — 받은 사람 전원에게서 삭제"):
                             try:
                                 for g in _grp:
                                     request_store.delete_request(g["요청ID"], my)
                             except Exception as e:
-                                st.error(f"삭제 실패: {e}")
+                                st.error(f"회수 실패: {e}")
                             st.rerun()
+                        if st.session_state.get(_ekey):
+                            _et = st.text_input(
+                                "요청 내용 수정", value=_gtext,
+                                key=f"req_et_{_grp[0]['_row']}")
+                            _el = st.text_input(
+                                "관련 링크", value=_slk,
+                                key=f"req_el_{_grp[0]['_row']}")
+                            _ec1, _ec2 = st.columns(2)
+                            if _ec1.button("저장", key=f"req_esave_{_grp[0]['_row']}"):
+                                if not _et.strip():
+                                    st.warning("내용을 비울 수 없습니다.")
+                                else:
+                                    try:
+                                        for g in _grp:
+                                            request_store.update_request(
+                                                g["요청ID"], my, _et, _el)
+                                        st.session_state[_ekey] = False
+                                        st.toast("✏️ 요청을 수정했습니다.")
+                                    except Exception as e:
+                                        st.error(f"수정 실패: {e}")
+                                    st.rerun()
+                            if _ec2.button("취소", key=f"req_ecancel_{_grp[0]['_row']}"):
+                                st.session_state[_ekey] = False
+                                st.rerun()
 
     # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
     st.divider()
