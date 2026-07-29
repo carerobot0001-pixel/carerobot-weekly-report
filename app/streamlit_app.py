@@ -523,7 +523,7 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
     # 다크에선 제목이 진한 주황(#A8501A)이면 배경에 묻혀 안 보임 → 흰색으로
     _dk = bool(st.session_state.get("dark"))
-    _tc = "#e8e4dc" if _dk else "#A8501A"
+    _tc = "#cdc9c1" if _dk else "#A8501A"
     _ic = "#d97757" if _dk else "#C4622D"
     _box = ("display:inline-flex;align-items:center;justify-content:center;"
             f"width:1.5em;height:1.5em;text-decoration:none;color:{_ic};")
@@ -548,7 +548,7 @@ def home_page():
     week = this_wednesday()
     # 다크에선 글자색을 낮추고 그림자(번짐)를 없앰 — 어두운 배경에서 발광해 보임
     _dk = bool(st.session_state.get("dark"))
-    _ttl_c = "#ddd8cf" if _dk else "#C4622D"
+    _ttl_c = "#c3bfb7" if _dk else "#C4622D"
     _ttl_sh = "none" if _dk else "0 2px 6px rgba(196,98,45,.20)"
     st.markdown(
         "<style>@import url('https://fonts.googleapis.com/css2?"
@@ -622,13 +622,13 @@ def home_page():
         # 어두운 배경에선 '밝은 사각형 10개 + 채도 높은 이모지'가 가장 눈부시다.
         # → 타일 면을 없애고(테두리만) 이모지 채도·밝기를 낮춘다.
         st.markdown("""<style>
-          .dsbar .dstile .lb{ color:#9e9b94 !important; }
+          .dsbar .dstile .lb{ color:#8a8781 !important; }
           .dsbar .dstile .ic{ background:transparent !important;
-            border-color:#454541 !important;
-            filter:saturate(.62) brightness(.88); }
-          .dsbar .dstile:hover .ic{ background:#323230 !important;
-            border-color:#7a7770 !important; filter:none; }
-          .dsbar .dstile:hover .lb{ color:#d9d5cd !important; }
+            border-color:#333331 !important;
+            filter:saturate(.55) brightness(.82); }
+          .dsbar .dstile:hover .ic{ background:#1d1d1c !important;
+            border-color:#5c5c57 !important; filter:none; }
+          .dsbar .dstile:hover .lb{ color:#bcb8b0 !important; }
         </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -2705,9 +2705,9 @@ def meeting_page():
             # 테두리 있는 HTML 표(칸 또렷·여백 최소, 차분한 톤). 실적/계획은 정확히 반반.
             # 다크모드면 표도 어두운 팔레트로(전체 다크). 밝을 땐 기존 색 그대로.
             _dark = bool(st.session_state.get("dark"))
-            _BD = "#454541" if _dark else "#efe2d2"
-            _TXT = "#d9d5cd" if _dark else "#000"
-            _HDBG = "#323230" if _dark else "#fdf5ec"
+            _BD = "#333331" if _dark else "#efe2d2"
+            _TXT = "#bcb8b0" if _dark else "#000"
+            _HDBG = "#1d1d1c" if _dark else "#fdf5ec"
             _ADBG = "#2b3140" if _dark else "#ffffff"
             _ADFG = "#8ab4f8" if _dark else "#1a56db"
             _TD = (f"border:1px solid {_BD};padding:5px 9px;vertical-align:top;"
@@ -2756,7 +2756,7 @@ def meeting_page():
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
-            _BARFG = "#e8e4dc" if _dark else "#000"
+            _BARFG = "#cdc9c1" if _dark else "#000"
 
             def _barhtml(bg, txt, right=""):
                 if _dark:
@@ -3299,12 +3299,12 @@ def main():
     if st.session_state.get("dark"):
         st.markdown("""<style>
       /* 팔레트 — 톤 조정은 여기 5줄만 바꾸면 전체 반영 */
-      /* ⚠ 검정 배경 + 흰 글씨(대비 15:1)는 '빛나는 옛날 화면'처럼 눈이 아프다.
-         종이(도화지) 같은 느낌은 '중간 어두운 회색 + 살짝 누그러진 따뜻한 흰색'
-         (대비 10:1 안팎)에서 나온다. 더 어둡게 = 더 편함이 아니다. */
-      :root{ --ds-bg:#2a2a28; --ds-surface:#323230; --ds-surface2:#3b3b38;
-             --ds-border:#454541; --ds-text:#d9d5cd; --ds-text2:#9e9b94;
-             --ds-accent:#b85f39; }
+      /* ⚠ 눈부심은 '배경 밝기'가 아니라 '글씨와의 대비'에서 온다.
+         검정 배경에 순백 글씨(15:1)면 옛날 화면처럼 쨍하게 빛난다.
+         → 배경은 검정으로 두고 흰색의 채도·밝기를 낮춰 9:1 안팎으로 맞춘다. */
+      :root{ --ds-bg:#141413; --ds-surface:#1d1d1c; --ds-surface2:#282826;
+             --ds-border:#333331; --ds-text:#bcb8b0; --ds-text2:#8a8781;
+             --ds-accent:#b05a35; }
       /* 다크모드 — Claude 데스크탑 방식: 중성 회색 배경 + 흰 글씨.
          눈부심의 원인은 글씨 밝기가 아니라 '채도 높은 주황이 곳곳에 있는 것'이라,
          주황은 포인트(버튼·아이콘)에만 남기고 글씨·제목은 흰색으로 통일한다. */
@@ -3336,7 +3336,7 @@ def main():
       [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
       p, li, span, label{ color:var(--ds-text) !important; }
       h1,h2,h3,h4,h5,h6,
-      [data-testid="stMarkdownContainer"] strong{ color:#e8e4dc !important; }
+      [data-testid="stMarkdownContainer"] strong{ color:#cdc9c1 !important; }
       /* 보조 설명은 한 단계 낮춰 위계를 만든다(흐릿해서 안 보이면 안 됨) */
       .stCaption, [data-testid="stCaptionContainer"],
       [data-testid="stCaptionContainer"] *{ color:var(--ds-text2) !important; }
@@ -3472,7 +3472,7 @@ def main():
         background:var(--ds-accent) !important; border-color:var(--ds-accent) !important; }
       /* 사이드바도 같은 계열로(갈색 → 중성) */
       /* 사이드바는 본문보다 한 톤 더 어둡게 — 면이 구분돼야 메뉴가 떠 보임 */
-      section[data-testid="stSidebar"]{ background:#232322 !important; }
+      section[data-testid="stSidebar"]{ background:#0e0e0d !important; }
       section[data-testid="stSidebar"] *{ color:var(--ds-text) !important; }
       section[data-testid="stSidebar"] .navcat{ color:#8a8780 !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{
