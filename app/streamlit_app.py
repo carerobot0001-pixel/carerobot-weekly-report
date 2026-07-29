@@ -3361,6 +3361,14 @@ def main():
       input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
         background:var(--ds-surface) !important; color:#f0efeb !important;
         border-color:var(--ds-border) !important; }
+      /* 입력칸 안내문구(placeholder) — 배경이 어두워지며 거의 안 보이게 됨.
+         브라우저가 기본 opacity를 걸어둬서 opacity:1 도 같이 줘야 한다. */
+      input::placeholder, textarea::placeholder,
+      input::-webkit-input-placeholder, textarea::-webkit-input-placeholder{
+        color:#8f8c85 !important; opacity:1 !important; }
+      [data-baseweb="select"] [class*="placeholder"],
+      [data-baseweb="select"] [class*="Placeholder"]{
+        color:#8f8c85 !important; }
       /* 표(st.dataframe / st.data_editor) — 캔버스로 그려서 CSS 변수로만 바뀜 */
       [data-testid="stDataFrame"], [data-testid="stTable"],
       [data-testid="stDataFrameResizable"]{
