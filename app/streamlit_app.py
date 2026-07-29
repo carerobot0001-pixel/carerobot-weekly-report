@@ -1070,7 +1070,11 @@ def home_page():
             with st.expander("📨 팀원에게 요청하기", expanded=False):
                 _others = [n for n in MEMBER_NAMES if n != my]
                 with st.form("req_add_form", clear_on_submit=True):
-                    _rtarget = st.selectbox("요청 대상", _others, key="req_target")
+                    # 여러 명 선택 가능 — 사람마다 따로 완료·회신이 오간다
+                    _rtargets = st.multiselect(
+                        "요청 대상 (여러 명 선택 가능)", _others, key="req_target",
+                        placeholder="이름을 고르세요")
+                    _rall = st.checkbox("전원에게 보내기", key="req_all")
                     _rtext = st.text_input(
                         "요청 내용", key="req_text",
                         placeholder="예: 센서 데이터 공유해주세요")
@@ -1078,38 +1082,63 @@ def home_page():
                         "관련 링크 (선택)", key="req_link",
                         placeholder="예: 구글문서·시트 주소 (문서 작성 요청 시)",
                         help="여러 명이 나눠 쓰는 문서는 '📋 문서 협업'을 쓰세요.")
-                    if st.form_submit_button("보내기") and _rtext.strip():
-                        try:
-                            request_store.add_request(my, _rtarget, _rtext, _rlink)
-                            st.toast(f"📨 {_rtarget} 님에게 요청을 보냈습니다.")
-                        except Exception as e:
-                            st.error(f"요청 실패: {e}")
-                        st.rerun()
+                    if st.form_submit_button("보내기"):
+                        _tg = _others if _rall else _rtargets
+                        if not _rtext.strip():
+                            st.warning("요청 내용을 적어주세요.")
+                        elif not _tg:
+                            st.warning("받을 사람을 고르거나 '전원에게 보내기'를 켜세요.")
+                        else:
+                            try:
+                                request_store.add_requests(my, _tg, _rtext, _rlink)
+                                st.toast(f"📨 {len(_tg)}명에게 요청을 보냈습니다.")
+                            except Exception as e:
+                                st.error(f"요청 실패: {e}")
+                            st.rerun()
                 try:
                     _sent = request_store.sent_by(my)
                 except Exception:
                     _sent = []
                 if _sent:
                     st.caption("내가 보낸 요청")
+                    # 여러 명에게 보낸 건 사람마다 한 행 → (내용+보낸시각)으로 묶어
+                    # 한 줄에 진행률로 표시(10명에게 보내도 목록이 길어지지 않게)
+                    _groups = {}
                     for _sq in _sent:
-                        _done = _sq["상태"].strip() == request_store.ST_DONE
-                        _mark = "✅" if _done else "⏳"
+                        _groups.setdefault((_sq["내용"], _sq["등록일시"]),
+                                           []).append(_sq)
+                    for (_gtext, _gtime), _grp in _groups.items():
+                        _dones = [g for g in _grp
+                                  if g["상태"].strip() == request_store.ST_DONE]
+                        _all_done = len(_dones) == len(_grp)
+                        _mark = "✅" if _all_done else "⏳"
+                        _slk = (_grp[0].get("링크", "") or "").strip()
+                        # 누구에게 보냈나 / 진행률
+                        if len(_grp) == 1:
+                            _who = _grp[0]["대상"]
+                        else:
+                            _who = f"{len(_dones)}/{len(_grp)}명 완료"
+                        _lines = []
+                        for g in _grp:
+                            _rp = (g.get("회신", "") or "").strip()
+                            _gd = g["상태"].strip() == request_store.ST_DONE
+                            if len(_grp) > 1 or _rp or _gd:
+                                _st = ("✅ " + g["완료일시"]) if _gd else "⏳ 대기"
+                                _lines.append(
+                                    f"{g['대상']} {_st}"
+                                    + (f" · 💬 {_rp}" if _rp else ""))
                         _sc1, _sc2 = st.columns([8, 1])
-                        _slk = (_sq.get("링크", "") or "").strip()
-                        _srp = (_sq.get("회신", "") or "").strip()
-                        _sub = (f"완료 {_sq['완료일시']}" if _done else "")
-                        if _srp:
-                            _sub += (" · " if _sub else "") + f"💬 {_srp}"
                         _sc1.markdown(
-                            f"- {_mark} {_sq['대상']}: {_sq['내용']}"
+                            f"- {_mark} {_who}: {_gtext}"
                             + (f" [🔗]({_slk})" if _slk else "")
                             + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
-                               f"{_sub}</span>" if _sub else ""),
+                               + " · ".join(_lines) + "</span>" if _lines else ""),
                             unsafe_allow_html=True)
-                        if _sc2.button("🗑", key=f"req_del_{_sq['_row']}",
-                                       help="이 요청 삭제"):
+                        if _sc2.button("🗑", key=f"req_del_{_grp[0]['_row']}",
+                                       help="이 요청 삭제(받은 사람 전원)"):
                             try:
-                                request_store.delete_request(_sq["요청ID"], my)
+                                for g in _grp:
+                                    request_store.delete_request(g["요청ID"], my)
                             except Exception as e:
                                 st.error(f"삭제 실패: {e}")
                             st.rerun()

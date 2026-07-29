@@ -57,17 +57,24 @@ def _rows():
 
 
 def add_request(requester, target, text, link=""):
-    """requester(이름)가 target(이름)에게 text 요청. link는 선택(구글문서·시트 등)."""
+    """requester(이름)가 target(이름) 한 명에게 요청. 여러 명은 add_requests 사용."""
+    add_requests(requester, [target], text, link)
+
+
+def add_requests(requester, targets, text, link=""):
+    """여러 명에게 같은 요청을 보냄 — 사람마다 한 행(각자 따로 완료·회신하므로).
+    요청ID에 대상 이름을 넣어 같은 초에 만들어도 겹치지 않게 한다."""
     requester = (requester or "").strip()
-    target = (target or "").strip()
     text = (text or "").strip()
     link = (link or "").strip()
-    if not requester or not target or not text:
+    targets = [t.strip() for t in (targets or []) if (t or "").strip()]
+    if not requester or not targets or not text:
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    req_id = datetime.now(KST).strftime("%Y%m%d-%H%M%S-") + requester
-    _ws().append_row([req_id, requester, target, text, now, ST_OPEN, "", link,
-                      "", ""], value_input_option="RAW")
+    stamp = datetime.now(KST).strftime("%Y%m%d-%H%M%S")
+    rows = [[f"{stamp}-{requester}-{t}", requester, t, text, now, ST_OPEN,
+             "", link, "", ""] for t in targets]
+    _ws().append_rows(rows, value_input_option="RAW")
     _rows.clear()
 
 
