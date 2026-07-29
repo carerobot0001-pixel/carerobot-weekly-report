@@ -541,6 +541,13 @@ def home_page():
       .st-key-me_widget div[data-baseweb="select"] div[value],
       .st-key-me_widget div[data-baseweb="select"] input{
         font-size:1.1rem; text-align:center; }
+      /* 할 일 머리글 옆 🔀 버튼: 테두리·배경 없이 작게(제목에 붙어 보이게) */
+      .st-key-todo_move_btn button, .st-key-per_move_btn button{
+        min-height:0; padding:0 0.3rem; border:none !important;
+        background:transparent !important; box-shadow:none;
+        font-size:0.95rem; line-height:1.4; opacity:.55; }
+      .st-key-todo_move_btn button:hover, .st-key-per_move_btn button:hover{
+        opacity:1; background:transparent !important; border:none !important; }
       /* 사업단 일정 제목 옆 ➕ 버튼: 테두리·배경 없는 주황 아이콘 */
       .st-key-home_cal_open_btn button{ min-height:0; padding:0 0.35rem;
         border:none !important; background:transparent !important; box-shadow:none;
@@ -812,7 +819,7 @@ def home_page():
             # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
             _mv = st.session_state.get("todo_move_mode", False)
             if todo_lines or _mytodos:
-                _wc1, _wc2 = st.columns([6, 1])
+                _wc1, _wc2, _ = st.columns([1.15, 1, 4])   # 제목 바로 옆에 붙게
                 _wc1.markdown("**🏢 업무**")
                 if _mytodos and _wc2.button(
                         "🔀", key="todo_move_btn",
@@ -847,7 +854,7 @@ def home_page():
                     st.rerun()
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
-                _pc_h1, _pc_h2 = st.columns([6, 1])
+                _pc_h1, _pc_h2, _ = st.columns([1.15, 1, 4])
                 _pc_h1.markdown("**🙋 개인**")
                 # 업무 머리글이 없을 때(개인만 있을 때)도 옮기기 모드를 켤 수 있게
                 if not (todo_lines or _mytodos) and _pc_h2.button(
