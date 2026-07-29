@@ -612,7 +612,7 @@ def home_page():
 
     # 공통확인은 '업무보고 작성·취합' 탭, 회의록은 사이드바 메뉴로 접근 → 바로가기에선 제외
     shortcuts = [
-        ("🖥️", "회의진행", "🖥️ 회의 진행"),
+        ("🖥️", "발표화면", "🖥️ 발표화면"),
         ("📝", "주간보고", "📝 업무보고 작성·취합"),
         ("🛒", "구매요청", "🛒 구매요청서"),
         ("📋", "문서협업", "📋 문서 협업"),
@@ -636,9 +636,9 @@ def home_page():
     except Exception:
         _zoom_url = ""
     if _zoom_url:
-        _at = next((i for i, _it in enumerate(_items) if _it[1] == "회의진행"),
+        _at = next((i for i, _it in enumerate(_items) if _it[1] == "발표화면"),
                    len(_items) - 1)
-        _items.insert(_at + 1, (_ZOOM_SVG, "줌 회의",
+        _items.insert(_at + 1, (_ZOOM_SVG, "줌 접속",
                                 html_escape(_zoom_url, quote=True), "_blank"))
     _html = '<div class="dsbar">'
     for _ic, _l, _href, _tgt in _items:
@@ -826,7 +826,9 @@ def home_page():
                     _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                         placeholder="예: 백정은 님께 자료 요청")
                     _tk = st.radio("구분", ["🏢 업무", "🙋 개인"], horizontal=True,
-                                   key="todo_kind")
+                                   key="todo_kind",
+                                   help="개인 할 일은 주간보고에 들어가지 않습니다.")
+                    st.caption("🙋 개인으로 두면 주간보고에 들어가지 않습니다.")
                     if st.form_submit_button("추가") and _tt.strip():
                         try:
                             todo_store.add_todo(
@@ -884,8 +886,8 @@ def home_page():
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
+                # ('개인은 보고에 안 들어감' 안내는 추가 폼에서만 — 목록은 깔끔하게)
                 st.markdown("**🙋 개인**")
-                st.caption("개인 할 일은 주간보고에 들어가지 않습니다.")
                 for _p in _myper:
                     if _mv:
                         _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
@@ -2476,7 +2478,7 @@ def _backup_section():
 
 def meeting_page():
     """주간 회의용 회의 진행 모드 — 전용 페이지(사이드바 홈 바로 밑)."""
-    st.header("🖥️ 회의 진행 모드")
+    st.header("🖥️ 발표화면")
     st.caption("주간 회의용 — 연구원별 실적/계획을 취합본 형식으로. 한 명씩 한 화면.")
     _wd = st.date_input(
         "조회 주차", key="meet_week",
@@ -3158,7 +3160,7 @@ def main():
       *{ scrollbar-color:#3d322a #1b1714; }
     </style>""", unsafe_allow_html=True)
 
-    mode_options = ["🏠 홈", "🖥️ 회의 진행", "📝 업무보고 작성·취합",
+    mode_options = ["🏠 홈", "🖥️ 발표화면", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
                     "📚 과거 회의록 열람"]
@@ -3212,7 +3214,7 @@ def main():
         if mode not in mode_options:
             mode = "🏠 홈"
         # 카테고리별 정리 + 큰 글씨 버튼 네비게이션
-        _cats = [("", ["🏠 홈", "🖥️ 회의 진행"]),
+        _cats = [("", ["🏠 홈", "🖥️ 발표화면"]),
                  ("업무", ["📝 업무보고 작성·취합", "🛒 구매요청서", "📋 문서 협업"]),
                  ("자료·장비", ["📁 자료실", "🔧 장비 사용현황",
                               "📍 실증 방문 일지", "📚 과거 회의록 열람"]),
@@ -3252,7 +3254,7 @@ def main():
 
     if mode == "🏠 홈":
         home_page()
-    elif mode == "🖥️ 회의 진행":
+    elif mode == "🖥️ 발표화면":
         meeting_page()
     elif mode == "📝 업무보고 작성·취합":
         member_page()
