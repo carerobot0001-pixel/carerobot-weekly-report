@@ -3363,6 +3363,13 @@ def main():
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
       hr{ border-color:#414140 !important; }
+      /* 코드 표시(`아이디` 같은 백틱·st.code) — 밝은 배경이 남아 글씨가 묻힘 */
+      code, kbd, pre, [data-testid="stCode"], [data-testid="stCode"] pre,
+      [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] pre{
+        background:#30302e !important; border-color:#414140 !important; }
+      code, code span, pre, pre span, kbd,
+      [data-testid="stCode"] *, [data-testid="stCodeBlock"] *{
+        color:#f0efeb !important; }
       /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 */
       [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
         background:#30302e !important; border-color:#5a5a57 !important; }
