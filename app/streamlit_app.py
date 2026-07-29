@@ -822,10 +822,12 @@ def home_page():
                 st.markdown("**📨 받은 요청**")
                 for _rq in _reqs:
                     _rc1, _rc2 = st.columns([8, 1])
+                    _rlk = (_rq.get("링크", "") or "").strip()
                     _rc1.markdown(
-                        f"- 📨 {_rq['내용']}  \n"
-                        f"  <span style='opacity:.65;font-size:.85em'>"
-                        f"— {_rq['요청자']} 요청</span>",
+                        f"- 📨 {_rq['내용']}"
+                        + (f" [🔗 열기]({_rlk})" if _rlk else "")
+                        + f"  \n  <span style='opacity:.65;font-size:.85em'>"
+                          f"— {_rq['요청자']} 요청</span>",
                         unsafe_allow_html=True)
                     if _rc2.button("✓", key=f"req_done_{_rq['_row']}",
                                    help="완료 처리(요청자에게 표시됨)"):
@@ -903,9 +905,13 @@ def home_page():
                     _rtext = st.text_input(
                         "요청 내용", key="req_text",
                         placeholder="예: 센서 데이터 공유해주세요")
+                    _rlink = st.text_input(
+                        "관련 링크 (선택)", key="req_link",
+                        placeholder="예: 구글문서·시트 주소 (문서 작성 요청 시)",
+                        help="여러 명이 나눠 쓰는 문서는 '📋 문서 협업'을 쓰세요.")
                     if st.form_submit_button("보내기") and _rtext.strip():
                         try:
-                            request_store.add_request(my, _rtarget, _rtext)
+                            request_store.add_request(my, _rtarget, _rtext, _rlink)
                             st.toast(f"📨 {_rtarget} 님에게 요청을 보냈습니다.")
                         except Exception as e:
                             st.error(f"요청 실패: {e}")
@@ -920,8 +926,10 @@ def home_page():
                         _done = _sq["상태"].strip() == request_store.ST_DONE
                         _mark = "✅" if _done else "⏳"
                         _sc1, _sc2 = st.columns([8, 1])
+                        _slk = (_sq.get("링크", "") or "").strip()
                         _sc1.markdown(
                             f"- {_mark} {_sq['대상']}: {_sq['내용']}"
+                            + (f" [🔗]({_slk})" if _slk else "")
                             + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
                                f"완료 {_sq['완료일시']}</span>" if _done else ""),
                             unsafe_allow_html=True)

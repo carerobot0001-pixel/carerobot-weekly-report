@@ -15,7 +15,11 @@ import streamlit as st
 from sheets_store import _get_client, KST
 
 REQ_WS = "팀요청"
-REQ_HEADER = ["요청ID", "요청자", "대상", "내용", "등록일시", "상태", "완료일시"]
+# '링크'는 맨 뒤에 둠 — 옛 7열 행(링크 없음)도 그대로 읽힘(데이터 안 밀림).
+REQ_HEADER = ["요청ID", "요청자", "대상", "내용", "등록일시", "상태", "완료일시",
+              "링크"]
+_COL_STATUS = REQ_HEADER.index("상태") + 1        # 상태 열(1-indexed)
+_COL_DONE_AT = REQ_HEADER.index("완료일시") + 1   # 완료일시 열
 ST_OPEN, ST_DONE = "대기", "완료"
 
 
@@ -50,16 +54,17 @@ def _rows():
     return out
 
 
-def add_request(requester, target, text):
-    """requester(이름)가 target(이름)에게 text 요청. 요청ID로 행 식별."""
+def add_request(requester, target, text, link=""):
+    """requester(이름)가 target(이름)에게 text 요청. link는 선택(구글문서·시트 등)."""
     requester = (requester or "").strip()
     target = (target or "").strip()
     text = (text or "").strip()
+    link = (link or "").strip()
     if not requester or not target or not text:
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     req_id = datetime.now(KST).strftime("%Y%m%d-%H%M%S-") + requester
-    _ws().append_row([req_id, requester, target, text, now, ST_OPEN, ""],
+    _ws().append_row([req_id, requester, target, text, now, ST_OPEN, "", link],
                      value_input_option="RAW")
     _rows.clear()
 
@@ -93,8 +98,8 @@ def complete_request(req_id, target, text):
         r = (list(r) + [""] * len(REQ_HEADER))[:len(REQ_HEADER)]
         if r[0].strip() == req_id:
             now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-            ws.update_cell(i, 6, ST_DONE)   # 상태
-            ws.update_cell(i, 7, now)       # 완료일시
+            ws.update_cell(i, _COL_STATUS, ST_DONE)
+            ws.update_cell(i, _COL_DONE_AT, now)
             _rows.clear()
             return
 
