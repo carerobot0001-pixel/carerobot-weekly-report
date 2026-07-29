@@ -542,13 +542,17 @@ def home_page():
     today = datetime.now(KST).date()
     now = datetime.now(KST)
     week = this_wednesday()
+    # 다크에선 글자색을 낮추고 그림자(번짐)를 없앰 — 어두운 배경에서 발광해 보임
+    _dk = bool(st.session_state.get("dark"))
+    _ttl_c = "#b5744a" if _dk else "#C4622D"
+    _ttl_sh = "none" if _dk else "0 2px 6px rgba(196,98,45,.20)"
     st.markdown(
         "<style>@import url('https://fonts.googleapis.com/css2?"
         "family=Dancing+Script:wght@700&display=swap');</style>"
         "<div style='text-align:center;margin:2px 0 12px;'>"
         "<span style=\"font-family:'Dancing Script','Brush Script MT',cursive;"
-        "font-weight:700;font-size:clamp(2.3rem,8vw,3.9rem);color:#C4622D;"
-        "line-height:1.05;text-shadow:0 2px 6px rgba(196,98,45,.20);\">"
+        f"font-weight:700;font-size:clamp(2.3rem,8vw,3.9rem);color:{_ttl_c};"
+        f"line-height:1.05;text-shadow:{_ttl_sh};\">"
         "Dolbom Studio</span></div>",
         unsafe_allow_html=True)
 
@@ -608,9 +612,14 @@ def home_page():
     # 다크모드일 때 바로가기 라벨(진갈색 #8A5A2B)이 배경에 묻혀 안 보임 → 밝은 톤으로.
     # 이 홈 CSS가 전역 다크 CSS보다 나중에 주입돼 덮어써지지 않으므로 여기서 처리.
     if st.session_state.get("dark"):
-        st.markdown(
-            "<style>.dsbar .dstile .lb{ color:#e8c9a8 !important; }</style>",
-            unsafe_allow_html=True)
+        # 크림색 타일(#FCF3EA)이 어두운 배경에서 8개나 빛나 눈이 부심 → 어둡게
+        st.markdown("""<style>
+          .dsbar .dstile .lb{ color:#c8ab8c !important; }
+          .dsbar .dstile .ic{ background:#2a231d !important;
+            border-color:#463930 !important; }
+          .dsbar .dstile:hover .ic{ background:#332a22 !important;
+            border-color:#8a5a35 !important; }
+        </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
 
@@ -2649,7 +2658,7 @@ def meeting_page():
             # 다크모드면 표도 어두운 팔레트로(전체 다크). 밝을 땐 기존 색 그대로.
             _dark = bool(st.session_state.get("dark"))
             _BD = "#4a3c31" if _dark else "#efe2d2"
-            _TXT = "#e8e0d6" if _dark else "#000"
+            _TXT = "#d5ccc1" if _dark else "#000"
             _HDBG = "#2f2720" if _dark else "#fdf5ec"
             _ADBG = "#222b3a" if _dark else "#ffffff"
             _ADFG = "#8ab4f8" if _dark else "#1a56db"
@@ -3241,28 +3250,29 @@ def main():
       /* 다크모드 — 배경·글씨·카드·입력창 전환(사이드바는 원래 어두움) */
       .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"]{
         background:#1b1714 !important; }
+      /* 눈부심 완화: 흰색에 가까운 본문·쨍한 주황 강조를 한 단계씩 낮춤 */
       [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
       p, li, span, label, .stCaption, [data-testid="stCaptionContainer"]{
-        color:#e8e0d6 !important; }
-      h1,h2,h3,h4,h5,h6{ color:#f0b483 !important; }
-      [data-testid="stMarkdownContainer"] strong{ color:#f0b483 !important; }
-      a, a:visited{ color:#e8a76a !important; }
+        color:#cfc6ba !important; }
+      h1,h2,h3,h4,h5,h6{ color:#c9906a !important; }
+      [data-testid="stMarkdownContainer"] strong{ color:#c9906a !important; }
+      a, a:visited{ color:#c9926a !important; }
       /* 알림/카드/펼치기 */
       [data-testid="stAlert"]{ background:#2a231d !important; border:1px solid #3d322a; }
-      [data-testid="stAlert"] *{ color:#e8e0d6 !important; }
+      [data-testid="stAlert"] *{ color:#cfc6ba !important; }
       [data-testid="stExpander"], [data-testid="stExpander"] details{
         background:#221c17 !important; border-color:#3d322a !important; }
       div[data-testid="stVerticalBlockBorderWrapper"]{
         background:#221c17 !important; border-color:#3d322a !important; }
       /* 입력 요소 */
       input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
-        background:#2a231d !important; color:#e8e0d6 !important;
+        background:#2a231d !important; color:#cfc6ba !important;
         border-color:#4a3c31 !important; }
       [data-testid="stDataFrame"], [data-testid="stTable"]{
         background:#221c17 !important; }
       /* 버튼 — !important 없으면 Streamlit 기본 흰 배경이 이겨서 흰 박스로 튐 */
       div.stButton>button{ background:#2a231d !important; border-color:#4a3c31 !important;
-        color:#e8c9a8 !important; }
+        color:#c9b49b !important; }
       div.stButton>button:hover{ border-color:#E08A3C !important; color:#f0b483 !important; }
       div.stButton>button[kind="primary"]{ background:#C4622D !important; color:#fff !important; }
       hr{ border-color:#3d322a !important; }
