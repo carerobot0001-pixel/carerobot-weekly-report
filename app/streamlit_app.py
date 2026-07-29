@@ -3299,9 +3299,19 @@ def main():
          주황은 포인트(버튼·아이콘)에만 남기고 글씨·제목은 흰색으로 통일한다. */
       .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"]{
         background:#262624 !important; }
-      /* 상단 바 — 흰색으로 남아 사이드바 열기(») 버튼이 묻혔음 */
+      /* 상단 바 — 흰색으로 남아 사이드바 열기(») 버튼이 묻혔음.
+         Fork/앱메뉴/배포 버튼과 사이드바 상단 영역도 같이 흰 박스로 남는다. */
       [data-testid="stHeader"], [data-testid="stToolbar"],
-      [data-testid="stDecoration"]{ background:#262624 !important; }
+      [data-testid="stDecoration"], [data-testid="stStatusWidget"],
+      [data-testid="stToolbarActions"], [data-testid="stActionButton"],
+      [data-testid="stAppDeployButton"], [data-testid="stMainMenu"],
+      [data-testid="stSidebarHeader"], [data-testid="stSidebarNavItems"],
+      [data-testid="stSidebarCollapseButton"]{
+        background:#262624 !important; color:#f0efeb !important; }
+      [data-testid="stSidebarHeader"]{ background:#1f1f1e !important; }
+      [data-testid="stToolbarActions"] *, [data-testid="stActionButton"] *,
+      [data-testid="stStatusWidget"] *, [data-testid="stMainMenu"] *{
+        background:transparent !important; color:#f0efeb !important; }
       [data-testid="stSidebarCollapsedControl"] button,
       [data-testid="stExpandSidebarButton"] button,
       [data-testid="stBaseButton-headerNoPadding"],
