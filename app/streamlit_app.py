@@ -499,7 +499,7 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
         _ex = (f"<a href='?{cb}&go={_eg}' target='_self' title='{_eh}' "
                f"style='{_box}font-size:0.95rem;opacity:.6;'>{_es}</a>")
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:4px;margin:2px 0 6px;'>"
+        "<div style='display:flex;align-items:center;gap:4px;margin:0 0 2px;'>"
         "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;"
         f"line-height:1.5;margin-right:5px;'>{title}</span>"
         f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
@@ -528,7 +528,14 @@ def home_page():
     st.markdown("""<style>
       section[data-testid="stMain"] [data-testid="stMetricValue"]{font-size:1.45rem;}
       section[data-testid="stMain"] [data-testid="stMetricLabel"] p{font-size:0.7rem;}
-      section[data-testid="stMain"] div[data-testid="stVerticalBlock"]{gap:0.5rem;}
+      section[data-testid="stMain"] div[data-testid="stVerticalBlock"]{gap:0.3rem;}
+      /* 목록·안내문 여백 축소 — 홈에 항목이 많아 촘촘해야 한눈에 들어옴 */
+      section[data-testid="stMain"] [data-testid="stMarkdownContainer"] ul{
+        margin:0; padding-left:1.1rem; }
+      section[data-testid="stMain"] [data-testid="stMarkdownContainer"] li{
+        margin:0 0 1px; }
+      section[data-testid="stMain"] [data-testid="stCaptionContainer"]{
+        margin:0 0 2px; }
       section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
