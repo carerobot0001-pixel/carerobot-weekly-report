@@ -3311,13 +3311,24 @@ def main():
         border-color:#4a4a48 !important; }
       [data-testid="stDataFrame"], [data-testid="stTable"]{
         background:#2d2d2b !important; }
-      /* 버튼 — !important 없으면 Streamlit 기본 흰 배경이 이겨서 흰 박스로 튐 */
-      div.stButton>button{ background:#30302e !important;
-        border-color:#4a4a48 !important; color:#e8e6e1 !important; }
-      div.stButton>button:hover{ border-color:#d97757 !important;
+      /* 버튼 — 폼 안의 버튼은 stButton이 아니라 stFormSubmitButton이라 좁게 잡으면
+         '보내기'만 흰 박스로 남는다. 다운로드·링크 버튼까지 한 번에 잡는다. */
+      div.stButton>button, div[data-testid="stButton"] button,
+      div[data-testid="stFormSubmitButton"] button,
+      div[data-testid="stDownloadButton"] button,
+      div[data-testid="stLinkButton"] a, button[data-testid^="stBaseButton"]{
+        background:#30302e !important; border-color:#4a4a48 !important;
         color:#f0efeb !important; }
-      div.stButton>button[kind="primary"]{ background:#c2673f !important;
-        border-color:#c2673f !important; color:#fff !important; }
+      div.stButton>button:hover, div[data-testid="stFormSubmitButton"] button:hover,
+      div[data-testid="stDownloadButton"] button:hover,
+      div[data-testid="stLinkButton"] a:hover{
+        border-color:#d97757 !important; color:#fff !important; }
+      div.stButton>button[kind="primary"],
+      div[data-testid="stFormSubmitButton"] button[kind="primary"],
+      button[data-testid="stBaseButton-primary"],
+      button[data-testid="stBaseButton-primaryFormSubmit"]{
+        background:#c2673f !important; border-color:#c2673f !important;
+        color:#fff !important; }
       /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
       [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button{
         color:#f0efeb !important; font-size:1rem !important; }
