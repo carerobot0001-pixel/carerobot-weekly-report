@@ -3055,6 +3055,12 @@ def _report_collect():
         help="템플릿에 남은 옛 줄바꿈 정보를 지워 한글이 다시 계산하게 합니다. "
              "끄면 예전 방식(긴 문장이 칸 밖으로 넘칠 수 있음).",
     )
+    st.checkbox(
+        "🔎 내용 많은 칸만 1pt 작게 (권장) — 다음 장으로 밀리지 않게",
+        value=True, key="hwpx_shrink",
+        help="칸 분량을 넘치는 칸만 글자를 1pt 줄입니다(9pt→8pt). "
+             "1pt까지만 줄이며, 그래도 넘치면 그대로 둡니다.",
+    )
 
     uploaded = st.file_uploader("또는 템플릿 직접 업로드", type=["hwpx"])
 
@@ -3096,6 +3102,7 @@ def _report_collect():
                             wed.year, wed.month, _evs)
             except Exception as _e:
                 st.caption(f"※ 달력 이미지 갱신을 건너뜁니다({_e}). 나머지는 정상 생성됩니다.")
+            _shrunk = []
             result = build_report(
                 template_bytes, submissions,
                 title_date=title_date,
@@ -3104,7 +3111,13 @@ def _report_collect():
                 calendar_bmp=cal_bmp,
                 relayout=st.session_state.get("hwpx_relayout", True),
                 calendar_ym=(wed.year, wed.month),
+                shrink_overflow=st.session_state.get("hwpx_shrink", True),
+                shrunk_out=_shrunk,
             )
+            if _shrunk:
+                st.caption("🔎 내용이 많아 **1pt 작게** 넣은 칸: "
+                           + ", ".join(_shrunk)
+                           + " — 그래도 넘치면 내용을 조금 줄여주세요.")
             filename = f"돌봄로봇_업무보고({wed.strftime('%m.%d')})_취합본.hwpx"
             st.download_button(
                 "💾 HWPX 다운로드",

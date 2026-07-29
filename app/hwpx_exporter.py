@@ -258,6 +258,86 @@ def ensure_black_charpr(header_xml: str, base_id: str,
     return header_xml, new_id
 
 
+def cell_size(xml: str, col: int, row: int, nth: int = 0):
+    """셀의 (가로, 세로) 크기 — HWPUNIT(1/7200인치, 1pt=100). 못 찾으면 (None, None)."""
+    addr_str = f'cellAddr colAddr="{col}" rowAddr="{row}"'
+    pos = 0
+    for _ in range(nth + 1):
+        pos = xml.find(addr_str, pos)
+        if pos == -1:
+            return None, None
+        addr_pos = pos
+        pos += len(addr_str)
+    # cellSz 는 cellAddr 바로 뒤에 온다
+    m = re.search(r'<hp:cellSz\s+width="(\d+)"\s+height="(\d+)"',
+                  xml[addr_pos:addr_pos + 600])
+    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
+
+
+def charpr_height(header_xml: str, char_pr_id: str):
+    """charPr 의 글자 크기(HWPUNIT). 900 = 9pt. 못 찾으면 None."""
+    m = re.search(rf'<hh:charPr\s+id="{char_pr_id}"[^>]*\bheight="(\d+)"',
+                  header_xml)
+    return int(m.group(1)) if m else None
+
+
+def ensure_smaller_charpr(header_xml: str, base_id: str, cache: dict,
+                          delta_pt: int = 1) -> tuple[str, str]:
+    """base_id 와 같은 서식이되 글자 크기만 delta_pt 만큼 작은 charPr id 반환.
+
+    칸 분량을 넘치는 긴 글이 다음 장으로 밀리는 것을 줄이려는 용도.
+    ⚠️ 1pt 까지만 줄인다 — 더 줄이면 회의에서 안 보인다(사용자 요청).
+    """
+    key = (base_id, delta_pt)
+    if key in cache:
+        return header_xml, cache[key]
+    m = re.search(rf'<hh:charPr\s+id="{base_id}"[^>]*?>.*?</hh:charPr>',
+                  header_xml, re.DOTALL)
+    if not m:
+        cache[key] = base_id
+        return header_xml, base_id
+    base_xml = m.group(0)
+    h = re.search(r'\bheight="(\d+)"', base_xml)
+    if not h:
+        cache[key] = base_id
+        return header_xml, base_id
+    new_h = int(h.group(1)) - delta_pt * 100
+    if new_h < 700:                       # 7pt 미만은 만들지 않음
+        cache[key] = base_id
+        return header_xml, base_id
+    max_id = max(int(x) for x in re.findall(r'<hh:charPr\s+id="(\d+)"', header_xml))
+    new_id = str(max_id + 1)
+    small = re.sub(r'id="\d+"', f'id="{new_id}"', base_xml, count=1)
+    small = re.sub(r'\bheight="\d+"', f'height="{new_h}"', small, count=1)
+    header_xml = header_xml.replace(base_xml, base_xml + small)
+    header_xml = re.sub(
+        r'(<hh:charProperties[^>]*itemCnt=")(\d+)(")',
+        lambda mm: f'{mm.group(1)}{int(mm.group(2)) + 1}{mm.group(3)}',
+        header_xml, count=1,
+    )
+    cache[key] = new_id
+    return header_xml, new_id
+
+
+def overflows_cell(text: str, cell_w: int, cell_h: int, font_h: int) -> bool:
+    """이 글이 칸을 넘치는지 어림 계산.
+
+    한글은 글자 하나가 대략 글자크기(정사각)만큼, 영문·숫자는 절반쯤 차지한다.
+    줄 높이는 글자크기의 약 1.25배로 본다. 여백을 감안해 안쪽 폭을 조금 줄여 잡는다.
+    """
+    if not (cell_w and cell_h and font_h):
+        return False
+    inner_w = max(cell_w - 500, font_h)          # 좌우 여백 대략 제외
+    inner_h = max(cell_h - 300, font_h)
+    per_line = max(int(inner_w / font_h), 1)     # 한 줄에 들어갈 한글 글자 수
+    line_h = font_h * 1.25
+    lines = 0
+    for ln in (text or "").split("\n"):
+        w = sum(0.5 if ch.isascii() else 1.0 for ch in ln)
+        lines += max(1, -(-int(w * 10) // (per_line * 10)))   # 올림
+    return lines * line_h > inner_h
+
+
 def strip_linesegarrays(xml: str) -> str:
     """모든 <hp:linesegarray>…</hp:linesegarray> 를 빈 껍데기로 만든다.
 
@@ -275,8 +355,14 @@ def build_report(template_bytes: bytes, submissions: dict,
                  plan_start: str, plan_end: str,
                  calendar_bmp: bytes | None = None,
                  relayout: bool = True,
-                 calendar_ym: tuple | None = None) -> bytes:
-    """submissions = {이름: {필드키: 텍스트, ...}}"""
+                 calendar_ym: tuple | None = None,
+                 shrink_overflow: bool = True,
+                 shrunk_out: list | None = None) -> bytes:
+    """submissions = {이름: {필드키: 텍스트, ...}}
+
+    shrink_overflow=True 면 칸을 넘치는 긴 글만 **1pt 작게** 넣어 다음 장으로
+    밀리는 것을 줄인다. 줄인 칸 목록은 shrunk_out 리스트에 담아 돌려준다.
+    """
     with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as zin:
         xml = zin.read('Contents/section0.xml').decode('utf-8')
         header = zin.read('Contents/header.xml').decode('utf-8')
@@ -289,6 +375,8 @@ def build_report(template_bytes: bytes, submissions: dict,
     header, blue_id = ensure_blue_charpr(header)
     color_to_id = {"black": CHARPR_BLACK, "blue": blue_id}
     _black_cache: dict = {}   # 원본 charPr id → 같은 서식의 '검정 판' id
+    _small_cache: dict = {}   # (charPr id, 줄일 pt) → 1pt 작은 판 id
+    shrunk: list = []         # 실제로 작게 넣은 칸 목록(사용자 안내용)
 
     # 변경 추적(트랙 체인지) 설정 끄기 — 한글이 파일 열 때 "변경 내용 표시"
     # 모드로 자동 전환되어 글자가 겹쳐 보이는 착시 방지.
@@ -347,6 +435,15 @@ def build_report(template_bytes: bytes, submissions: dict,
             else:
                 _base = _extract_cell_charpr(xml, col, row, nth=nth)
                 header, override = ensure_black_charpr(header, _base, _black_cache)
+            # 칸 분량을 넘치면 그 칸만 1pt 작게 — 다음 장으로 밀리는 것을 줄인다.
+            # 1pt 까지만(더 줄이면 회의에서 안 보임). 그래도 넘치면 그냥 둔다.
+            if shrink_overflow and text.strip():
+                _w, _h = cell_size(xml, col, row, nth=nth)
+                _fh = charpr_height(header, override)
+                if overflows_cell(text, _w, _h, _fh):
+                    header, override = ensure_smaller_charpr(
+                        header, override, _small_cache, delta_pt=1)
+                    shrunk.append(f"{m['name']}·{field}")
             xml = replace_cell(xml, col, row, text,
                                override_color_id=override,
                                nth=nth)
@@ -391,6 +488,8 @@ def build_report(template_bytes: bytes, submissions: dict,
     # 한글은 일부 엔트리의 flag_bits=0x04 를 기대하므로 바이너리 레벨에서 복원
     raw = buf.getvalue()
     raw = _patch_zip_flag_bits(raw, original_infos)
+    if shrunk_out is not None:
+        shrunk_out.extend(shrunk)
     return raw
 
 
