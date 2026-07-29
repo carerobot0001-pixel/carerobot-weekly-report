@@ -574,12 +574,14 @@ def home_page():
         margin:0 0 5px; }
       section[data-testid="stMain"] [data-testid="stCaptionContainer"]{
         margin:0 0 2px; }
-      /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·🗑): 기본 높이(38px)가 커서 줄간격이
-         벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤 */
+      /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
+         벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤. 기호는 이모지가 아닌 글자라
+         CSS 색이 먹는다(이모지는 폰트가 그림을 그려 흰 박스로 보였음). */
       [class*="st-key-todo_done_"] button, [class*="st-key-per_done_"] button,
       [class*="st-key-care_done_"] button, [class*="st-key-req_done_"] button,
       [class*="st-key-todo_toper_"] button, [class*="st-key-per_towork_"] button,
-      [class*="st-key-req_del_"] button{
+      [class*="st-key-req_del_"] button, [class*="st-key-req_edit_btn_"] button,
+      [class*="st-key-req_reply_"] button{
         min-height:0 !important; height:26px; padding:0 0.45rem !important;
         line-height:1; }
       section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
@@ -1164,12 +1166,12 @@ def home_page():
                             unsafe_allow_html=True)
                         # ✏️ 수정 — 잘못 보냈을 때 내용·링크를 고침(받은 사람 화면에 즉시 반영)
                         _ekey = f"req_edit_{_grp[0]['_row']}"
-                        if _sc2.button("✏️", key=f"req_edit_btn_{_grp[0]['_row']}",
+                        if _sc2.button("✎", key=f"req_edit_btn_{_grp[0]['_row']}",
                                        help="내용 수정(받은 사람 전원에게 반영)"):
                             st.session_state[_ekey] = not st.session_state.get(_ekey)
                             st.rerun()
                         # 🗑 회수 — 받은 사람 목록에서도 사라짐
-                        if _sc3.button("🗑", key=f"req_del_{_grp[0]['_row']}",
+                        if _sc3.button("✕", key=f"req_del_{_grp[0]['_row']}",
                                        help="회수 — 받은 사람 전원에게서 삭제"):
                             try:
                                 for g in _grp:
@@ -3316,6 +3318,11 @@ def main():
         color:#f0efeb !important; }
       div.stButton>button[kind="primary"]{ background:#c2673f !important;
         border-color:#c2673f !important; color:#fff !important; }
+      /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
+      [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button{
+        color:#f0efeb !important; font-size:1rem !important; }
+      [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
+        border-color:#ff8a72 !important; }
       hr{ border-color:#414140 !important; }
       /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 */
       [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
