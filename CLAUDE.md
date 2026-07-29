@@ -358,6 +358,27 @@
   작은 아이콘 버튼은 글자 기호(`✎`·`✕`·`✓`)를 쓸 것.
 - 인라인 스타일로 색을 고정한 곳(`_inline_plus` 제목, 홈 타이틀, 주간취합 표)은
   CSS로 못 덮으므로 **파이썬에서 `st.session_state["dark"]`를 보고 색을 분기**해야 함.
+- **표(`st.dataframe`/`st.data_editor`)는 캔버스로 그려서** 보통 CSS가 안 먹는다 →
+  `--gdg-bg-cell`, `--gdg-text-dark` 같은 **CSS 변수**로 지정.
+- 달력·드롭다운 팝업은 내부가 여러 겹이라 하나씩 잡으면 흰 칸이 계속 남는다 →
+  **팝업 하위 전체를 덮고** 선택·hover·비활성만 되살리는 방식이 안전.
+
+## ⚠️ 페이지 CSS가 사이드바로 새는 함정 (반복 발생)
+
+`st.markdown("<style>…")`로 주입하는 CSS는 **앱 전체에 적용**된다. 그래서 본문을
+촘촘하게 만들려고 넣은 규칙이 **사이드바 메뉴 간격까지 무너뜨린다**(카테고리 소제목이
+버튼에 겹쳐 보이는 증상). 실제로 두 번 발생:
+- 홈의 컴팩트 CSS(`stVerticalBlock{gap}` 등) → 사이드바 브랜드와 다크모드 버튼이 겹침
+- 주간취합의 `gap:0.1rem !important` → 사이드바 메뉴 줄간격 붕괴
+
+**규칙**: 여백·간격·정렬·폭에 관한 CSS는 반드시 **`section[data-testid="stMain"]`**
+으로 한정한다(색상만 바꾸는 규칙은 전역이어도 대체로 안전).
+
+```bash
+# 새는 규칙 점검 — gap/flex/width 등이 stMain·stSidebar 한정 없이 쓰였는지
+cd app && grep -nE "stVerticalBlock|stHorizontalBlock" streamlit_app.py \
+  | grep -E "gap|flex-direction|width|padding|margin" | grep -v "stMain\|stSidebar"
+```
 
 ## 배포 (Streamlit Cloud)
 
