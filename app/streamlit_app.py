@@ -3293,6 +3293,19 @@ def main():
          주황은 포인트(버튼·아이콘)에만 남기고 글씨·제목은 흰색으로 통일한다. */
       .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"]{
         background:#262624 !important; }
+      /* 상단 바 — 흰색으로 남아 사이드바 열기(») 버튼이 묻혔음 */
+      [data-testid="stHeader"], [data-testid="stToolbar"],
+      [data-testid="stDecoration"]{ background:#262624 !important; }
+      [data-testid="stSidebarCollapsedControl"] button,
+      [data-testid="stExpandSidebarButton"] button,
+      [data-testid="stBaseButton-headerNoPadding"],
+      [data-testid="stBaseButton-header"]{
+        background:#30302e !important; border:1px solid #4a4a48 !important;
+        color:#f0efeb !important; }
+      [data-testid="stSidebarCollapsedControl"] svg,
+      [data-testid="stExpandSidebarButton"] svg,
+      [data-testid="stHeader"] svg, [data-testid="stToolbar"] svg{
+        fill:#f0efeb !important; color:#f0efeb !important; }
       [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
       p, li, span, label{ color:#f0efeb !important; }
       h1,h2,h3,h4,h5,h6,
