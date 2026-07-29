@@ -489,18 +489,21 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     cb = f"uid={quote(uid)}&tok={quote(tok)}"
     sym = "－" if is_open else "＋"
     act = "close" if is_open else "open"
+    # 아이콘은 글리프마다 높이가 달라 그냥 나열하면 위아래로 어긋난다.
+    # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
+    _box = ("display:inline-flex;align-items:center;justify-content:center;"
+            "width:1.5em;height:1.5em;text-decoration:none;color:#C4622D;")
     _ex = ""
     if extra:
         _es, _eg, _eh = extra
         _ex = (f"<a href='?{cb}&go={_eg}' target='_self' title='{_eh}' "
-               "style='text-decoration:none;color:#C4622D;font-size:1rem;"
-               f"line-height:1;opacity:.6;'>{_es}</a>")
+               f"style='{_box}font-size:0.95rem;opacity:.6;'>{_es}</a>")
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:9px;margin:2px 0 6px;'>"
-        f"<span style='font-weight:700;color:#A8501A;font-size:1.05rem;'>{title}</span>"
+        "<div style='display:flex;align-items:center;gap:4px;margin:2px 0 6px;'>"
+        "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;"
+        f"line-height:1.5;margin-right:5px;'>{title}</span>"
         f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
-        "style='text-decoration:none;color:#C4622D;font-size:1.4rem;"
-        f"line-height:1;font-weight:700;'>{sym}</a>{_ex}</div>",
+        f"style='{_box}font-size:1.35rem;font-weight:700;'>{sym}</a>{_ex}</div>",
         unsafe_allow_html=True)
 
 
