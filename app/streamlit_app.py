@@ -809,15 +809,28 @@ def home_page():
                 _myper = todo_store.list_todos(uid, todo_store.KIND_PERSONAL)
             except Exception:
                 _mytodos, _myper = [], []
+            # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
+            _mv = st.session_state.get("todo_move_mode", False)
             if todo_lines or _mytodos:
-                st.markdown("**🏢 업무**")
+                _wc1, _wc2 = st.columns([6, 1])
+                _wc1.markdown("**🏢 업무**")
+                if _mytodos and _wc2.button(
+                        "🔀", key="todo_move_btn",
+                        help="개인 할 일로 옮기기 (누르면 각 항목에 🙋 버튼이 보임)"):
+                    st.session_state["todo_move_mode"] = not _mv
+                    st.rerun()
             if todo_lines:
                 st.markdown("\n".join(f"- {t}" for t in todo_lines))
             for _p in _mytodos:
-                _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                if _mv:
+                    _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                else:
+                    _pc1, _pc3 = st.columns([8, 1])
+                    _pc2 = None
                 _pc1.markdown(f"- 📝 {_p['내용']}")
-                if _pc2.button("🙋", key=f"todo_toper_{_p['_row']}",
-                               help="개인 할 일로 옮기기(주간보고에 안 들어감)"):
+                if _pc2 is not None and _pc2.button(
+                        "🙋", key=f"todo_toper_{_p['_row']}",
+                        help="개인 할 일로 옮기기(주간보고에 안 들어감)"):
                     try:
                         todo_store.set_kind(uid, _p["_row"], _p["내용"],
                                             todo_store.KIND_PERSONAL)
@@ -834,13 +847,24 @@ def home_page():
                     st.rerun()
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
-                st.markdown("**🙋 개인**")
+                _pc_h1, _pc_h2 = st.columns([6, 1])
+                _pc_h1.markdown("**🙋 개인**")
+                # 업무 머리글이 없을 때(개인만 있을 때)도 옮기기 모드를 켤 수 있게
+                if not (todo_lines or _mytodos) and _pc_h2.button(
+                        "🔀", key="per_move_btn", help="업무 할 일로 되돌리기"):
+                    st.session_state["todo_move_mode"] = not _mv
+                    st.rerun()
                 st.caption("개인 할 일은 주간보고에 들어가지 않습니다.")
                 for _p in _myper:
-                    _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                    if _mv:
+                        _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                    else:
+                        _pc1, _pc3 = st.columns([8, 1])
+                        _pc2 = None
                     _pc1.markdown(f"- 🏠 {_p['내용']}")
-                    if _pc2.button("🏢", key=f"per_towork_{_p['_row']}",
-                                   help="업무 할 일로 되돌리기"):
+                    if _pc2 is not None and _pc2.button(
+                            "🏢", key=f"per_towork_{_p['_row']}",
+                            help="업무 할 일로 되돌리기"):
                         try:
                             todo_store.set_kind(uid, _p["_row"], _p["내용"],
                                                 todo_store.KIND_TODO)
