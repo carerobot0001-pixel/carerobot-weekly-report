@@ -765,6 +765,19 @@ def home_page():
                 tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
                 st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
                 any_reminder = True
+        # ⚠️ 취합본을 만든 뒤에 보고를 고친 사람 — 받아둔 파일이 옛 것이 되므로 알림.
+        #   제출시간·생성시각 모두 'YYYY-MM-DD HH:MM'이라 문자열 비교로 시간순 판정.
+        try:
+            _exp_at = todo_store.get_sync("_team", f"export_{week}")
+            _stale = ([s["name"] for s in status
+                       if (s["submitted_at"] or "") > _exp_at] if _exp_at else [])
+        except Exception:
+            _exp_at, _stale = "", []
+        if _stale:
+            st.warning(
+                f"🗂️ 취합본({_exp_at}) 생성 후 수정: {', '.join(_stale)} — "
+                "회의 전 **다시 생성**하세요 (📝 업무보고 작성·취합)")
+            any_reminder = True
         # 개인 '오늘 챙길 것'(본인만) — 각 항목 옆 완료(삭제) 버튼
         try:
             _mycare = todo_store.list_todos(uid, todo_store.KIND_CARE)
