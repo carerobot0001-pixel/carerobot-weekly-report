@@ -600,24 +600,26 @@ def home_page():
     _tok = st.session_state.get("tok", "")
     _base = f"uid={quote(_uid)}&tok={quote(_tok)}"
     _tiles = [("📌", "공지등록", "notice")] + list(shortcuts)
-    _html = '<div class="dsbar">'
-    for _e, _l, _key in _tiles:
-        _href = f"?{_base}&go={quote(_key)}"
-        _html += (f'<a class="dstile" href="{_href}" target="_self">'
-                  f'<span class="ic">{_e}</span>'
-                  f'<span class="lb">{_l}</span></a>')
-    # 🎥 줌 회의 — 회의 진행 모드에 저장해 둔 팀 공용 링크로 바로 접속(새 탭).
-    #   링크가 저장돼 있을 때만 타일이 보인다(빈 링크 클릭 방지).
+    # (아이콘HTML, 라벨, 링크, target) — 내부 이동은 _self, 외부(줌)는 새 탭
+    _items = [(_e, _l, f"?{_base}&go={quote(_key)}", "_self")
+              for _e, _l, _key in _tiles]
+    # 🎥 줌 회의 — 회의 진행 모드에 저장해 둔 팀 공용 링크로 바로 접속.
+    #   링크가 저장돼 있을 때만 타일이 보인다(빈 링크 클릭 방지). 위치는 회의진행 옆.
     try:
         _zoom_url = todo_store.get_sync("_team", "zoom")
     except Exception:
         _zoom_url = ""
     if _zoom_url:
-        _html += (
-            f'<a class="dstile" href="{html_escape(_zoom_url, quote=True)}" '
-            f'target="_blank" rel="noopener">'
-            f'<span class="ic">{_ZOOM_SVG}</span>'
-            f'<span class="lb">줌 회의</span></a>')
+        _at = next((i for i, _it in enumerate(_items) if _it[1] == "회의진행"),
+                   len(_items) - 1)
+        _items.insert(_at + 1, (_ZOOM_SVG, "줌 회의",
+                                html_escape(_zoom_url, quote=True), "_blank"))
+    _html = '<div class="dsbar">'
+    for _ic, _l, _href, _tgt in _items:
+        _rel = ' rel="noopener"' if _tgt == "_blank" else ""
+        _html += (f'<a class="dstile" href="{_href}" target="{_tgt}"{_rel}>'
+                  f'<span class="ic">{_ic}</span>'
+                  f'<span class="lb">{_l}</span></a>')
     _html += "</div>"
     st.markdown(_html, unsafe_allow_html=True)
 
