@@ -2685,8 +2685,11 @@ def meeting_page():
                     st.error(f"저장 실패: {e}")
                 st.rerun()
 
-    # 섹션(st.markdown)들 사이 흰 여백 제거 — Streamlit 기본 블록 간격 축소
-    st.markdown("<style>[data-testid='stVerticalBlock']{gap:0.1rem !important;}</style>",
+    # 섹션(st.markdown)들 사이 흰 여백 제거 — Streamlit 기본 블록 간격 축소.
+    # ⚠ 반드시 본문(stMain)으로 한정 — 전역이면 사이드바 메뉴 간격까지 무너져
+    #   카테고리 소제목이 버튼에 겹쳐 보인다.
+    st.markdown("<style>section[data-testid='stMain'] "
+                "[data-testid='stVerticalBlock']{gap:0.1rem !important;}</style>",
                 unsafe_allow_html=True)
     with st.expander("📋 회의 자료 전체 (펼치기/접기)", expanded=True):
         mdata = load_week(week)
@@ -3272,8 +3275,11 @@ def main():
       @media (max-width: 700px){
         .block-container, [data-testid="stMainBlockContainer"]{
           padding-left:0.8rem; padding-right:0.8rem; padding-top:2.6rem; }
-        div[data-testid="stHorizontalBlock"]{ flex-direction:column; gap:0.4rem; }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]{
+        /* 본문만 — 사이드바 안의 좌우 배치까지 세로로 쌓이면 메뉴가 망가짐 */
+        section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{
+          flex-direction:column; gap:0.4rem; }
+        section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]
+          > div[data-testid="column"]{
           width:100% !important; flex:1 1 100% !important; }
       }
     </style>""", unsafe_allow_html=True)
@@ -3337,8 +3343,42 @@ def main():
       input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
         background:#30302e !important; color:#f0efeb !important;
         border-color:#4a4a48 !important; }
-      [data-testid="stDataFrame"], [data-testid="stTable"]{
-        background:#2d2d2b !important; }
+      /* 표(st.dataframe / st.data_editor) — 캔버스로 그려서 CSS 변수로만 바뀜 */
+      [data-testid="stDataFrame"], [data-testid="stTable"],
+      [data-testid="stDataFrameResizable"]{
+        background:#2d2d2b !important;
+        --gdg-bg-cell:#2d2d2b; --gdg-bg-cell-medium:#333331;
+        --gdg-bg-header:#3a3a37; --gdg-bg-header-hovered:#43433f;
+        --gdg-bg-header-has-focus:#43433f;
+        --gdg-text-dark:#f0efeb; --gdg-text-medium:#d5d3cd;
+        --gdg-text-light:#a5a29c; --gdg-text-header:#f0efeb;
+        --gdg-border-color:#4a4a48; --gdg-horizontal-border-color:#4a4a48;
+        --gdg-accent-color:#c2673f; --gdg-accent-light:#3a322c;
+        --gdg-bg-bubble:#3a3a37; --gdg-bg-search-result:#4a3a2c; }
+      [data-testid="stTable"] th, [data-testid="stTable"] td{
+        background:#2d2d2b !important; color:#f0efeb !important;
+        border-color:#4a4a48 !important; }
+      /* 탭(주간취합·업무보고 등) */
+      [data-baseweb="tab-list"]{ background:transparent !important;
+        border-bottom-color:#414140 !important; }
+      [data-baseweb="tab"]{ background:transparent !important;
+        color:#b4b2ac !important; }
+      [data-baseweb="tab"][aria-selected="true"]{ color:#f0efeb !important; }
+      [data-baseweb="tab-highlight"]{ background:#c2673f !important; }
+      /* 파일 업로더(문서 협업) — 기본 드롭존이 흰색 */
+      [data-testid="stFileUploader"] section,
+      [data-testid="stFileUploaderDropzone"]{
+        background:#30302e !important; border-color:#4a4a48 !important; }
+      [data-testid="stFileUploader"] *{ color:#f0efeb !important; }
+      /* 지표·토스트·라디오 */
+      [data-testid="stMetric"]{ background:transparent !important; }
+      [data-testid="stMetricValue"], [data-testid="stMetricLabel"] *{
+        color:#f0efeb !important; }
+      [data-testid="stToast"]{ background:#3a3a37 !important;
+        color:#f0efeb !important; border:1px solid #4a4a48 !important; }
+      [data-testid="stToast"] *{ color:#f0efeb !important; }
+      [data-testid="stDialog"] > div, [role="dialog"]{
+        background:#2d2d2b !important; color:#f0efeb !important; }
       /* 버튼 — 폼 안의 버튼은 stButton이 아니라 stFormSubmitButton이라 좁게 잡으면
          '보내기'만 흰 박스로 남는다. 다운로드·링크 버튼까지 한 번에 잡는다. */
       div.stButton>button, div[data-testid="stButton"] button,
@@ -3364,21 +3404,27 @@ def main():
         border-color:#ff8a72 !important; }
       hr{ border-color:#414140 !important; }
       /* 드롭다운·달력 팝업 — 앱 밖(body 포털)에 그려져서 따로 지정해야 함.
-         선택 목록(요청 대상 등), 날짜 선택 달력, 툴팁이 여기에 해당. */
-      [data-baseweb="popover"] [data-baseweb="menu"],
-      [data-baseweb="popover"] [data-baseweb="list"],
-      [data-baseweb="popover"] ul[role="listbox"],
-      [data-baseweb="calendar"], [data-baseweb="datepicker"],
-      [data-baseweb="tooltip"], [data-baseweb="popover"] > div{
-        background:#30302e !important; color:#f0efeb !important;
+         내부 구조(헤더·주차행·빈칸)가 여러 겹이라 하나씩 잡으면 계속 흰 칸이
+         남는다 → 팝업 하위 전체를 같은 색으로 덮고, 강조(선택·hover)만 되살린다. */
+      [data-baseweb="popover"], [data-baseweb="popover"] *,
+      [data-baseweb="calendar"], [data-baseweb="calendar"] *,
+      [data-baseweb="datepicker"], [data-baseweb="datepicker"] *,
+      [data-baseweb="tooltip"], [data-baseweb="tooltip"] *,
+      [data-baseweb="menu"], [data-baseweb="menu"] *{
+        background-color:#30302e !important; color:#f0efeb !important;
         border-color:#4a4a48 !important; }
-      [data-baseweb="popover"] li, [data-baseweb="popover"] li *,
-      [data-baseweb="calendar"] *, [data-baseweb="tooltip"] *{
-        color:#f0efeb !important; }
-      [data-baseweb="popover"] li[role="option"]{ background:#30302e !important; }
+      /* 선택된 날짜/항목은 주황으로 되살림(위 일괄 규칙에 묻히지 않게) */
+      [data-baseweb="calendar"] [aria-selected="true"],
+      [data-baseweb="popover"] li[aria-selected="true"],
+      [data-baseweb="calendar"] div[aria-label*="선택"]{
+        background-color:#c2673f !important; color:#fff !important; }
       [data-baseweb="popover"] li[role="option"]:hover,
-      [data-baseweb="popover"] li[aria-selected="true"]{
-        background:#3f3f3c !important; }
+      [data-baseweb="calendar"] [role="gridcell"]:hover{
+        background-color:#43433f !important; }
+      /* 이번 달이 아닌 날짜·비활성 항목은 흐리게 */
+      [data-baseweb="calendar"] [aria-disabled="true"],
+      [data-baseweb="calendar"] [data-outside-month="true"]{
+        color:#807d77 !important; }
       /* 선택된 항목 칩(멀티셀렉트) */
       [data-baseweb="tag"]{ background:#43433f !important; color:#f0efeb !important; }
       [data-baseweb="tag"] *{ color:#f0efeb !important; }
