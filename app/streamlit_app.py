@@ -76,6 +76,36 @@ _ZOOM_SVG = (
     ' fill="#fff"/></svg>')
 
 
+def zoom_links():
+    """팀 공용 줌 링크 목록 [(이름, 주소), ...]. 주간회의·세미나처럼 고정 링크가
+    여러 개라 이름을 붙여 저장한다(JSON). 옛 단일 링크('zoom')도 함께 인식."""
+    out = []
+    try:
+        raw = todo_store.get_sync("_team", "zoom_links")
+        if raw:
+            out = [(str(d.get("name", "")).strip(), str(d.get("url", "")).strip())
+                   for d in json.loads(raw)]
+            out = [t for t in out if t[0] and t[1]]
+    except Exception:
+        out = []
+    if not out:                      # 예전 방식(단일 링크)에서 넘어오는 경우
+        try:
+            old = todo_store.get_sync("_team", "zoom")
+        except Exception:
+            old = ""
+        if old:
+            out = [("주간회의", old)]
+    return out
+
+
+def save_zoom_links(items):
+    """[(이름, 주소), ...] 저장. 빈 줄은 버림."""
+    data = [{"name": n.strip(), "url": u.strip()} for n, u in items
+            if n.strip() and u.strip()]
+    todo_store.set_sync("_team", "zoom_links",
+                        json.dumps(data, ensure_ascii=False))
+
+
 def _brand(where="home"):
     """DS 주황 배지 + 'dolbom studio' 브랜드 블록 HTML."""
     if where == "sidebar":
@@ -631,15 +661,11 @@ def home_page():
               for _e, _l, _key in _tiles]
     # 🎥 줌 회의 — 회의 진행 모드에 저장해 둔 팀 공용 링크로 바로 접속.
     #   링크가 저장돼 있을 때만 타일이 보인다(빈 링크 클릭 방지). 위치는 회의진행 옆.
-    try:
-        _zoom_url = todo_store.get_sync("_team", "zoom")
-    except Exception:
-        _zoom_url = ""
-    if _zoom_url:
-        _at = next((i for i, _it in enumerate(_items) if _it[1] == "발표화면"),
-                   len(_items) - 1)
-        _items.insert(_at + 1, (_ZOOM_SVG, "주간회의 줌",
-                                html_escape(_zoom_url, quote=True), "_blank"))
+    _at = next((i for i, _it in enumerate(_items) if _it[1] == "발표화면"),
+               len(_items) - 1)
+    for _zn, _zu in reversed(zoom_links()):      # 발표화면 바로 뒤에 순서대로
+        _items.insert(_at + 1, (_ZOOM_SVG, _zn,
+                                html_escape(_zu, quote=True), "_blank"))
     _html = '<div class="dsbar">'
     for _ic, _l, _href, _tgt in _items:
         _rel = ' rel="noopener"' if _tgt == "_blank" else ""
@@ -2487,26 +2513,32 @@ def meeting_page():
     week = (_wd + timedelta(days=(2 - _wd.weekday()))).strftime("%Y-%m-%d")
     st.caption(f"📅 조회 주차: **{week} (수)**")
 
-    # 🔗 줌 회의 링크 — 팀 공용(한 번 저장해두면 모두에게 버튼으로 보임)
-    try:
-        _zoom = todo_store.get_sync("_team", "zoom")
-    except Exception:
-        _zoom = ""
-    _zc1, _zc2 = st.columns([3, 1])
-    if _zoom:
-        _zc1.link_button("🎥 Zoom 회의 참여", _zoom, use_container_width=True)
-    else:
-        _zc1.caption("🎥 줌 회의 링크가 아직 없습니다. 오른쪽에서 설정하세요.")
-    if _zc2.button("⚙️ 링크 설정", key="zoom_set_btn", use_container_width=True):
+    # 🔗 줌 링크 — 팀 공용. 주간회의·세미나처럼 고정 링크가 여러 개라 이름별로 저장.
+    _zl = zoom_links()
+    _zcols = st.columns(max(len(_zl), 1) + 1)
+    for _i, (_zn, _zu) in enumerate(_zl):
+        _zcols[_i].link_button(f"🎥 {_zn}", _zu, use_container_width=True)
+    if not _zl:
+        _zcols[0].caption("🎥 줌 링크가 아직 없습니다. 오른쪽에서 등록하세요.")
+    if _zcols[-1].button("⚙️ 링크 설정", key="zoom_set_btn",
+                         use_container_width=True):
         st.session_state["zoom_edit"] = not st.session_state.get("zoom_edit", False)
         st.rerun()
     if st.session_state.get("zoom_edit"):
         with st.form("zoom_form"):
-            _zurl = st.text_input("Zoom 회의 링크", value=_zoom,
-                                  placeholder="https://zoom.us/j/…")
+            st.caption("이름과 주소를 적어 저장하세요. 이름을 지우면 그 줄은 삭제됩니다. "
+                       "(예: 주간회의 / 세미나)")
+            _rows_in = []
+            for _i, (_zn, _zu) in enumerate(_zl + [("", "")]):   # 마지막은 새 줄
+                _c1, _c2 = st.columns([1, 3])
+                _rows_in.append((
+                    _c1.text_input("이름", value=_zn, key=f"zn_{_i}",
+                                   placeholder="주간회의"),
+                    _c2.text_input("주소", value=_zu, key=f"zu_{_i}",
+                                   placeholder="https://zoom.us/j/…")))
             if st.form_submit_button("저장"):
                 try:
-                    todo_store.set_sync("_team", "zoom", _zurl.strip())
+                    save_zoom_links(_rows_in)
                     st.session_state["zoom_edit"] = False
                 except Exception as e:
                     st.error(f"저장 실패: {e}")
