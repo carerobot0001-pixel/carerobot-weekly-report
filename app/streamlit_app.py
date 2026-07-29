@@ -3294,11 +3294,15 @@ def main():
             st.session_state["dark"] = False
     if st.session_state.get("dark"):
         st.markdown("""<style>
+      /* 팔레트 — 톤 조정은 여기 5줄만 바꾸면 전체 반영 */
+      :root{ --ds-bg:#1f1e1d; --ds-surface:#292827; --ds-surface2:#33322f;
+             --ds-border:#3c3b38; --ds-text:#f0efeb; --ds-text2:#b0aea8;
+             --ds-accent:#c2673f; }
       /* 다크모드 — Claude 데스크탑 방식: 중성 회색 배경 + 흰 글씨.
          눈부심의 원인은 글씨 밝기가 아니라 '채도 높은 주황이 곳곳에 있는 것'이라,
          주황은 포인트(버튼·아이콘)에만 남기고 글씨·제목은 흰색으로 통일한다. */
       .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"]{
-        background:#262624 !important; }
+        background:var(--ds-bg) !important; }
       /* 상단 바 — 흰색으로 남아 사이드바 열기(») 버튼이 묻혔음.
          Fork/앱메뉴/배포 버튼과 사이드바 상단 영역도 같이 흰 박스로 남는다. */
       [data-testid="stHeader"], [data-testid="stToolbar"],
@@ -3307,8 +3311,8 @@ def main():
       [data-testid="stAppDeployButton"], [data-testid="stMainMenu"],
       [data-testid="stSidebarHeader"], [data-testid="stSidebarNavItems"],
       [data-testid="stSidebarCollapseButton"]{
-        background:#262624 !important; color:#f0efeb !important; }
-      [data-testid="stSidebarHeader"]{ background:#1f1f1e !important; }
+        background:var(--ds-bg) !important; color:#f0efeb !important; }
+      [data-testid="stSidebarHeader"]{ background:var(--ds-bg) !important; }
       [data-testid="stToolbarActions"] *, [data-testid="stActionButton"] *,
       [data-testid="stStatusWidget"] *, [data-testid="stMainMenu"] *{
         background:transparent !important; color:#f0efeb !important; }
@@ -3316,7 +3320,7 @@ def main():
       [data-testid="stExpandSidebarButton"] button,
       [data-testid="stBaseButton-headerNoPadding"],
       [data-testid="stBaseButton-header"]{
-        background:#30302e !important; border:1px solid #4a4a48 !important;
+        background:var(--ds-surface) !important; border:1px solid var(--ds-border) !important;
         color:#f0efeb !important; }
       [data-testid="stSidebarCollapsedControl"] svg,
       [data-testid="stExpandSidebarButton"] svg,
@@ -3331,71 +3335,71 @@ def main():
       [data-testid="stCaptionContainer"] *{ color:#b4b2ac !important; }
       a, a:visited{ color:#e08a63 !important; }
       /* 알림/카드/펼치기 — 배경보다 살짝 밝은 한 단계 위 면(surface) */
-      [data-testid="stAlert"]{ background:#30302e !important;
-        border:1px solid #414140 !important; }
+      [data-testid="stAlert"]{ background:var(--ds-surface) !important;
+        border:1px solid var(--ds-border) !important; }
       [data-testid="stAlert"] *{ color:#f0efeb !important; }
       [data-testid="stExpander"], [data-testid="stExpander"] details{
-        background:#2d2d2b !important; border-color:#414140 !important; }
+        background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       /* 펼침 헤더(summary) — 기본/hover/focus 가 밝은 값으로 남아 흰 띠로 보였음 */
       [data-testid="stExpander"] summary,
       [data-testid="stExpander"] details[open] > summary,
       [data-testid="stExpander"] summary:hover,
       [data-testid="stExpander"] summary:focus,
       [data-testid="stExpander"] summary:active{
-        background:#2d2d2b !important; color:#f0efeb !important; }
-      [data-testid="stExpander"] summary:hover{ background:#3a3a37 !important; }
+        background:var(--ds-surface) !important; color:#f0efeb !important; }
+      [data-testid="stExpander"] summary:hover{ background:var(--ds-surface2) !important; }
       [data-testid="stExpander"] summary *,
       [data-testid="stExpander"] summary svg{
         color:#f0efeb !important; fill:#f0efeb !important; }
       div[data-testid="stVerticalBlockBorderWrapper"]{
-        background:#2d2d2b !important; border-color:#414140 !important; }
+        background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       /* 입력 요소 */
       input, textarea, [data-baseweb="select"]>div, [data-baseweb="input"]>div{
-        background:#30302e !important; color:#f0efeb !important;
-        border-color:#4a4a48 !important; }
+        background:var(--ds-surface) !important; color:#f0efeb !important;
+        border-color:var(--ds-border) !important; }
       /* 표(st.dataframe / st.data_editor) — 캔버스로 그려서 CSS 변수로만 바뀜 */
       [data-testid="stDataFrame"], [data-testid="stTable"],
       [data-testid="stDataFrameResizable"]{
-        background:#2d2d2b !important;
-        --gdg-bg-cell:#2d2d2b; --gdg-bg-cell-medium:#333331;
-        --gdg-bg-header:#3a3a37; --gdg-bg-header-hovered:#43433f;
-        --gdg-bg-header-has-focus:#43433f;
+        background:var(--ds-surface) !important;
+        --gdg-bg-cell:var(--ds-surface); --gdg-bg-cell-medium:#333331;
+        --gdg-bg-header:var(--ds-surface2); --gdg-bg-header-hovered:var(--ds-surface2);
+        --gdg-bg-header-has-focus:var(--ds-surface2);
         --gdg-text-dark:#f0efeb; --gdg-text-medium:#d5d3cd;
         --gdg-text-light:#a5a29c; --gdg-text-header:#f0efeb;
-        --gdg-border-color:#4a4a48; --gdg-horizontal-border-color:#4a4a48;
-        --gdg-accent-color:#c2673f; --gdg-accent-light:#3a322c;
-        --gdg-bg-bubble:#3a3a37; --gdg-bg-search-result:#4a3a2c; }
+        --gdg-border-color:var(--ds-border); --gdg-horizontal-border-color:var(--ds-border);
+        --gdg-accent-color:var(--ds-accent); --gdg-accent-light:#3a322c;
+        --gdg-bg-bubble:var(--ds-surface2); --gdg-bg-search-result:#4a3a2c; }
       [data-testid="stTable"] th, [data-testid="stTable"] td{
-        background:#2d2d2b !important; color:#f0efeb !important;
-        border-color:#4a4a48 !important; }
+        background:var(--ds-surface) !important; color:#f0efeb !important;
+        border-color:var(--ds-border) !important; }
       /* 탭(주간취합·업무보고 등) */
       [data-baseweb="tab-list"]{ background:transparent !important;
-        border-bottom-color:#414140 !important; }
+        border-bottom-color:var(--ds-border) !important; }
       [data-baseweb="tab"]{ background:transparent !important;
         color:#b4b2ac !important; }
       [data-baseweb="tab"][aria-selected="true"]{ color:#f0efeb !important; }
-      [data-baseweb="tab-highlight"]{ background:#c2673f !important; }
+      [data-baseweb="tab-highlight"]{ background:var(--ds-accent) !important; }
       /* 파일 업로더(문서 협업) — 기본 드롭존이 흰색 */
       [data-testid="stFileUploader"] section,
       [data-testid="stFileUploaderDropzone"]{
-        background:#30302e !important; border-color:#4a4a48 !important; }
+        background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       [data-testid="stFileUploader"] *{ color:#f0efeb !important; }
       /* 지표·토스트·라디오 */
       [data-testid="stMetric"]{ background:transparent !important; }
       [data-testid="stMetricValue"], [data-testid="stMetricLabel"] *{
         color:#f0efeb !important; }
-      [data-testid="stToast"]{ background:#3a3a37 !important;
-        color:#f0efeb !important; border:1px solid #4a4a48 !important; }
+      [data-testid="stToast"]{ background:var(--ds-surface2) !important;
+        color:#f0efeb !important; border:1px solid var(--ds-border) !important; }
       [data-testid="stToast"] *{ color:#f0efeb !important; }
       [data-testid="stDialog"] > div, [role="dialog"]{
-        background:#2d2d2b !important; color:#f0efeb !important; }
+        background:var(--ds-surface) !important; color:#f0efeb !important; }
       /* 버튼 — 폼 안의 버튼은 stButton이 아니라 stFormSubmitButton이라 좁게 잡으면
          '보내기'만 흰 박스로 남는다. 다운로드·링크 버튼까지 한 번에 잡는다. */
       div.stButton>button, div[data-testid="stButton"] button,
       div[data-testid="stFormSubmitButton"] button,
       div[data-testid="stDownloadButton"] button,
       div[data-testid="stLinkButton"] a, button[data-testid^="stBaseButton"]{
-        background:#30302e !important; border-color:#4a4a48 !important;
+        background:var(--ds-surface) !important; border-color:var(--ds-border) !important;
         color:#f0efeb !important; }
       div.stButton>button:hover, div[data-testid="stFormSubmitButton"] button:hover,
       div[data-testid="stDownloadButton"] button:hover,
@@ -3405,14 +3409,14 @@ def main():
       div[data-testid="stFormSubmitButton"] button[kind="primary"],
       button[data-testid="stBaseButton-primary"],
       button[data-testid="stBaseButton-primaryFormSubmit"]{
-        background:#c2673f !important; border-color:#c2673f !important;
+        background:var(--ds-accent) !important; border-color:var(--ds-accent) !important;
         color:#fff !important; }
       /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
       [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button{
         color:#f0efeb !important; font-size:1rem !important; }
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
-      hr{ border-color:#414140 !important; }
+      hr{ border-color:var(--ds-border) !important; }
       /* 드롭다운·달력 팝업 — 앱 밖(body 포털)에 그려져서 따로 지정해야 함.
          내부 구조(헤더·주차행·빈칸)가 여러 겹이라 하나씩 잡으면 계속 흰 칸이
          남는다 → 팝업 하위 전체를 같은 색으로 덮고, 강조(선택·hover)만 되살린다. */
@@ -3421,52 +3425,53 @@ def main():
       [data-baseweb="datepicker"], [data-baseweb="datepicker"] *,
       [data-baseweb="tooltip"], [data-baseweb="tooltip"] *,
       [data-baseweb="menu"], [data-baseweb="menu"] *{
-        background-color:#30302e !important; color:#f0efeb !important;
-        border-color:#4a4a48 !important; }
+        background-color:var(--ds-surface) !important; color:#f0efeb !important;
+        border-color:var(--ds-border) !important; }
       /* 선택된 날짜/항목은 주황으로 되살림(위 일괄 규칙에 묻히지 않게) */
       [data-baseweb="calendar"] [aria-selected="true"],
       [data-baseweb="popover"] li[aria-selected="true"],
       [data-baseweb="calendar"] div[aria-label*="선택"]{
-        background-color:#c2673f !important; color:#fff !important; }
+        background-color:var(--ds-accent) !important; color:#fff !important; }
       [data-baseweb="popover"] li[role="option"]:hover,
       [data-baseweb="calendar"] [role="gridcell"]:hover{
-        background-color:#43433f !important; }
+        background-color:var(--ds-surface2) !important; }
       /* 이번 달이 아닌 날짜·비활성 항목은 흐리게 */
       [data-baseweb="calendar"] [aria-disabled="true"],
       [data-baseweb="calendar"] [data-outside-month="true"]{
         color:#807d77 !important; }
       /* 선택된 항목 칩(멀티셀렉트) */
-      [data-baseweb="tag"]{ background:#43433f !important; color:#f0efeb !important; }
+      [data-baseweb="tag"]{ background:var(--ds-surface2) !important; color:#f0efeb !important; }
       [data-baseweb="tag"] *{ color:#f0efeb !important; }
       /* 코드 표시(`아이디` 같은 백틱·st.code) — 밝은 배경이 남아 글씨가 묻힘 */
       code, kbd, pre, [data-testid="stCode"], [data-testid="stCode"] pre,
       [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] pre{
-        background:#30302e !important; border-color:#414140 !important; }
+        background:var(--ds-surface) !important; border-color:var(--ds-border) !important; }
       code, code span, pre, pre span, kbd,
       [data-testid="stCode"] *, [data-testid="stCodeBlock"] *{
         color:#f0efeb !important; }
       /* 완료 체크박스 — 밝은 흰 박스가 튀지 않게 */
       [data-testid="stCheckbox"] [data-baseweb="checkbox"] div[role="presentation"]{
-        background:#30302e !important; border-color:#5a5a57 !important; }
+        background:var(--ds-surface) !important; border-color:#5a5a57 !important; }
       [data-testid="stCheckbox"] input:checked + div div[role="presentation"],
       [data-testid="stCheckbox"] [aria-checked="true"] div[role="presentation"]{
-        background:#c2673f !important; border-color:#c2673f !important; }
+        background:var(--ds-accent) !important; border-color:var(--ds-accent) !important; }
       /* 사이드바도 같은 계열로(갈색 → 중성) */
-      section[data-testid="stSidebar"]{ background:#1f1f1e !important; }
+      /* 사이드바는 본문보다 한 톤 더 어둡게 — 면이 구분돼야 메뉴가 떠 보임 */
+      section[data-testid="stSidebar"]{ background:#191918 !important; }
       section[data-testid="stSidebar"] *{ color:#eceae5 !important; }
       section[data-testid="stSidebar"] .navcat{ color:#96938c !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{
         background:#2f2f2d !important; }
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-        background:#c2673f !important; color:#fff !important; }
+        background:var(--ds-accent) !important; color:#fff !important; }
       section[data-testid="stSidebar"] .st-key-theme_btn button{
-        background:#2f2f2d !important; border-color:#4a4a48 !important; }
+        background:#2f2f2d !important; border-color:var(--ds-border) !important; }
       /* 스크롤바도 다크 */
       ::-webkit-scrollbar{ width:12px; height:12px; }
-      ::-webkit-scrollbar-track{ background:#262624; }
-      ::-webkit-scrollbar-thumb{ background:#43433f; border-radius:6px; }
+      ::-webkit-scrollbar-track{ background:var(--ds-bg); }
+      ::-webkit-scrollbar-thumb{ background:var(--ds-surface2); border-radius:6px; }
       ::-webkit-scrollbar-thumb:hover{ background:#55554f; }
-      *{ scrollbar-color:#43433f #262624; }
+      *{ scrollbar-color:var(--ds-surface2) var(--ds-bg); }
     </style>""", unsafe_allow_html=True)
 
     mode_options = ["🏠 홈", "🖥️ 주간취합", "📝 업무보고 작성·취합",
