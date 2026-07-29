@@ -3363,6 +3363,25 @@ def main():
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
       hr{ border-color:#414140 !important; }
+      /* 드롭다운·달력 팝업 — 앱 밖(body 포털)에 그려져서 따로 지정해야 함.
+         선택 목록(요청 대상 등), 날짜 선택 달력, 툴팁이 여기에 해당. */
+      [data-baseweb="popover"] [data-baseweb="menu"],
+      [data-baseweb="popover"] [data-baseweb="list"],
+      [data-baseweb="popover"] ul[role="listbox"],
+      [data-baseweb="calendar"], [data-baseweb="datepicker"],
+      [data-baseweb="tooltip"], [data-baseweb="popover"] > div{
+        background:#30302e !important; color:#f0efeb !important;
+        border-color:#4a4a48 !important; }
+      [data-baseweb="popover"] li, [data-baseweb="popover"] li *,
+      [data-baseweb="calendar"] *, [data-baseweb="tooltip"] *{
+        color:#f0efeb !important; }
+      [data-baseweb="popover"] li[role="option"]{ background:#30302e !important; }
+      [data-baseweb="popover"] li[role="option"]:hover,
+      [data-baseweb="popover"] li[aria-selected="true"]{
+        background:#3f3f3c !important; }
+      /* 선택된 항목 칩(멀티셀렉트) */
+      [data-baseweb="tag"]{ background:#43433f !important; color:#f0efeb !important; }
+      [data-baseweb="tag"] *{ color:#f0efeb !important; }
       /* 코드 표시(`아이디` 같은 백틱·st.code) — 밝은 배경이 남아 글씨가 묻힘 */
       code, kbd, pre, [data-testid="stCode"], [data-testid="stCode"] pre,
       [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] pre{
