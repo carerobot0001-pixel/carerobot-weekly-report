@@ -561,10 +561,17 @@ def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None,
     for _e in ([extra] if extra and isinstance(extra, tuple) else (extra or [])):
         icons += _a(*_e)
     if fold:
+        # 접기 화살표는 오른쪽 확장패널과 같은 느낌으로 또렷하게(작고 흐리면 안 보임)
         _fd = folded(fold)
-        icons += _a("▸" if _fd else "▾",
-                    f"{'unfold' if _fd else 'fold'}_{fold}",
-                    "펼치기" if _fd else "접기", size="0.9rem", op=".55")
+        _fc = "#f0eee9" if _dk else "#6b4a2f"
+        icons += (
+            f"<a href='?{cb}&go={'unfold' if _fd else 'fold'}_{fold}' "
+            f"target='_self' title=\"{'펼치기' if _fd else '접기'}\" "
+            "style='display:inline-flex;align-items:center;justify-content:center;"
+            "width:1.6em;height:1.6em;margin-left:2px;border-radius:6px;"
+            f"text-decoration:none;color:{_fc};font-size:0.8rem;"
+            f"border:1px solid {'#3c3b38' if _dk else '#E3C6A6'};'>"
+            f"{'▶' if _fd else '▼'}</a>")
     st.markdown(
         "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
         f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
