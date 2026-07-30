@@ -523,16 +523,23 @@ def _hm(ts: str) -> str:
     return f"{int(d[5:7])}/{int(d[8:10])} {t}"
 
 
-def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
-    """제목 옆에 '사업단 일정 ＋'과 같은 작은 인라인 ＋를 렌더.
-    열림 여부에 따라 go=<name>_open/_close 를 명시(토글 아님 → 중복 처리에도 안전).
-    extra=(기호, go키, 툴팁)이면 ＋ 옆에 아이콘 하나를 더 붙인다(같은 줄 정렬 보장 —
-    st.columns로 붙이면 버튼이 제목과 어긋나 보임)."""
+def folded(name: str) -> bool:
+    """홈 섹션(오늘 챙길 것·업무·개인)이 접혀 있는지."""
+    return bool(st.session_state.get(f"folded_{name}"))
+
+
+def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None,
+                 fold=None):
+    """제목 + 작은 인라인 아이콘들을 한 줄에 렌더(정렬 보장).
+
+    go      : 지정하면 ＋/－(추가 폼 열기) 아이콘. None이면 안 붙임.
+    extra   : (기호, go키, 툴팁) 또는 그 리스트 — ＋ 옆에 아이콘 추가.
+    fold    : 접기 대상 이름. 지정하면 끝에 ▾/▸ 를 붙여 섹션을 접었다 펼침.
+    st.columns로 버튼을 붙이면 제목과 높이가 어긋나 보이므로 전부 HTML 한 줄로 만든다.
+    """
     uid = st.session_state.get("uid", "")
     tok = st.session_state.get("tok", "")
     cb = f"uid={quote(uid)}&tok={quote(tok)}"
-    sym = "－" if is_open else "＋"
-    act = "close" if is_open else "open"
     # 아이콘은 글리프마다 높이가 달라 그냥 나열하면 위아래로 어긋난다.
     # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
     # 다크에선 제목이 진한 주황(#A8501A)이면 배경에 묻혀 안 보임 → 흰색으로
@@ -541,17 +548,27 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     _ic = "#d97757" if _dk else "#C4622D"
     _box = ("display:inline-flex;align-items:center;justify-content:center;"
             f"width:1.5em;height:1.5em;text-decoration:none;color:{_ic};")
-    _ex = ""
-    if extra:
-        _es, _eg, _eh = extra
-        _ex = (f"<a href='?{cb}&go={_eg}' target='_self' title='{_eh}' "
-               f"style='{_box}font-size:0.95rem;opacity:.6;'>{_es}</a>")
+
+    def _a(sym, gokey, tip, size="0.95rem", op=".6", bold=""):
+        return (f"<a href='?{cb}&go={gokey}' target='_self' title='{tip}' "
+                f"style='{_box}font-size:{size};opacity:{op};{bold}'>{sym}</a>")
+
+    icons = ""
+    if go:
+        icons += _a("－" if is_open else "＋",
+                    f"{go}_{'close' if is_open else 'open'}",
+                    help_txt, size="1.35rem", op="1", bold="font-weight:700;")
+    for _e in ([extra] if extra and isinstance(extra, tuple) else (extra or [])):
+        icons += _a(*_e)
+    if fold:
+        _fd = folded(fold)
+        icons += _a("▸" if _fd else "▾",
+                    f"{'unfold' if _fd else 'fold'}_{fold}",
+                    "펼치기" if _fd else "접기", size="0.9rem", op=".55")
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:0;margin:0 0 8px;'>"
+        "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
         f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
-        f"line-height:1.5;margin-right:2px;'>{title}</span>"
-        f"<a href='?{cb}&go={go}_{act}' target='_self' title='{help_txt}' "
-        f"style='{_box}font-size:1.35rem;font-weight:700;'>{sym}</a>{_ex}</div>",
+        f"line-height:1.5;margin-right:2px;'>{title}</span>{icons}</div>",
         unsafe_allow_html=True)
 
 
@@ -804,10 +821,11 @@ def home_page():
         _care_open = st.session_state.get("care_add_open", False)
         if uid:
             _inline_plus("🔔 오늘 챙길 것", "care", _care_open,
-                         "나만 보는 '오늘 챙길 것' 추가(캘린더에 안 들어감)")
+                         "나만 보는 '오늘 챙길 것' 추가(캘린더에 안 들어감)",
+                         fold="care")
         else:
             st.markdown("**🔔 오늘 챙길 것**")
-        if _care_open and uid:
+        if _care_open and uid and not folded("care"):
             with st.form("care_add_form", clear_on_submit=True):
                 _ct = st.text_input("오늘 챙길 것 (나만 보임)", key="care_text",
                                     placeholder="예: 회의 자료 인쇄")
@@ -818,91 +836,94 @@ def home_page():
                     except Exception as e:
                         st.error(f"저장 실패: {e}")
                     st.rerun()
+        # 접기 상태면 본문을 건너뛴다(제목의 ▾/▸ 로 전환)
         any_reminder = False
-        if missing:
-            wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
-            deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
-            delta = deadline - now
-            overdue = delta.total_seconds() < 0
-            if overdue or delta.days <= 1:   # 마감 지남 + D-0(오늘)·D-1(내일)만
-                if overdue:
-                    dtxt = "🔴 마감 지남 (화 17시)"
-                elif delta.days == 0:
-                    dtxt = (f"⏰ 오늘 마감! (화 17시·"
-                            f"{int(delta.total_seconds() // 3600)}시간 남음)")
+        _mycare = []
+        if not folded('care'):
+            if missing:
+                wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
+                deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
+                delta = deadline - now
+                overdue = delta.total_seconds() < 0
+                if overdue or delta.days <= 1:   # 마감 지남 + D-0(오늘)·D-1(내일)만
+                    if overdue:
+                        dtxt = "🔴 마감 지남 (화 17시)"
+                    elif delta.days == 0:
+                        dtxt = (f"⏰ 오늘 마감! (화 17시·"
+                                f"{int(delta.total_seconds() // 3600)}시간 남음)")
+                    else:
+                        dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
+                    st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
+                               f"{', '.join(missing)}")
+                    any_reminder = True
+            for r in active_collab:
+                dl = _pdate(r[6])
+                if dl is None:
+                    continue
+                if dl < today or (dl - today).days <= 1:   # 마감 지남 + D-0·D-1만
+                    tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
+                    st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
+                    any_reminder = True
+            # 📨 내가 보낸 요청의 결과(완료·회신) 알림 — 확인 누르면 사라짐
+            try:
+                _upd = request_store.updates_for(my) if my else []
+            except Exception:
+                _upd = []
+            for _u in _upd:
+                _urp = (_u.get("회신", "") or "").strip()
+                _udone = _u["상태"].strip() == request_store.ST_DONE
+                _uwhen = _hm(_u["완료일시"] if _udone else _u.get("회신일시", ""))
+                _umsg = (f"✅ **{_u['대상']}** 님이 완료: {_u['내용']}"
+                         if _udone else f"💬 **{_u['대상']}** 님 회신: {_urp}")
+                if _uwhen:
+                    _umsg += f"  ({_uwhen})"
+                if _udone and _urp:
+                    _umsg += f"  \n💬 {_urp}"
+                _uc1, _uc2 = st.columns([8, 1])
+                # ⚠ 삼항식으로 쓰면 Streamlit '매직'이 그 반환값(DeltaGenerator)을
+                #   화면에 덤프한다 → 반드시 if/else 문으로 호출할 것.
+                if _udone:
+                    _uc1.success(_umsg)
                 else:
-                    dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
-                st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
-                           f"{', '.join(missing)}")
+                    _uc1.info(_umsg)
+                if _uc2.button("확인", key=f"req_ack_{_u['_row']}",
+                               help="확인했습니다(알림 지우기)"):
+                    try:
+                        request_store.ack_request(_u["요청ID"], my)
+                    except Exception as e:
+                        st.error(f"확인 실패: {e}")
+                    st.rerun()
                 any_reminder = True
-        for r in active_collab:
-            dl = _pdate(r[6])
-            if dl is None:
-                continue
-            if dl < today or (dl - today).days <= 1:   # 마감 지남 + D-0·D-1만
-                tag = "🔴 마감 지남" if dl < today else f"🟡 D-{(dl - today).days}"
-                st.warning(f"📋 문서협업 '{r[3]}' {tag} (마감 {r[6]})")
-                any_reminder = True
-        # 📨 내가 보낸 요청의 결과(완료·회신) 알림 — 확인 누르면 사라짐
-        try:
-            _upd = request_store.updates_for(my) if my else []
-        except Exception:
-            _upd = []
-        for _u in _upd:
-            _urp = (_u.get("회신", "") or "").strip()
-            _udone = _u["상태"].strip() == request_store.ST_DONE
-            _uwhen = _hm(_u["완료일시"] if _udone else _u.get("회신일시", ""))
-            _umsg = (f"✅ **{_u['대상']}** 님이 완료: {_u['내용']}"
-                     if _udone else f"💬 **{_u['대상']}** 님 회신: {_urp}")
-            if _uwhen:
-                _umsg += f"  ({_uwhen})"
-            if _udone and _urp:
-                _umsg += f"  \n💬 {_urp}"
-            _uc1, _uc2 = st.columns([8, 1])
-            # ⚠ 삼항식으로 쓰면 Streamlit '매직'이 그 반환값(DeltaGenerator)을
-            #   화면에 덤프한다 → 반드시 if/else 문으로 호출할 것.
-            if _udone:
-                _uc1.success(_umsg)
-            else:
-                _uc1.info(_umsg)
-            if _uc2.button("확인", key=f"req_ack_{_u['_row']}",
-                           help="확인했습니다(알림 지우기)"):
-                try:
-                    request_store.ack_request(_u["요청ID"], my)
-                except Exception as e:
-                    st.error(f"확인 실패: {e}")
-                st.rerun()
-            any_reminder = True
 
-        # ⚠️ 취합본을 만든 뒤에 보고를 고친 사람 — 받아둔 파일이 옛 것이 되므로 알림.
-        #   제출시간·생성시각 모두 'YYYY-MM-DD HH:MM'이라 문자열 비교로 시간순 판정.
-        try:
-            _exp_at = todo_store.get_sync("_team", f"export_{week}")
-            _stale = ([s["name"] for s in status
-                       if (s["submitted_at"] or "") > _exp_at] if _exp_at else [])
-        except Exception:
-            _exp_at, _stale = "", []
-        if _stale:
-            st.warning(
-                f"🗂️ 취합본({_exp_at}) 생성 후 수정: {', '.join(_stale)} — "
-                "회의 전 **다시 생성**하세요 (📝 업무보고 작성·취합)")
-            any_reminder = True
-        # 개인 '오늘 챙길 것'(본인만) — 각 항목 옆 완료(삭제) 버튼
-        try:
-            _mycare = todo_store.list_todos(uid, todo_store.KIND_CARE)
-        except Exception:
-            _mycare = []
-        for _c in _mycare:
-            _cc1, _cc2 = st.columns([8, 1])
-            _cc1.markdown(f"📌 {_c['내용']}")
-            if _cc2.button("✓", key=f"care_done_{_c['_row']}", help="완료(삭제)"):
-                try:
-                    todo_store.delete_todo(uid, _c["_row"], _c["내용"])
-                except Exception as e:
-                    st.error(f"삭제 실패: {e}")
-                st.rerun()
-        if not any_reminder and not _mycare:
-            st.caption("✅ 급히 챙길 건 없습니다.")
+            # ⚠️ 취합본을 만든 뒤에 보고를 고친 사람 — 받아둔 파일이 옛 것이 되므로 알림.
+            #   제출시간·생성시각 모두 'YYYY-MM-DD HH:MM'이라 문자열 비교로 시간순 판정.
+            try:
+                _exp_at = todo_store.get_sync("_team", f"export_{week}")
+                _stale = ([s["name"] for s in status
+                           if (s["submitted_at"] or "") > _exp_at] if _exp_at else [])
+            except Exception:
+                _exp_at, _stale = "", []
+            if _stale:
+                st.warning(
+                    f"🗂️ 취합본({_exp_at}) 생성 후 수정: {', '.join(_stale)} — "
+                    "회의 전 **다시 생성**하세요 (📝 업무보고 작성·취합)")
+                any_reminder = True
+            # 개인 '오늘 챙길 것'(본인만) — 각 항목 옆 완료(삭제) 버튼
+            try:
+                _mycare = todo_store.list_todos(uid, todo_store.KIND_CARE)
+            except Exception:
+                _mycare = []
+            for _c in _mycare:
+                _cc1, _cc2 = st.columns([8, 1])
+                _cc1.markdown(f"📌 {_c['내용']}")
+                if _cc2.button("✓", key=f"care_done_{_c['_row']}", help="완료(삭제)"):
+                    try:
+                        todo_store.delete_todo(uid, _c["_row"], _c["내용"])
+                    except Exception as e:
+                        st.error(f"삭제 실패: {e}")
+                    st.rerun()
+            if not any_reminder and not _mycare:
+                st.caption("✅ 급히 챙길 건 없습니다.")
 
         # 내 할 일(7일): 주간보고·문서협업 + 내 이름 붙은 7일 내 일정 + 개인 메모(+)
         # 제목('내 할 일 — 이름')은 없앰 — 업무/개인 머리글만으로 충분.
@@ -911,7 +932,7 @@ def home_page():
         if not my:
             st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         else:
-            if _todo_open:
+            if _todo_open and not folded("work"):
                 with st.form("todo_add_form", clear_on_submit=True):
                     _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                         placeholder="예: 백정은 님께 자료 요청")
@@ -939,17 +960,18 @@ def home_page():
             # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
             _mv = st.session_state.get("todo_move_mode", False)
             # 머리글 = 🏢 업무 ＋(추가) 🔀(옮기기). 한 HTML 줄이라 정렬이 어긋나지 않음.
-            _extra = (("🔁", "move_off", "옮기기 모드 끄기") if _mv else
-                      ("🔀", "move_on", "업무↔개인 옮기기")) if _mytodos or _myper \
-                else None
+            _extra = [(("🔁", "move_off", "옮기기 모드 끄기") if _mv else
+                       ("🔀", "move_on", "업무↔개인 옮기기"))] \
+                if (_mytodos or _myper) else []
             if uid:
                 _inline_plus("🏢 업무", "todo", _todo_open,
-                             "할 일 추가(나만 보임·캘린더에 안 들어감)", extra=_extra)
+                             "할 일 추가(나만 보임·캘린더에 안 들어감)",
+                             extra=_extra, fold="work")
             else:
                 st.markdown("**🏢 업무**")
-            if todo_lines:
+            if todo_lines and not folded("work"):
                 st.markdown("\n".join(f"- {t}" for t in todo_lines))
-            for _p in _mytodos:
+            for _p in (_mytodos if not folded("work") else []):
                 if _mv:
                     _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
                 else:
@@ -977,8 +999,8 @@ def home_page():
             if _myper:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
                 # ('개인은 보고에 안 들어감' 안내는 추가 폼에서만 — 목록은 깔끔하게)
-                st.markdown("**🙋 개인**")
-                for _p in _myper:
+                _inline_plus("🙋 개인", fold="personal")
+                for _p in (_myper if not folded("personal") else []):
                     if _mv:
                         _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
                     else:
@@ -3573,6 +3595,10 @@ def main():
         elif _go == "cal":
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
+            st.session_state["main_menu"] = "🏠 홈"
+        elif _go.startswith(("fold_", "unfold_")):   # 홈 섹션 접기/펼치기
+            _act, _nm = _go.split("_", 1)
+            st.session_state[f"folded_{_nm}"] = (_act == "fold")
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in ("move_on", "move_off"):     # 할 일 업무↔개인 옮기기 모드
             st.session_state["todo_move_mode"] = (_go == "move_on")
