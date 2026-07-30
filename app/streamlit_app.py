@@ -772,6 +772,7 @@ def home_page():
     # 데이터 계산: 오늘 챙길 것(my 무관) + 할일·일정(my 필요)
     my = st.session_state.get("me")
     todos, sched_items, common_sched_items = [], [], []
+    today_mine = []          # 오늘(D-0) 내 일정 — '오늘 챙길 것'에 올림
     if my:
         if not next((s["submitted"] for s in status if s["name"] == my), False):
             todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
@@ -799,10 +800,16 @@ def home_page():
                     line = f"{md} {tm} · {v['title']}"
                     if my in haystack:
                         sched_items.append(line)
+                        # 오늘 것은 '오늘 챙길 것'에도 올린다(조퇴·출장 등을 놓치지 않게)
+                        if v["date"] == today_str:
+                            today_mine.append(
+                                f"{tm} · {v['title']}"
+                                + (f" ({v['location']})"
+                                   if (v.get("location") or "").strip() else ""))
                     else:   # 내 것 외에는 이름 구분 없이 전부 '그 외 일정'으로
                         common_sched_items.append(line)
             except Exception:
-                sched_items, common_sched_items = [], []
+                sched_items, common_sched_items, today_mine = [], [], []
 
     st.divider()
     # ── 좌: 오늘 챙길 것 + 내 할 일(7일) / 우: 그 외 일정(7일) ─────────────
@@ -830,6 +837,10 @@ def home_page():
                         except Exception as e:
                             st.error(f"저장 실패: {e}")
                         st.rerun()
+            # 📅 오늘 내 일정(연가·조퇴·출장·회의 등) — 오늘 챙길 것의 첫 항목
+            for _tmine in today_mine:
+                st.info(f"📅 오늘 · {_tmine}")
+                any_reminder = True
             if missing:
                 wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
                 deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
