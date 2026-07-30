@@ -560,22 +560,30 @@ def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None,
                     help_txt, size="1.35rem", op="1", bold="font-weight:700;")
     for _e in ([extra] if extra and isinstance(extra, tuple) else (extra or [])):
         icons += _a(*_e)
-    if fold:
-        # 접기 화살표는 오른쪽 확장패널과 같은 느낌으로 또렷하게(작고 흐리면 안 보임)
-        _fd = folded(fold)
-        _fc = "#f0eee9" if _dk else "#6b4a2f"
-        icons += (
-            f"<a href='?{cb}&go={'unfold' if _fd else 'fold'}_{fold}' "
-            f"target='_self' title=\"{'펼치기' if _fd else '접기'}\" "
-            "style='display:inline-flex;align-items:center;justify-content:center;"
-            "width:1.6em;height:1.6em;margin-left:2px;border-radius:6px;"
-            f"text-decoration:none;color:{_fc};font-size:0.8rem;"
-            f"border:1px solid {'#3c3b38' if _dk else '#E3C6A6'};'>"
-            f"{'▶' if _fd else '▼'}</a>")
+    if not fold:
+        st.markdown(
+            "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
+            f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
+            f"line-height:1.5;margin-right:2px;'>{title}</span>{icons}</div>",
+            unsafe_allow_html=True)
+        return
+    # 접기가 있으면 오른쪽 컬럼의 확장패널과 같은 '테두리 바'로 그린다.
+    # 제목+화살표가 하나의 링크(바 대부분이 클릭 영역), ＋·🔀 는 그 옆에 나란히
+    # 둔다(링크 안에 링크를 넣을 수 없어 형제로 배치).
+    _fd = folded(fold)
+    _bd = "#3c3b38" if _dk else "#E3C6A6"
+    _bg = "#1d1d1c" if _dk else "#FCF7F1"
     st.markdown(
-        "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
-        f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
-        f"line-height:1.5;margin-right:2px;'>{title}</span>{icons}</div>",
+        f"<div style='display:flex;align-items:center;gap:6px;margin:10px 0 6px;"
+        f"border:1px solid {_bd};border-radius:8px;padding:5px 12px;"
+        f"background:{_bg};'>"
+        f"<a href='?{cb}&go={'unfold' if _fd else 'fold'}_{fold}' target='_self' "
+        f"title=\"{'펼치기' if _fd else '접기'}\" style='flex:1;display:flex;"
+        "align-items:center;gap:8px;text-decoration:none;'>"
+        f"<span style='color:{_tc};font-size:0.78rem;opacity:.75;'>"
+        f"{'▶' if _fd else '▼'}</span>"
+        f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;'>"
+        f"{title}</span></a>{icons}</div>",
         unsafe_allow_html=True)
 
 
