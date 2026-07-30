@@ -1181,12 +1181,15 @@ def home_page():
                         _reps = [g for g in _grp
                                  if (g.get("회신", "") or "").strip()
                                  and g["상태"].strip() != request_store.ST_DONE]
+                        # '0/12명 완료'는 한국어로 어색 → 사람 수 기준으로 자연스럽게
                         if len(_grp) == 1:
                             _who = _grp[0]["대상"]
+                        elif _all_done:
+                            _who = f"{len(_grp)}명 전원 완료"
                         else:
-                            _who = f"{len(_dones)}/{len(_grp)}명 완료"
+                            _who = f"{len(_grp)}명 중 완료 {len(_dones)}명"
                             if _reps:
-                                _who += f" · {len(_reps)}명 회신"
+                                _who += f", 회신 {len(_reps)}명"
                         # 사람별 상태 — '대기'를 12번 늘어놓으면 읽기 어렵고 회신이
                         # 누구 것인지도 묻힌다. → 응답한 사람만 쓰고 나머지는 숫자로.
                         _lines, _waiting = [], []
