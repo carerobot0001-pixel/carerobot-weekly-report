@@ -639,7 +639,7 @@ def home_page():
           .dsbar .dstile .lb{ color:#f0eee9 !important; }
           .dsbar .dstile .ic{ background:transparent !important;
             border-color:#333331 !important;
-            filter:saturate(.55) brightness(.82); }
+            filter:saturate(.95) brightness(1.02); }
           .dsbar .dstile:hover .ic{ background:#1d1d1c !important;
             border-color:#5c5c57 !important; filter:none; }
           .dsbar .dstile:hover .lb{ color:#ffffff !important; }
@@ -1209,14 +1209,16 @@ def home_page():
                                 f"⏳ 대기 {len(_waiting)}명"
                                 + (f" ({', '.join(_waiting)})"
                                    if len(_waiting) <= 4 else ""))
+                        # 가운데 점으로 다 이어 붙이면 문장이 끊긴 것처럼 보여
+                        # 항목마다 줄을 나눈다(보낸 시각 → 응답 → 대기).
+                        _detail = "<br>".join(
+                            [f"보낸 시각 {_hm(_gtime)}"] + _lines)
                         _sc1, _sc2, _sc3 = st.columns([7, 1, 1])
                         _sc1.markdown(
                             f"- {_mark} {_who}: {_gtext}"
                             + (f" [🔗]({_slk})" if _slk else "")
-                            + f"  \n  <span style='opacity:.85;font-size:.88em'>"
-                              f"보낸 시각 {_hm(_gtime)}"
-                            + ((" · " + " · ".join(_lines)) if _lines else "")
-                            + "</span>",
+                            + "  \n  <span style='opacity:.85;font-size:.88em'>"
+                            + _detail + "</span>",
                             unsafe_allow_html=True)
                         # ✏️ 수정 — 잘못 보냈을 때 내용·링크를 고침(받은 사람 화면에 즉시 반영)
                         _ekey = f"req_edit_{_grp[0]['_row']}"
