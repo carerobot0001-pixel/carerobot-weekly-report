@@ -842,7 +842,12 @@ def home_page():
             if _udone and _urp:
                 _umsg += f"  \n💬 {_urp}"
             _uc1, _uc2 = st.columns([8, 1])
-            _uc1.success(_umsg) if _udone else _uc1.info(_umsg)
+            # ⚠ 삼항식으로 쓰면 Streamlit '매직'이 그 반환값(DeltaGenerator)을
+            #   화면에 덤프한다 → 반드시 if/else 문으로 호출할 것.
+            if _udone:
+                _uc1.success(_umsg)
+            else:
+                _uc1.info(_umsg)
             if _uc2.button("확인", key=f"req_ack_{_u['_row']}",
                            help="확인했습니다(알림 지우기)"):
                 try:
