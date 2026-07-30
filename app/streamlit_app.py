@@ -523,18 +523,11 @@ def _hm(ts: str) -> str:
     return f"{int(d[5:7])}/{int(d[8:10])} {t}"
 
 
-def folded(name: str) -> bool:
-    """홈 섹션(오늘 챙길 것·업무·개인)이 접혀 있는지."""
-    return bool(st.session_state.get(f"folded_{name}"))
-
-
-def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None,
-                 fold=None):
+def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None):
     """제목 + 작은 인라인 아이콘들을 한 줄에 렌더(정렬 보장).
 
     go      : 지정하면 ＋/－(추가 폼 열기) 아이콘. None이면 안 붙임.
     extra   : (기호, go키, 툴팁) 또는 그 리스트 — ＋ 옆에 아이콘 추가.
-    fold    : 접기 대상 이름. 지정하면 끝에 ▾/▸ 를 붙여 섹션을 접었다 펼침.
     st.columns로 버튼을 붙이면 제목과 높이가 어긋나 보이므로 전부 HTML 한 줄로 만든다.
     """
     uid = st.session_state.get("uid", "")
@@ -560,30 +553,10 @@ def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None,
                     help_txt, size="1.35rem", op="1", bold="font-weight:700;")
     for _e in ([extra] if extra and isinstance(extra, tuple) else (extra or [])):
         icons += _a(*_e)
-    if not fold:
-        st.markdown(
-            "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
-            f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
-            f"line-height:1.5;margin-right:2px;'>{title}</span>{icons}</div>",
-            unsafe_allow_html=True)
-        return
-    # 접기가 있으면 오른쪽 컬럼의 확장패널과 같은 '테두리 바'로 그린다.
-    # 제목+화살표가 하나의 링크(바 대부분이 클릭 영역), ＋·🔀 는 그 옆에 나란히
-    # 둔다(링크 안에 링크를 넣을 수 없어 형제로 배치).
-    _fd = folded(fold)
-    _bd = "#3c3b38" if _dk else "#E3C6A6"
-    _bg = "#1d1d1c" if _dk else "#FCF7F1"
     st.markdown(
-        f"<div style='display:flex;align-items:center;gap:6px;margin:10px 0 6px;"
-        f"border:1px solid {_bd};border-radius:8px;padding:5px 12px;"
-        f"background:{_bg};'>"
-        f"<a href='?{cb}&go={'unfold' if _fd else 'fold'}_{fold}' target='_self' "
-        f"title=\"{'펼치기' if _fd else '접기'}\" style='flex:1;display:flex;"
-        "align-items:center;gap:8px;text-decoration:none;'>"
-        f"<span style='color:{_tc};font-size:0.78rem;opacity:.75;'>"
-        f"{'▶' if _fd else '▼'}</span>"
-        f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;'>"
-        f"{title}</span></a>{icons}</div>",
+        "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
+        f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
+        f"line-height:1.5;margin-right:2px;'>{title}</span>{icons}</div>",
         unsafe_allow_html=True)
 
 
@@ -833,28 +806,26 @@ def home_page():
     with left:
         uid = st.session_state.get("uid", "")
         _auto_import(uid, my)   # 보고(번호줄)·내 메일을 새 것만 자동 추가(세션당 1회)
-        _care_open = st.session_state.get("care_add_open", False)
-        if uid:
-            _inline_plus("🔔 오늘 챙길 것", "care", _care_open,
-                         "나만 보는 '오늘 챙길 것' 추가(캘린더에 안 들어감)",
-                         fold="care")
-        else:
-            st.markdown("**🔔 오늘 챙길 것**")
-        if _care_open and uid and not folded("care"):
-            with st.form("care_add_form", clear_on_submit=True):
-                _ct = st.text_input("오늘 챙길 것 (나만 보임)", key="care_text",
-                                    placeholder="예: 회의 자료 인쇄")
-                if st.form_submit_button("추가") and _ct.strip():
-                    try:
-                        todo_store.add_todo(uid, _ct, todo_store.KIND_CARE)
-                        st.session_state["care_add_open"] = False  # 추가 후 닫기
-                    except Exception as e:
-                        st.error(f"저장 실패: {e}")
-                    st.rerun()
-        # 접기 상태면 본문을 건너뛴다(제목의 ▾/▸ 로 전환)
+        # 오른쪽 컬럼과 같은 st.expander 로 통일(내용이 상자 안에 들어가고
+        # 새로고침 없이 즉시 접힘). ＋ 는 상자 안 첫 줄 버튼으로 옮김.
         any_reminder = False
         _mycare = []
-        if not folded('care'):
+        with st.expander("🔔 오늘 챙길 것", expanded=True):
+            if uid and st.button("＋ 챙길 것 추가", key="care_add_btn",
+                                 help="나만 보임 · 캘린더에 안 들어감"):
+                st.session_state["care_add_open"] =                     not st.session_state.get("care_add_open", False)
+                st.rerun()
+            if st.session_state.get("care_add_open") and uid:
+                with st.form("care_add_form", clear_on_submit=True):
+                    _ct = st.text_input("오늘 챙길 것 (나만 보임)", key="care_text",
+                                        placeholder="예: 회의 자료 인쇄")
+                    if st.form_submit_button("추가") and _ct.strip():
+                        try:
+                            todo_store.add_todo(uid, _ct, todo_store.KIND_CARE)
+                            st.session_state["care_add_open"] = False
+                        except Exception as e:
+                            st.error(f"저장 실패: {e}")
+                        st.rerun()
             if missing:
                 wed_dt = datetime.strptime(week, "%Y-%m-%d").replace(tzinfo=KST)
                 deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
@@ -947,25 +918,6 @@ def home_page():
         if not my:
             st.caption("로그인 계정에 이름이 없습니다. 관리자에게 문의하세요.")
         else:
-            if _todo_open and not folded("work"):
-                with st.form("todo_add_form", clear_on_submit=True):
-                    _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
-                                        placeholder="예: 백정은 님께 자료 요청")
-                    _tk = st.radio("구분", ["🏢 업무", "🙋 개인"], horizontal=True,
-                                   key="todo_kind",
-                                   help="개인 할 일은 주간보고에 들어가지 않습니다.")
-                    st.caption("🙋 개인으로 두면 주간보고에 들어가지 않습니다.")
-                    if st.form_submit_button("추가") and _tt.strip():
-                        try:
-                            todo_store.add_todo(
-                                uid, _tt,
-                                todo_store.KIND_PERSONAL if "개인" in _tk
-                                else todo_store.KIND_TODO)
-                            st.session_state["todo_add_open"] = False  # 추가 후 닫기
-                        except Exception as e:
-                            st.error(f"저장 실패: {e}")
-                        st.rerun()
-            # 🏢 업무: 시스템 할 일(주간보고·협업·일정) + 업무 메모·가져온 항목
             todo_lines = list(todos) + [f"📅 {s}" for s in sched_items]
             try:
                 _mytodos = todo_store.list_todos(uid)                      # 업무
@@ -978,66 +930,91 @@ def home_page():
             _extra = [(("🔁", "move_off", "옮기기 모드 끄기") if _mv else
                        ("🔀", "move_on", "업무↔개인 옮기기"))] \
                 if (_mytodos or _myper) else []
-            if uid:
-                _inline_plus("🏢 업무", "todo", _todo_open,
-                             "할 일 추가(나만 보임·캘린더에 안 들어감)",
-                             extra=_extra, fold="work")
-            else:
-                st.markdown("**🏢 업무**")
-            if todo_lines and not folded("work"):
-                st.markdown("\n".join(f"- {t}" for t in todo_lines))
-            for _p in (_mytodos if not folded("work") else []):
-                if _mv:
-                    _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
-                else:
-                    _pc1, _pc3 = st.columns([8, 1])
-                    _pc2 = None
-                _pc1.markdown(f"- 📝 {_p['내용']}")
-                if _pc2 is not None and _pc2.button(
-                        "🙋", key=f"todo_toper_{_p['_row']}",
-                        help="개인 할 일로 옮기기(주간보고에 안 들어감)"):
-                    try:
-                        todo_store.set_kind(uid, _p["_row"], _p["내용"],
-                                            todo_store.KIND_PERSONAL)
-                    except Exception as e:
-                        st.error(f"이동 실패: {e}")
+            # 오른쪽 컬럼과 같은 st.expander. ＋·🔀 는 상자 안 첫 줄 버튼으로.
+            with st.expander(f"🏢 업무 ({len(todo_lines) + len(_mytodos)})",
+                             expanded=True):
+                _bc1, _bc2 = st.columns(2)
+                if uid and _bc1.button("＋ 할 일 추가", key="todo_add_btn",
+                                       use_container_width=True):
+                    st.session_state["todo_add_open"] = not _todo_open
                     st.rerun()
-                if _pc3.button("✓", key=f"todo_done_{_p['_row']}",
-                               help="완료 — 업무보고 '업무실적'에 넣을 수 있게 기록됨"):
-                    try:
-                        # 업무 할 일은 완료 기록을 남김(보고 작성 때 실적으로 불러오기)
-                        todo_store.complete_todo(uid, _p["_row"], _p["내용"])
-                    except Exception as e:
-                        st.error(f"완료 처리 실패: {e}")
+                if (_mytodos or _myper) and _bc2.button(
+                        ("🔁 옮기기 끄기" if _mv else "🔀 개인으로 옮기기"),
+                        key="todo_move_btn2", use_container_width=True):
+                    st.session_state["todo_move_mode"] = not _mv
                     st.rerun()
+                if _todo_open:
+                    with st.form("todo_add_form", clear_on_submit=True):
+                        _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
+                                            placeholder="예: 백정은 님께 자료 요청")
+                        _tk = st.radio("구분", ["🏢 업무", "🙋 개인"], horizontal=True,
+                                       key="todo_kind",
+                                       help="개인 할 일은 주간보고에 들어가지 않습니다.")
+                        st.caption("🙋 개인으로 두면 주간보고에 들어가지 않습니다.")
+                        if st.form_submit_button("추가") and _tt.strip():
+                            try:
+                                todo_store.add_todo(
+                                    uid, _tt,
+                                    todo_store.KIND_PERSONAL if "개인" in _tk
+                                    else todo_store.KIND_TODO)
+                                st.session_state["todo_add_open"] = False  # 추가 후 닫기
+                            except Exception as e:
+                                st.error(f"저장 실패: {e}")
+                            st.rerun()
+                # 🏢 업무: 시스템 할 일(주간보고·협업·일정) + 업무 메모·가져온 항목
+                if todo_lines:
+                    st.markdown("\n".join(f"- {t}" for t in todo_lines))
+                for _p in _mytodos:
+                    if _mv:
+                        _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                        _pc1, _pc3 = st.columns([8, 1])
+                        _pc2 = None
+                    _pc1.markdown(f"- 📝 {_p['내용']}")
+                    if _pc2 is not None and _pc2.button(
+                            "🙋", key=f"todo_toper_{_p['_row']}",
+                            help="개인 할 일로 옮기기(주간보고에 안 들어감)"):
+                        try:
+                            todo_store.set_kind(uid, _p["_row"], _p["내용"],
+                                                todo_store.KIND_PERSONAL)
+                        except Exception as e:
+                            st.error(f"이동 실패: {e}")
+                        st.rerun()
+                    if _pc3.button("✓", key=f"todo_done_{_p['_row']}",
+                                   help="완료 — 업무보고 '업무실적'에 넣을 수 있게 기록됨"):
+                        try:
+                            # 업무 할 일은 완료 기록을 남김(보고 작성 때 실적으로 불러오기)
+                            todo_store.complete_todo(uid, _p["_row"], _p["내용"])
+                        except Exception as e:
+                            st.error(f"완료 처리 실패: {e}")
+                        st.rerun()
             # 🙋 개인: 업무와 분리해서 표시
             if _myper:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
                 # ('개인은 보고에 안 들어감' 안내는 추가 폼에서만 — 목록은 깔끔하게)
-                _inline_plus("🙋 개인", fold="personal")
-                for _p in (_myper if not folded("personal") else []):
-                    if _mv:
-                        _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
-                    else:
-                        _pc1, _pc3 = st.columns([8, 1])
-                        _pc2 = None
-                    _pc1.markdown(f"- 🏠 {_p['내용']}")
-                    if _pc2 is not None and _pc2.button(
-                            "🏢", key=f"per_towork_{_p['_row']}",
-                            help="업무 할 일로 되돌리기"):
-                        try:
-                            todo_store.set_kind(uid, _p["_row"], _p["내용"],
-                                                todo_store.KIND_TODO)
-                        except Exception as e:
-                            st.error(f"이동 실패: {e}")
-                        st.rerun()
-                    if _pc3.button("✓", key=f"per_done_{_p['_row']}",
-                                   help="완료(삭제) — 보고에 기록되지 않음"):
-                        try:
-                            todo_store.delete_todo(uid, _p["_row"], _p["내용"])
-                        except Exception as e:
-                            st.error(f"삭제 실패: {e}")
-                        st.rerun()
+                with st.expander(f"🙋 개인 ({len(_myper)})", expanded=True):
+                    for _p in _myper:
+                        if _mv:
+                            _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                        else:
+                            _pc1, _pc3 = st.columns([8, 1])
+                            _pc2 = None
+                        _pc1.markdown(f"- 🏠 {_p['내용']}")
+                        if _pc2 is not None and _pc2.button(
+                                "🏢", key=f"per_towork_{_p['_row']}",
+                                help="업무 할 일로 되돌리기"):
+                            try:
+                                todo_store.set_kind(uid, _p["_row"], _p["내용"],
+                                                    todo_store.KIND_TODO)
+                            except Exception as e:
+                                st.error(f"이동 실패: {e}")
+                            st.rerun()
+                        if _pc3.button("✓", key=f"per_done_{_p['_row']}",
+                                       help="완료(삭제) — 보고에 기록되지 않음"):
+                            try:
+                                todo_store.delete_todo(uid, _p["_row"], _p["내용"])
+                            except Exception as e:
+                                st.error(f"삭제 실패: {e}")
+                            st.rerun()
             if not todo_lines and not _mytodos and not _myper:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
             # 📨 받은 요청 — 다른 팀원이 나(my)에게 요청한 일
@@ -1046,47 +1023,47 @@ def home_page():
             except Exception:
                 _reqs = []
             if _reqs:
-                st.markdown("**📨 받은 요청**")
-                for _rq in _reqs:
-                    _rc1, _rc2, _rc3 = st.columns([8, 1, 1])
-                    _rlk = (_rq.get("링크", "") or "").strip()
-                    _rrp = (_rq.get("회신", "") or "").strip()
-                    _rc1.markdown(
-                        f"- 📨 {_rq['내용']}"
-                        + (f" [🔗 열기]({_rlk})" if _rlk else "")
-                        + f"  \n  <span style='opacity:.85;font-size:.88em'>"
-                          f"— {_rq['요청자']} 요청 ({_hm(_rq['등록일시'])})"
-                        + (f" · 내 회신: {_rrp}"
-                           + (f" ({_hm(_rq.get('회신일시', ''))})"
-                              if (_rq.get('회신일시') or '').strip() else "")
-                           if _rrp else "") + "</span>",
-                        unsafe_allow_html=True)
-                    # 💬 한 줄 회신 — 완료 말고 상황만 알릴 때(예: "8/5까지 드릴게요")
-                    _rkey = f"reply_open_{_rq['_row']}"
-                    if _rc2.button("💬", key=f"req_reply_{_rq['_row']}",
-                                   help="한 줄 회신 보내기"):
-                        st.session_state[_rkey] = not st.session_state.get(_rkey)
-                        st.rerun()
-                    if _rc3.button("✓", key=f"req_done_{_rq['_row']}",
-                                   help="완료 처리(요청자에게 표시됨)"):
-                        try:
-                            request_store.complete_request(
-                                _rq["요청ID"], my, _rq["내용"])
-                        except Exception as e:
-                            st.error(f"완료 처리 실패: {e}")
-                        st.rerun()
-                    if st.session_state.get(_rkey):
-                        _rt = st.text_input(
-                            "회신", value=_rrp, key=f"reply_txt_{_rq['_row']}",
-                            placeholder="예: 8/5까지 드릴게요",
-                            label_visibility="collapsed")
-                        if st.button("보내기", key=f"reply_send_{_rq['_row']}"):
-                            try:
-                                request_store.set_reply(_rq["요청ID"], _rt)
-                                st.session_state[_rkey] = False
-                            except Exception as e:
-                                st.error(f"회신 실패: {e}")
+                with st.expander(f"📨 받은 요청 ({len(_reqs)})", expanded=True):
+                    for _rq in _reqs:
+                        _rc1, _rc2, _rc3 = st.columns([8, 1, 1])
+                        _rlk = (_rq.get("링크", "") or "").strip()
+                        _rrp = (_rq.get("회신", "") or "").strip()
+                        _rc1.markdown(
+                            f"- 📨 {_rq['내용']}"
+                            + (f" [🔗 열기]({_rlk})" if _rlk else "")
+                            + f"  \n  <span style='opacity:.85;font-size:.88em'>"
+                              f"— {_rq['요청자']} 요청 ({_hm(_rq['등록일시'])})"
+                            + (f" · 내 회신: {_rrp}"
+                               + (f" ({_hm(_rq.get('회신일시', ''))})"
+                                  if (_rq.get('회신일시') or '').strip() else "")
+                               if _rrp else "") + "</span>",
+                            unsafe_allow_html=True)
+                        # 💬 한 줄 회신 — 완료 말고 상황만 알릴 때(예: "8/5까지 드릴게요")
+                        _rkey = f"reply_open_{_rq['_row']}"
+                        if _rc2.button("💬", key=f"req_reply_{_rq['_row']}",
+                                       help="한 줄 회신 보내기"):
+                            st.session_state[_rkey] = not st.session_state.get(_rkey)
                             st.rerun()
+                        if _rc3.button("✓", key=f"req_done_{_rq['_row']}",
+                                       help="완료 처리(요청자에게 표시됨)"):
+                            try:
+                                request_store.complete_request(
+                                    _rq["요청ID"], my, _rq["내용"])
+                            except Exception as e:
+                                st.error(f"완료 처리 실패: {e}")
+                            st.rerun()
+                        if st.session_state.get(_rkey):
+                            _rt = st.text_input(
+                                "회신", value=_rrp, key=f"reply_txt_{_rq['_row']}",
+                                placeholder="예: 8/5까지 드릴게요",
+                                label_visibility="collapsed")
+                            if st.button("보내기", key=f"reply_send_{_rq['_row']}"):
+                                try:
+                                    request_store.set_reply(_rq["요청ID"], _rt)
+                                    st.session_state[_rkey] = False
+                                except Exception as e:
+                                    st.error(f"회신 실패: {e}")
+                                st.rerun()
             # (요청 보내기 폼은 오른쪽 컬럼 '정보 미입력 일정' 아래에 있음 — 좌우 균형)
             # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
             # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
@@ -3610,10 +3587,6 @@ def main():
         elif _go == "cal":
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
-            st.session_state["main_menu"] = "🏠 홈"
-        elif _go.startswith(("fold_", "unfold_")):   # 홈 섹션 접기/펼치기
-            _act, _nm = _go.split("_", 1)
-            st.session_state[f"folded_{_nm}"] = (_act == "fold")
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in ("move_on", "move_off"):     # 할 일 업무↔개인 옮기기 모드
             st.session_state["todo_move_mode"] = (_go == "move_on")
