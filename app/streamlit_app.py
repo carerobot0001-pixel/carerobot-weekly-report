@@ -636,13 +636,13 @@ def home_page():
         # 어두운 배경에선 '밝은 사각형 10개 + 채도 높은 이모지'가 가장 눈부시다.
         # → 타일 면을 없애고(테두리만) 이모지 채도·밝기를 낮춘다.
         st.markdown("""<style>
-          .dsbar .dstile .lb{ color:#97948d !important; }
+          .dsbar .dstile .lb{ color:#f0eee9 !important; }
           .dsbar .dstile .ic{ background:transparent !important;
             border-color:#333331 !important;
             filter:saturate(.55) brightness(.82); }
           .dsbar .dstile:hover .ic{ background:#1d1d1c !important;
             border-color:#5c5c57 !important; filter:none; }
-          .dsbar .dstile:hover .lb{ color:#f0eee9 !important; }
+          .dsbar .dstile:hover .lb{ color:#ffffff !important; }
         </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -1187,20 +1187,28 @@ def home_page():
                             _who = f"{len(_dones)}/{len(_grp)}명 완료"
                             if _reps:
                                 _who += f" · {len(_reps)}명 회신"
-                        # 사람별 상태: 완료/회신 시각까지 표시(언제 왔는지 알 수 있게)
-                        _lines = []
+                        # 사람별 상태 — '대기'를 12번 늘어놓으면 읽기 어렵고 회신이
+                        # 누구 것인지도 묻힌다. → 응답한 사람만 쓰고 나머지는 숫자로.
+                        _lines, _waiting = [], []
                         for g in _grp:
                             _rp = (g.get("회신", "") or "").strip()
                             _rpt = (g.get("회신일시", "") or "").strip()
                             _gd = g["상태"].strip() == request_store.ST_DONE
-                            if len(_grp) > 1 or _rp or _gd:
-                                _st = (f"✅ {_hm(g['완료일시'])} 완료" if _gd
-                                       else "⏳ 대기")
-                                _txt = f"{g['대상']} {_st}"
-                                if _rp:
-                                    _txt += (f" · 💬 {_rp}"
-                                             + (f" ({_hm(_rpt)})" if _rpt else ""))
-                                _lines.append(_txt)
+                            if _gd:
+                                _lines.append(
+                                    f"✅ {g['대상']} 완료 {_hm(g['완료일시'])}"
+                                    + (f" (💬 {_rp})" if _rp else ""))
+                            elif _rp:
+                                _lines.append(
+                                    f"💬 {g['대상']}: {_rp}"
+                                    + (f" ({_hm(_rpt)})" if _rpt else ""))
+                            else:
+                                _waiting.append(g["대상"])
+                        if _waiting:
+                            _lines.append(
+                                f"⏳ 대기 {len(_waiting)}명"
+                                + (f" ({', '.join(_waiting)})"
+                                   if len(_waiting) <= 4 else ""))
                         _sc1, _sc2, _sc3 = st.columns([7, 1, 1])
                         _sc1.markdown(
                             f"- {_mark} {_who}: {_gtext}"
@@ -3419,10 +3427,10 @@ def main():
          브라우저가 기본 opacity를 걸어둬서 opacity:1 도 같이 줘야 한다. */
       input::placeholder, textarea::placeholder,
       input::-webkit-input-placeholder, textarea::-webkit-input-placeholder{
-        color:#8a8780 !important; opacity:1 !important; }
+        color:#a09d96 !important; opacity:1 !important; }
       [data-baseweb="select"] [class*="placeholder"],
       [data-baseweb="select"] [class*="Placeholder"]{
-        color:#8a8780 !important; }
+        color:#a09d96 !important; }
       /* 표(st.dataframe / st.data_editor) — 캔버스로 그려서 CSS 변수로만 바뀜 */
       [data-testid="stDataFrame"], [data-testid="stTable"],
       [data-testid="stDataFrameResizable"]{
@@ -3504,7 +3512,7 @@ def main():
       /* 이번 달이 아닌 날짜·비활성 항목은 흐리게 */
       [data-baseweb="calendar"] [aria-disabled="true"],
       [data-baseweb="calendar"] [data-outside-month="true"]{
-        color:#7a7770 !important; }
+        color:#8f8c85 !important; }
       /* 선택된 항목 칩(멀티셀렉트) */
       [data-baseweb="tag"]{ background:var(--ds-surface2) !important; color:var(--ds-text) !important; }
       [data-baseweb="tag"] *{ color:var(--ds-text) !important; }
@@ -3525,7 +3533,7 @@ def main():
       /* 사이드바는 본문보다 한 톤 더 어둡게 — 면이 구분돼야 메뉴가 떠 보임 */
       section[data-testid="stSidebar"]{ background:#0e0e0d !important; }
       section[data-testid="stSidebar"] *{ color:var(--ds-text) !important; }
-      section[data-testid="stSidebar"] .navcat{ color:#8a8780 !important; }
+      section[data-testid="stSidebar"] .navcat{ color:#a8a59e !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{
         background:var(--ds-surface2) !important; }
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
