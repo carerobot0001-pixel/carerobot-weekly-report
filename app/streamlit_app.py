@@ -967,6 +967,7 @@ def home_page():
                 for _p in _mytodos:
                     if _mv:
                         _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                    else:
                         _pc1, _pc3 = st.columns([8, 1])
                         _pc2 = None
                     _pc1.markdown(f"- 📝 {_p['내용']}")
