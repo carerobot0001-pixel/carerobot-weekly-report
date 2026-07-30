@@ -17,13 +17,14 @@ from sheets_store import _get_client, KST
 REQ_WS = "팀요청"
 # '링크'는 맨 뒤에 둠 — 옛 7열 행(링크 없음)도 그대로 읽힘(데이터 안 밀림).
 REQ_HEADER = ["요청ID", "요청자", "대상", "내용", "등록일시", "상태", "완료일시",
-              "링크", "회신", "확인"]
+              "링크", "회신", "확인", "회신일시"]
 _COL_STATUS = REQ_HEADER.index("상태") + 1        # 상태 열(1-indexed)
 _COL_DONE_AT = REQ_HEADER.index("완료일시") + 1   # 완료일시 열
 _COL_REPLY = REQ_HEADER.index("회신") + 1         # 대상자가 남긴 한 줄 답
 _COL_ACK = REQ_HEADER.index("확인") + 1           # 요청자가 결과를 확인한 시각
 _COL_TEXT = REQ_HEADER.index("내용") + 1
 _COL_LINK = REQ_HEADER.index("링크") + 1
+_COL_REPLY_AT = REQ_HEADER.index("회신일시") + 1
 ST_OPEN, ST_DONE = "대기", "완료"
 
 
@@ -75,7 +76,7 @@ def add_requests(requester, targets, text, link=""):
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     stamp = datetime.now(KST).strftime("%Y%m%d-%H%M%S")
     rows = [[f"{stamp}-{requester}-{t}", requester, t, text, now, ST_OPEN,
-             "", link, "", ""] for t in targets]
+             "", link, "", "", ""] for t in targets]
     _ws().append_rows(rows, value_input_option="RAW")
     _rows.clear()
 
@@ -134,6 +135,8 @@ def set_reply(req_id, text):
     i = _find_row(ws, req_id)
     if i:
         ws.update_cell(i, _COL_REPLY, text)
+        ws.update_cell(i, _COL_REPLY_AT,
+                       datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
         ws.update_cell(i, _COL_ACK, "")
         _rows.clear()
 

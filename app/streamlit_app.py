@@ -509,6 +509,20 @@ def _todo_import_panel(uid, name, existing_rows):
             st.rerun()
 
 
+def _hm(ts: str) -> str:
+    """'2026-07-30 09:12' → '7/30 09:12' (오늘이면 '09:12'). 빈 값은 그대로."""
+    ts = (ts or "").strip()
+    if len(ts) < 16:
+        return ts
+    d, t = ts[:10], ts[11:16]
+    try:
+        if d == datetime.now(KST).strftime("%Y-%m-%d"):
+            return t
+    except Exception:
+        pass
+    return f"{int(d[5:7])}/{int(d[8:10])} {t}"
+
+
 def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     """제목 옆에 '사업단 일정 ＋'과 같은 작은 인라인 ＋를 렌더.
     열림 여부에 따라 go=<name>_open/_close 를 명시(토글 아님 → 중복 처리에도 안전).
@@ -523,7 +537,7 @@ def _inline_plus(title, go, is_open, help_txt="추가", extra=None):
     # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
     # 다크에선 제목이 진한 주황(#A8501A)이면 배경에 묻혀 안 보임 → 흰색으로
     _dk = bool(st.session_state.get("dark"))
-    _tc = "#dedad2" if _dk else "#A8501A"
+    _tc = "#ece8e0" if _dk else "#A8501A"
     _ic = "#d97757" if _dk else "#C4622D"
     _box = ("display:inline-flex;align-items:center;justify-content:center;"
             f"width:1.5em;height:1.5em;text-decoration:none;color:{_ic};")
@@ -628,7 +642,7 @@ def home_page():
             filter:saturate(.55) brightness(.82); }
           .dsbar .dstile:hover .ic{ background:#1d1d1c !important;
             border-color:#5c5c57 !important; filter:none; }
-          .dsbar .dstile:hover .lb{ color:#d1cdc5 !important; }
+          .dsbar .dstile:hover .lb{ color:#ddd9d1 !important; }
         </style>""", unsafe_allow_html=True)
 
     today_str = today.strftime("%Y-%m-%d")
@@ -837,8 +851,11 @@ def home_page():
         for _u in _upd:
             _urp = (_u.get("회신", "") or "").strip()
             _udone = _u["상태"].strip() == request_store.ST_DONE
+            _uwhen = _hm(_u["완료일시"] if _udone else _u.get("회신일시", ""))
             _umsg = (f"✅ **{_u['대상']}** 님이 완료: {_u['내용']}"
                      if _udone else f"💬 **{_u['대상']}** 님 회신: {_urp}")
+            if _uwhen:
+                _umsg += f"  ({_uwhen})"
             if _udone and _urp:
                 _umsg += f"  \n💬 {_urp}"
             _uc1, _uc2 = st.columns([8, 1])
@@ -1000,9 +1017,12 @@ def home_page():
                     _rc1.markdown(
                         f"- 📨 {_rq['내용']}"
                         + (f" [🔗 열기]({_rlk})" if _rlk else "")
-                        + f"  \n  <span style='opacity:.65;font-size:.85em'>"
-                          f"— {_rq['요청자']} 요청"
-                        + (f" · 내 회신: {_rrp}" if _rrp else "") + "</span>",
+                        + f"  \n  <span style='opacity:.85;font-size:.88em'>"
+                          f"— {_rq['요청자']} 요청 ({_hm(_rq['등록일시'])})"
+                        + (f" · 내 회신: {_rrp}"
+                           + (f" ({_hm(_rq.get('회신일시', ''))})"
+                              if (_rq.get('회신일시') or '').strip() else "")
+                           if _rrp else "") + "</span>",
                         unsafe_allow_html=True)
                     # 💬 한 줄 회신 — 완료 말고 상황만 알릴 때(예: "8/5까지 드릴게요")
                     _rkey = f"reply_open_{_rq['_row']}"
@@ -1156,26 +1176,39 @@ def home_page():
                         _all_done = len(_dones) == len(_grp)
                         _mark = "✅" if _all_done else "⏳"
                         _slk = (_grp[0].get("링크", "") or "").strip()
-                        # 누구에게 보냈나 / 진행률
+                        # 회신만 온 사람도 세어 준다 — '0명 완료'만 보이면
+                        # 답이 온 걸 놓치기 쉬움(회신 ≠ 완료)
+                        _reps = [g for g in _grp
+                                 if (g.get("회신", "") or "").strip()
+                                 and g["상태"].strip() != request_store.ST_DONE]
                         if len(_grp) == 1:
                             _who = _grp[0]["대상"]
                         else:
                             _who = f"{len(_dones)}/{len(_grp)}명 완료"
+                            if _reps:
+                                _who += f" · {len(_reps)}명 회신"
+                        # 사람별 상태: 완료/회신 시각까지 표시(언제 왔는지 알 수 있게)
                         _lines = []
                         for g in _grp:
                             _rp = (g.get("회신", "") or "").strip()
+                            _rpt = (g.get("회신일시", "") or "").strip()
                             _gd = g["상태"].strip() == request_store.ST_DONE
                             if len(_grp) > 1 or _rp or _gd:
-                                _st = ("✅ " + g["완료일시"]) if _gd else "⏳ 대기"
-                                _lines.append(
-                                    f"{g['대상']} {_st}"
-                                    + (f" · 💬 {_rp}" if _rp else ""))
+                                _st = (f"✅ {_hm(g['완료일시'])} 완료" if _gd
+                                       else "⏳ 대기")
+                                _txt = f"{g['대상']} {_st}"
+                                if _rp:
+                                    _txt += (f" · 💬 {_rp}"
+                                             + (f" ({_hm(_rpt)})" if _rpt else ""))
+                                _lines.append(_txt)
                         _sc1, _sc2, _sc3 = st.columns([7, 1, 1])
                         _sc1.markdown(
                             f"- {_mark} {_who}: {_gtext}"
                             + (f" [🔗]({_slk})" if _slk else "")
-                            + (f"  \n  <span style='opacity:.6;font-size:.85em'>"
-                               + " · ".join(_lines) + "</span>" if _lines else ""),
+                            + f"  \n  <span style='opacity:.85;font-size:.88em'>"
+                              f"보낸 시각 {_hm(_gtime)}"
+                            + ((" · " + " · ".join(_lines)) if _lines else "")
+                            + "</span>",
                             unsafe_allow_html=True)
                         # ✏️ 수정 — 잘못 보냈을 때 내용·링크를 고침(받은 사람 화면에 즉시 반영)
                         _ekey = f"req_edit_{_grp[0]['_row']}"
@@ -2711,7 +2744,7 @@ def meeting_page():
             # 다크모드면 표도 어두운 팔레트로(전체 다크). 밝을 땐 기존 색 그대로.
             _dark = bool(st.session_state.get("dark"))
             _BD = "#333331" if _dark else "#efe2d2"
-            _TXT = "#d1cdc5" if _dark else "#000"
+            _TXT = "#ddd9d1" if _dark else "#000"
             _HDBG = "#1d1d1c" if _dark else "#fdf5ec"
             _ADBG = "#2b3140" if _dark else "#ffffff"
             _ADFG = "#8ab4f8" if _dark else "#1a56db"
@@ -2761,7 +2794,7 @@ def meeting_page():
                 return (f"<tr><td style='{_LBL}'>{lb}</td>"
                         f"<td style='{_TD}' colspan='2'>{_esc(v)}</td></tr>")
 
-            _BARFG = "#dedad2" if _dark else "#000"
+            _BARFG = "#ece8e0" if _dark else "#000"
 
             def _barhtml(bg, txt, right=""):
                 if _dark:
@@ -3321,7 +3354,7 @@ def main():
          검정 배경에 순백 글씨(15:1)면 옛날 화면처럼 쨍하게 빛난다.
          → 배경은 검정으로 두고 흰색의 채도·밝기를 낮춰 9:1 안팎으로 맞춘다. */
       :root{ --ds-bg:#141413; --ds-surface:#1d1d1c; --ds-surface2:#282826;
-             --ds-border:#333331; --ds-text:#d1cdc5; --ds-text2:#97948d;
+             --ds-border:#333331; --ds-text:#ddd9d1; --ds-text2:#a5a29b;
              --ds-accent:#b05a35; }
       /* 다크모드 — Claude 데스크탑 방식: 중성 회색 배경 + 흰 글씨.
          눈부심의 원인은 글씨 밝기가 아니라 '채도 높은 주황이 곳곳에 있는 것'이라,
@@ -3354,7 +3387,7 @@ def main():
       [data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
       p, li, span, label{ color:var(--ds-text) !important; }
       h1,h2,h3,h4,h5,h6,
-      [data-testid="stMarkdownContainer"] strong{ color:#dedad2 !important; }
+      [data-testid="stMarkdownContainer"] strong{ color:#ece8e0 !important; }
       /* 보조 설명은 한 단계 낮춰 위계를 만든다(흐릿해서 안 보이면 안 됨) */
       .stCaption, [data-testid="stCaptionContainer"],
       [data-testid="stCaptionContainer"] *{ color:var(--ds-text2) !important; }
