@@ -590,7 +590,11 @@ def home_page():
       section[data-testid="stMain"] [data-testid="stMarkdownContainer"] ul{
         margin:0; padding-left:1.1rem; }
       section[data-testid="stMain"] [data-testid="stMarkdownContainer"] li{
-        margin:0 0 5px; }
+        margin:0 0 7px; }
+      /* ✓ 버튼이 있는 줄(st.columns)은 버튼 높이 때문에 조금 더 벌어진다.
+         버튼 없는 줄(달력·시스템 할 일)의 여백을 맞춰 목록 전체를 고르게. */
+      section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{
+        margin-bottom:1px; }
       section[data-testid="stMain"] [data-testid="stCaptionContainer"]{
         margin:0 0 2px; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
@@ -1130,7 +1134,14 @@ def home_page():
         # 📨 팀원에게 요청하기 + 내가 보낸 요청 현황
         #   (받은 요청은 왼쪽 '내 할 일'에 — 내가 할 일이므로. 여기엔 보내는 쪽만)
         if my:
-            with st.expander("📨 팀원에게 요청하기", expanded=False):
+            # 제목의 (N) = 내가 보낸 요청 건수(같은 내용·시각으로 묶은 단위).
+            # 다른 확장패널처럼 개수를 보여주려 미리 세어 둔다.
+            try:
+                _sent_pre = request_store.sent_by(my)
+            except Exception:
+                _sent_pre = []
+            _nsent = len({(r["내용"], r["등록일시"]) for r in _sent_pre})
+            with st.expander(f"📨 팀원에게 요청하기 ({_nsent})", expanded=False):
                 # 고르는 명단엔 간부(과장·연구관·연구사)도 포함, 없는 사람은 직접 입력
                 _others = [n for n in USER_NAMES if n != my]
                 _researchers = [n for n in MEMBER_NAMES if n != my]
@@ -1173,10 +1184,7 @@ def home_page():
                             except Exception as e:
                                 st.error(f"요청 실패: {e}")
                             st.rerun()
-                try:
-                    _sent = request_store.sent_by(my)
-                except Exception:
-                    _sent = []
+                _sent = _sent_pre          # 위에서 개수 세느라 이미 읽음(재조회 불필요)
                 if _sent:
                     st.caption("내가 보낸 요청")
                     # 여러 명에게 보낸 건 사람마다 한 행 → (내용+보낸시각)으로 묶어
