@@ -545,6 +545,54 @@ def save_personal(uid, items):
                                         json.dumps(items, ensure_ascii=False))
 
 
+def _todo_badges(item, today):
+    """할 일 옆에 붙는 배지 — 마감(D-day)과 등록 후 경과일.
+    오래 묵은 일과 임박한 일이 눈에 띄게 색을 달리한다."""
+    out = []
+    due = (item.get("마감일", "") or "").strip()
+    if due:
+        try:
+            d = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
+            if d < 0:
+                txt, col = f"D+{-d} 지남", "#e05252"
+            elif d == 0:
+                txt, col = "오늘 마감", "#e05252"
+            elif d <= 3:
+                txt, col = f"D-{d}", "#e08a3c"
+            else:
+                txt, col = f"D-{d}", "#8a8781"
+            out.append((txt, col))
+        except Exception:
+            pass
+    ts = (item.get("등록일시", "") or "")[:10]
+    if ts:
+        try:
+            age = (today - datetime.strptime(ts, "%Y-%m-%d").date()).days
+            if age >= 14:
+                out.append((f"{age}일째", "#e05252"))
+            elif age >= 7:
+                out.append((f"{age}일째", "#e08a3c"))
+            elif age >= 1:
+                out.append((f"{age}일", "#8a8781"))
+        except Exception:
+            pass
+    return "".join(
+        f"<span style='margin-left:6px;font-size:.78em;color:{c};"
+        f"border:1px solid {c}55;border-radius:4px;padding:0 5px;'>{t}</span>"
+        for t, c in out)
+
+
+def _todo_sort_key(item, today):
+    """중요(⭐) → 마감 임박 → 오래된 순."""
+    star = 0 if (item.get("중요", "") or "").strip() else 1
+    due = (item.get("마감일", "") or "").strip()
+    try:
+        dd = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
+    except Exception:
+        dd = 9999                      # 마감 없는 건 뒤로
+    return (star, dd, item.get("등록일시", ""))
+
+
 def _hm(ts: str) -> str:
     """'2026-07-30 09:12' → '7/30 09:12' (오늘이면 '09:12'). 빈 값은 그대로."""
     ts = (ts or "").strip()
@@ -995,7 +1043,7 @@ def home_page():
                     st.session_state["todo_add_open"] = not _todo_open
                     st.rerun()
                 if (_mytodos or _myper) and _bc2.button(
-                        ("🔁 옮기기 끄기" if _mv else "🔀 개인으로 옮기기"),
+                        ("🔁 편집 끝내기" if _mv else "✎ 마감일·개인 이동"),
                         key="todo_move_btn2", use_container_width=True):
                     st.session_state["todo_move_mode"] = not _mv
                     st.rerun()
@@ -1003,13 +1051,17 @@ def home_page():
                     with st.form("todo_add_form", clear_on_submit=True):
                         _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                             placeholder="예: 백정은 님께 자료 요청")
+                        _tdue = st.date_input("마감일 (선택)", value=None,
+                                              key="todo_due_new",
+                                              format="YYYY-MM-DD")
                         # 구분 선택은 없앰 — 개인은 아래 '🙋 개인'에서 따로 추가한다
                         st.caption("팀 시트에 저장됩니다. 남에게 안 보일 메모는 "
                                    "아래 **🙋 개인**에서 추가하세요.")
                         if st.form_submit_button("추가") and _tt.strip():
                             try:
-                                todo_store.add_todo(uid, _tt,
-                                                    todo_store.KIND_TODO)
+                                todo_store.add_todo(
+                                    uid, _tt, todo_store.KIND_TODO,
+                                    due=_tdue.strftime("%Y-%m-%d") if _tdue else "")
                                 st.session_state["todo_add_open"] = False  # 추가 후 닫기
                             except Exception as e:
                                 st.error(f"저장 실패: {e}")
@@ -1017,13 +1069,45 @@ def home_page():
                 # 🏢 업무: 시스템 할 일(주간보고·협업·일정) + 업무 메모·가져온 항목
                 if todo_lines:
                     st.markdown("\n".join(f"- {t}" for t in todo_lines))
-                for _p in _mytodos:
-                    if _mv:
-                        _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
+                for _p in sorted(_mytodos, key=lambda x: _todo_sort_key(x, today)):
+                    _star = bool((_p.get("중요", "") or "").strip())
+                    if _mv:   # 편집 모드: 마감일·개인이동 칸까지
+                        _pc1, _pcd, _pcs, _pc2, _pc3 = st.columns([5, 2, 1, 1, 1])
                     else:
-                        _pc1, _pc3 = st.columns([8, 1])
-                        _pc2 = None
-                    _pc1.markdown(f"- 📝 {_p['내용']}")
+                        _pc1, _pcs, _pc3 = st.columns([7, 1, 1])
+                        _pcd = _pc2 = None
+                    _pc1.markdown(
+                        f"- {'⭐' if _star else '📝'} {_p['내용']}"
+                        + _todo_badges(_p, today), unsafe_allow_html=True)
+                    # ⭐ 중요 표시 — 켜면 목록 맨 위로
+                    if _pcs.button("☆" if not _star else "★",
+                                   key=f"todo_star_{_p['_row']}",
+                                   help="중요 표시(맨 위로)"):
+                        try:
+                            todo_store.set_star(uid, _p["_row"], _p["내용"],
+                                                not _star)
+                        except Exception as e:
+                            st.error(f"저장 실패: {e}")
+                        st.rerun()
+                    # 📅 마감일 — 편집 모드에서만(평소엔 목록이 복잡해짐)
+                    if _pcd is not None:
+                        try:
+                            _cur = (datetime.strptime(
+                                _p["마감일"].strip(), "%Y-%m-%d").date()
+                                if (_p.get("마감일") or "").strip() else None)
+                        except Exception:
+                            _cur = None
+                        _nd = _pcd.date_input(
+                            "마감", value=_cur, key=f"todo_due_{_p['_row']}",
+                            format="YYYY-MM-DD", label_visibility="collapsed")
+                        if _nd != _cur:
+                            try:
+                                todo_store.set_due(
+                                    uid, _p["_row"], _p["내용"],
+                                    _nd.strftime("%Y-%m-%d") if _nd else "")
+                            except Exception as e:
+                                st.error(f"저장 실패: {e}")
+                            st.rerun()
                     if _pc2 is not None and _pc2.button(
                             "🙋", key=f"todo_toper_{_p['_row']}",
                             help="개인으로 옮기기(시트에서 지우고 내 기기에 저장)"):
