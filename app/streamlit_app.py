@@ -509,6 +509,42 @@ def _todo_import_panel(uid, name, existing_rows):
             st.rerun()
 
 
+# ── 개인 할 일: 브라우저(내 기기)에만 저장 ────────────────────────────────
+#   구글시트는 팀 공용이라 시트를 열 수 있는 사람에게 개인 메모가 노출된다.
+#   그래서 개인 할 일은 서버에 보내지 않고 브라우저 localStorage 에만 둔다.
+#   ⚠️ 기기별로 따로 저장된다(폰과 PC가 공유되지 않음). 브라우저 데이터를
+#      지우면 함께 사라진다 — 중요한 건 '업무'로 두는 편이 안전.
+def _per_key(uid):
+    return f"ds_per_{(uid or '').strip()}"
+
+
+def personal_todos(uid):
+    """브라우저에 저장된 개인 할 일 [{'t':내용,'ts':등록시각}, ...] (세션당 1회 읽음)."""
+    if not uid:
+        return []
+    if not st.session_state.get("_per_loaded"):
+        try:
+            from streamlit_js_eval import get_local_storage
+            raw = get_local_storage(_per_key(uid), component_key="ls_per_get")
+        except Exception:
+            raw = None
+        if raw is not None:                    # None = 아직 응답 전(다음 실행에 옴)
+            try:
+                st.session_state["_per"] = json.loads(raw) if raw else []
+            except Exception:
+                st.session_state["_per"] = []
+            st.session_state["_per_loaded"] = True
+    return st.session_state.get("_per", [])
+
+
+def save_personal(uid, items):
+    """개인 할 일 저장 — 실제 쓰기는 main() 끝에서(컴포넌트 렌더 타이밍 때문)."""
+    st.session_state["_per"] = items
+    st.session_state["_per_loaded"] = True
+    st.session_state["_ls_per_save"] = (_per_key(uid),
+                                        json.dumps(items, ensure_ascii=False))
+
+
 def _hm(ts: str) -> str:
     """'2026-07-30 09:12' → '7/30 09:12' (오늘이면 '09:12'). 빈 값은 그대로."""
     ts = (ts or "").strip()
@@ -936,9 +972,14 @@ def home_page():
             todo_lines = list(todos) + [f"📅 {s}" for s in sched_items]
             try:
                 _mytodos = todo_store.list_todos(uid)                      # 업무
-                _myper = todo_store.list_todos(uid, todo_store.KIND_PERSONAL)
             except Exception:
-                _mytodos, _myper = [], []
+                _mytodos = []
+            _myper = personal_todos(uid)        # 개인 = 브라우저에만 저장
+            # 예전에 시트에 저장된 개인 할 일이 남아 있으면 옮길 수 있게 안내
+            try:
+                _old_per = todo_store.list_todos(uid, todo_store.KIND_PERSONAL)
+            except Exception:
+                _old_per = []
             # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
             _mv = st.session_state.get("todo_move_mode", False)
             # 머리글 = 🏢 업무 ＋(추가) 🔀(옮기기). 한 HTML 줄이라 정렬이 어긋나지 않음.
@@ -962,16 +1003,13 @@ def home_page():
                     with st.form("todo_add_form", clear_on_submit=True):
                         _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                             placeholder="예: 백정은 님께 자료 요청")
-                        _tk = st.radio("구분", ["🏢 업무", "🙋 개인"], horizontal=True,
-                                       key="todo_kind",
-                                       help="개인 할 일은 주간보고에 들어가지 않습니다.")
-                        st.caption("🙋 개인으로 두면 주간보고에 들어가지 않습니다.")
+                        # 구분 선택은 없앰 — 개인은 아래 '🙋 개인'에서 따로 추가한다
+                        st.caption("팀 시트에 저장됩니다. 남에게 안 보일 메모는 "
+                                   "아래 **🙋 개인**에서 추가하세요.")
                         if st.form_submit_button("추가") and _tt.strip():
                             try:
-                                todo_store.add_todo(
-                                    uid, _tt,
-                                    todo_store.KIND_PERSONAL if "개인" in _tk
-                                    else todo_store.KIND_TODO)
+                                todo_store.add_todo(uid, _tt,
+                                                    todo_store.KIND_TODO)
                                 st.session_state["todo_add_open"] = False  # 추가 후 닫기
                             except Exception as e:
                                 st.error(f"저장 실패: {e}")
@@ -988,10 +1026,13 @@ def home_page():
                     _pc1.markdown(f"- 📝 {_p['내용']}")
                     if _pc2 is not None and _pc2.button(
                             "🙋", key=f"todo_toper_{_p['_row']}",
-                            help="개인 할 일로 옮기기(주간보고에 안 들어감)"):
+                            help="개인으로 옮기기(시트에서 지우고 내 기기에 저장)"):
                         try:
-                            todo_store.set_kind(uid, _p["_row"], _p["내용"],
-                                                todo_store.KIND_PERSONAL)
+                            save_personal(uid, _myper + [{
+                                "t": _p["내용"],
+                                "ts": datetime.now(KST).strftime(
+                                    "%Y-%m-%d %H:%M")}])
+                            todo_store.delete_todo(uid, _p["_row"], _p["내용"])
                         except Exception as e:
                             st.error(f"이동 실패: {e}")
                         st.rerun()
@@ -1003,34 +1044,70 @@ def home_page():
                         except Exception as e:
                             st.error(f"완료 처리 실패: {e}")
                         st.rerun()
-            # 🙋 개인: 업무와 분리해서 표시
-            if _myper:
+            # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
+            if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
-                # ('개인은 보고에 안 들어감' 안내는 추가 폼에서만 — 목록은 깔끔하게)
                 with st.expander(f"🙋 개인 ({len(_myper)})", expanded=True):
-                    for _p in _myper:
+                    if st.button("＋ 개인 할 일 추가", key="per_add_btn",
+                                 help="내 기기에만 저장 · 팀 시트로 안 나감"):
+                        st.session_state["per_add_open"] = \
+                            not st.session_state.get("per_add_open", False)
+                        st.rerun()
+                    if st.session_state.get("per_add_open"):
+                        with st.form("per_add_form", clear_on_submit=True):
+                            _pt = st.text_input("개인 할 일 (나만 보임)",
+                                                key="per_text",
+                                                placeholder="예: 병원 예약 확인")
+                            if st.form_submit_button("추가") and _pt.strip():
+                                save_personal(uid, _myper + [{
+                                    "t": _pt.strip(),
+                                    "ts": datetime.now(KST).strftime(
+                                        "%Y-%m-%d %H:%M")}])
+                                st.session_state["per_add_open"] = False
+                                st.rerun()
+                    st.caption("🔒 이 목록은 **내 기기(브라우저)에만** 저장됩니다 — "
+                               "팀 시트로 나가지 않습니다. (기기마다 따로 저장)")
+                    for _i, _p in enumerate(_myper):
                         if _mv:
                             _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
                         else:
                             _pc1, _pc3 = st.columns([8, 1])
                             _pc2 = None
-                        _pc1.markdown(f"- 🏠 {_p['내용']}")
+                        _pc1.markdown(f"- 🏠 {_p.get('t', '')}")
                         if _pc2 is not None and _pc2.button(
-                                "🏢", key=f"per_towork_{_p['_row']}",
-                                help="업무 할 일로 되돌리기"):
+                                "🏢", key=f"per_towork_{_i}",
+                                help="업무로 되돌리기(팀 시트에 저장됨)"):
                             try:
-                                todo_store.set_kind(uid, _p["_row"], _p["내용"],
+                                todo_store.add_todo(uid, _p.get("t", ""),
                                                     todo_store.KIND_TODO)
+                                save_personal(
+                                    uid, [q for j, q in enumerate(_myper)
+                                          if j != _i])
                             except Exception as e:
                                 st.error(f"이동 실패: {e}")
                             st.rerun()
-                        if _pc3.button("✓", key=f"per_done_{_p['_row']}",
-                                       help="완료(삭제) — 보고에 기록되지 않음"):
-                            try:
-                                todo_store.delete_todo(uid, _p["_row"], _p["내용"])
-                            except Exception as e:
-                                st.error(f"삭제 실패: {e}")
+                        if _pc3.button("✓", key=f"per_done_{_i}",
+                                       help="완료(삭제) — 기록에 남지 않음"):
+                            save_personal(uid, [q for j, q in enumerate(_myper)
+                                                if j != _i])
                             st.rerun()
+            # 옛 개인 할 일이 팀 시트에 남아 있으면 내 기기로 옮길 수 있게 안내.
+            # (자동으로 지우지 않는다 — 삭제는 되돌릴 수 없으므로 직접 누르게)
+            if _old_per:
+                st.warning(f"🔒 예전에 저장한 개인 할 일 {len(_old_per)}건이 "
+                           "**팀 시트에 남아 있습니다**(시트를 열 수 있는 사람에게 보임).")
+                if st.button("내 기기로 옮기고 시트에서 지우기", key="per_migrate"):
+                    try:
+                        _now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+                        save_personal(uid, _myper + [
+                            {"t": r["내용"], "ts": r.get("등록일시") or _now}
+                            for r in _old_per])
+                        for r in _old_per:
+                            todo_store.delete_todo(uid, r["_row"], r["내용"])
+                        st.toast("🔒 개인 할 일을 내 기기로 옮겼습니다.")
+                    except Exception as e:
+                        st.error(f"옮기기 실패: {e}")
+                    st.rerun()
             if not todo_lines and not _mytodos and not _myper:
                 st.caption(f"✅ {my} 님, 7일 내 할 일이 없습니다.")
             # 📨 받은 요청 — 다른 팀원이 나(my)에게 요청한 일
@@ -3334,6 +3411,14 @@ def main():
         try:
             from streamlit_js_eval import set_local_storage
             set_local_storage("ds_auth", _save, component_key="ls_set")
+        except Exception:
+            pass
+    # 개인 할 일도 같은 방식으로 브라우저에만 기록(서버·시트로 안 나감)
+    _psave = st.session_state.pop("_ls_per_save", None)
+    if _psave:
+        try:
+            from streamlit_js_eval import set_local_storage
+            set_local_storage(_psave[0], _psave[1], component_key="ls_per_set")
         except Exception:
             pass
 
