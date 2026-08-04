@@ -554,9 +554,9 @@ def _todo_badges(item, today):
         try:
             d = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
             if d < 0:
-                txt, col = f"D+{-d} 지남", "#e05252"
+                txt, col = f"D+{-d}", "#e05252"
             elif d == 0:
-                txt, col = "오늘 마감", "#e05252"
+                txt, col = "D-0", "#e05252"
             elif d <= 3:
                 txt, col = f"D-{d}", "#e08a3c"
             else:
@@ -568,18 +568,17 @@ def _todo_badges(item, today):
     if ts:
         try:
             age = (today - datetime.strptime(ts, "%Y-%m-%d").date()).days
+            # 7일 미만은 표시하지 않는다 — 배지가 많으면 줄이 넘어가 정렬이 깨진다
             if age >= 14:
-                out.append((f"{age}일째", "#e05252"))
+                out.append((f"{age}일", "#e05252"))
             elif age >= 7:
-                out.append((f"{age}일째", "#e08a3c"))
-            elif age >= 1:
-                out.append((f"{age}일", "#8a8781"))
+                out.append((f"{age}일", "#e08a3c"))
         except Exception:
             pass
     # white-space:nowrap — 없으면 '22일 / 째'처럼 배지 가운데서 줄이 바뀐다
     return "".join(
-        f"<span style='margin-left:6px;font-size:.78em;color:{c};"
-        f"border:1px solid {c}55;border-radius:4px;padding:0 5px;"
+        f"<span style='margin-left:5px;font-size:.72em;color:{c};"
+        f"border:1px solid {c}55;border-radius:4px;padding:0 4px;"
         f"white-space:nowrap;display:inline-block;'>{t}</span>"
         for t, c in out)
 
@@ -1077,9 +1076,9 @@ def home_page():
                 for _p in sorted(_mytodos, key=lambda x: _todo_sort_key(x, today)):
                     _star = bool((_p.get("중요", "") or "").strip())
                     if _mv:   # 편집 모드: 마감일·개인이동 칸까지
-                        _pc1, _pcd, _pcs, _pc2, _pc3 = st.columns([5, 2, 1, 1, 1])
+                        _pc1, _pcd, _pcs, _pc2, _pc3 = st.columns([6, 2, 1, 1, 1])
                     else:
-                        _pc1, _pcs, _pc3 = st.columns([7, 1, 1])
+                        _pc1, _pcs, _pc3 = st.columns([9, 1, 1])
                         _pcd = _pc2 = None
                     _pc1.markdown(
                         f"- {'⭐' if _star else '📝'} {_p['내용']}"
