@@ -1446,12 +1446,18 @@ def home_page():
         _cb = f"uid={quote(_cuid)}&tok={quote(_ctok)}"
         _copen = st.session_state.get("home_cal_open", False)
         _sym = "－" if _copen else "＋"
+        # 바로 아래가 달력 임베드라 여백이 좁으면 붙어 보인다 → 아래 여백 확보.
+        # 색도 다크 대응(진한 주황 #A8501A는 어두운 배경에서 묻힘).
+        _cdk = bool(st.session_state.get("dark"))
         st.markdown(
-            "<div style='display:flex;align-items:center;gap:9px;margin:2px 0 6px;'>"
-            "<span style='font-weight:700;color:#A8501A;font-size:1.05rem;'>"
+            "<div style='display:flex;align-items:center;gap:9px;"
+            "margin:2px 0 14px;'>"
+            f"<span style='font-weight:700;font-size:1.05rem;"
+            f"color:{'#fbfaf7' if _cdk else '#A8501A'};'>"
             "📅 사업단 일정</span>"
             f"<a href='?{_cb}&go=cal' target='_self' title='일정 추가·수정·삭제' "
-            "style='text-decoration:none;color:#C4622D;font-size:1.4rem;"
+            f"style='text-decoration:none;font-size:1.4rem;"
+            f"color:{'#e08a63' if _cdk else '#C4622D'};"
             f"line-height:1;font-weight:700;'>{_sym}</a></div>",
             unsafe_allow_html=True)
         if _copen:
