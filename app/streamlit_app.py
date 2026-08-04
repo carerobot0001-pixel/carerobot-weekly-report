@@ -574,7 +574,7 @@ def _drag_sort_personal(uid, items):
 def _todo_row(p, uid, today, no=None):
     """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료). 두 목록 공용."""
     star = bool((p.get("중요", "") or "").strip())
-    c1, cs, c3 = st.columns([9, 1, 1])
+    c1, cs, c3, c4 = st.columns([9, 1, 1, 1])
     _head = f"{no}." if no else "-"
     c1.markdown(f"{_head} {'⭐' if star else '📝'} {p['내용']}"
                 + _todo_badges(p, today), unsafe_allow_html=True)
@@ -591,6 +591,14 @@ def _todo_row(p, uid, today, no=None):
             todo_store.complete_todo(uid, p["_row"], p["내용"])
         except Exception as e:
             st.error(f"완료 처리 실패: {e}")
+        st.rerun()
+    # ✕ 삭제 — 잘못 들어온 항목을 '완료'로 남기지 않고 그냥 지운다
+    if c4.button("✕", key=f"todo_del_{p['_row']}",
+                 help="삭제 — 실적 기록 없이 지움"):
+        try:
+            todo_store.delete_todo(uid, p["_row"], p["내용"])
+        except Exception as e:
+            st.error(f"삭제 실패: {e}")
         st.rerun()
 
 
@@ -664,6 +672,8 @@ def home_page():
         position:absolute; top:9px; left:135px; width:auto !important; z-index:5; }
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"]{
         position:absolute; top:9px; left:128px; width:auto !important; z-index:5; }
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"]{
+        position:absolute; top:9px; left:196px; width:auto !important; z-index:5; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
       /* ＋ 와 ↕ 는 글리프 크기·기준선이 달라 그냥 두면 어긋난다 →
          같은 정사각 상자에 넣고 가운데 정렬해 높이를 맞춘다. */
@@ -671,7 +681,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button,
-      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button{
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button{
         min-height:0 !important; width:22px; height:22px;
         padding:0 !important; line-height:1; font-weight:700;
         display:inline-flex !important; align-items:center !important;
@@ -684,7 +695,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button p,
-      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p{
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button p{
         font-size:1rem !important; line-height:22px !important; margin:0;
         display:flex; align-items:center; justify-content:center;
         width:22px; height:22px; }
@@ -692,7 +704,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button:hover,
-      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button:hover{
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
@@ -701,7 +714,8 @@ def home_page():
       [class*="st-key-todo_done_"] button, [class*="st-key-per_done_"] button,
       [class*="st-key-care_done_"] button, [class*="st-key-req_done_"] button,
       [class*="st-key-req_del_"] button, [class*="st-key-req_edit_btn_"] button,
-      [class*="st-key-req_reply_"] button, [class*="st-key-todo_star_"] button{
+      [class*="st-key-req_reply_"] button, [class*="st-key-todo_star_"] button,
+      [class*="st-key-todo_del_"] button{
         min-height:0 !important; height:26px; padding:0 0.45rem !important;
         line-height:1; }
       /* ☆/★ 는 글자 기호라 크기·굵기를 맞춰야 ✓ 버튼과 나란해 보인다 */
@@ -1300,7 +1314,14 @@ def home_page():
                 # 고르는 명단엔 간부(과장·연구관·연구사)도 포함, 없는 사람은 직접 입력
                 _others = [n for n in USER_NAMES if n != my]
                 _researchers = [n for n in MEMBER_NAMES if n != my]
-                with st.form("req_add_form", clear_on_submit=True):
+                # 보내기 폼은 ＋를 눌렀을 때만 — 평소엔 보낸 요청 목록만 보이게
+                _req_open = st.session_state.get("req_add_open", False)
+                if st.button("－" if _req_open else "＋", key="req_add_btn",
+                             help="닫기" if _req_open else "새 요청 보내기"):
+                    st.session_state["req_add_open"] = not _req_open
+                    st.rerun()
+                if _req_open:
+                  with st.form("req_add_form", clear_on_submit=True):
                     # 여러 명 선택 가능 — 사람마다 따로 완료·회신이 오간다
                     _rtargets = st.multiselect(
                         "요청 대상 (여러 명 선택 가능)", _others, key="req_target",
@@ -3823,15 +3844,17 @@ def main():
         color:#fff !important; }
       /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
       [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button,
-      [class*="st-key-todo_star_"] button{
+      [class*="st-key-todo_star_"] button, [class*="st-key-todo_del_"] button{
         color:var(--ds-text) !important; font-size:1rem !important; }
       /* 머리글 옆 ＋ 는 다크에서도 테두리·배경 없이(위 버튼 규칙보다 뒤에 와야 함) */
       [class*="st-key-todo_add_btn"] button, [class*="st-key-care_add_btn"] button,
       [class*="st-key-per_add_btn"] button, [class*="st-key-todo_sort_btn"] button,
-      [class*="st-key-per_sort_btn"] button{
+      [class*="st-key-per_sort_btn"] button,
+      [class*="st-key-req_add_btn"] button{
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#e08a63 !important; }
-      [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
+      [class*="st-key-req_del_"] button:hover,
+      [class*="st-key-todo_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
       hr{ border-color:var(--ds-border) !important; }
       /* 드롭다운·달력 팝업 — 앱 밖(body 포털)에 그려져서 따로 지정해야 함.
