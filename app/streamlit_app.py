@@ -1,7 +1,7 @@
 """돌봄로봇 주간 업무보고 취합 웹앱."""
 import streamlit as st
 import streamlit.components.v1 as components
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, date
 from urllib.parse import quote
 from html import escape as html_escape
 import json
@@ -311,6 +311,30 @@ def _me_index(options, default=0):
     return options.index(me) if me in options else default
 
 
+def _guess_due(text, today):
+    """글에서 마감일을 조심스럽게 뽑는다. '8/5까지', '8월 5일 마감'처럼
+    날짜 + 마감 표현이 함께 있을 때만 인정한다(숫자만 보고 넘겨짚지 않음)."""
+    # 목록 번호('1.')가 월로 잡히지 않게 접두를 떼고, 구분자는 / 월 또는
+    # 숫자가 바로 붙는 점(8.20)만 인정한다.
+    body = re.sub(r"^\s*\d+\s*[.)]\s*", "", text or "")
+    pat = (r"(\d{1,2})\s*(?:[/월]|\.(?=\d))\s*(\d{1,2})\s*일?"
+           r".{0,6}?(까지|마감|기한|제출)")
+    m = re.search(pat, body)
+    if not m:
+        return ""
+    try:
+        mm, dd = int(m.group(1)), int(m.group(2))
+        d = date(today.year, mm, dd)
+    except ValueError:
+        return ""
+    if (d - today).days < -30:          # 작년 날짜로 보이면 내년 것
+        try:
+            d = date(today.year + 1, mm, dd)
+        except ValueError:
+            return ""
+    return d.strftime("%Y-%m-%d")
+
+
 def _auto_import(uid, name):
     """주간보고 계획(번호 붙은 줄) + 내 CC 메일을 '내 할 일'에 자동 추가.
 
@@ -361,7 +385,11 @@ def _auto_import(uid, name):
             tag, _pri = mail_store.classify(m.get("제목", ""), m.get("본문", ""))
             item = f"📧 {tag} · {m.get('제목', '(제목 없음)')}"
             if item not in existing:
-                todo_store.add_todo(uid, item)
+                # 긴급·결정필요(우선도 4 이상)는 ⭐로 올려 둔다
+                todo_store.add_todo(
+                    uid, item, star=_pri >= 4,
+                    due=_guess_due(f"{m.get('제목','')} {m.get('본문','')[:300]}",
+                                   datetime.now(KST).date()))
                 existing.add(item)
                 added += 1
             if dt > newest:

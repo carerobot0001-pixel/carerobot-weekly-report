@@ -108,14 +108,16 @@ def list_todos(uid, kind=KIND_TODO):
     return out
 
 
-def add_todo(uid, text, kind=KIND_TODO, due="", area=AREA_WORK):
+def add_todo(uid, text, kind=KIND_TODO, due="", area=AREA_WORK,
+             star=False):
     uid = (uid or "").strip()
     text = (text or "").strip()
     if not uid or not text:
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    _ws().append_row([uid, text, now, kind, "", (due or "").strip(),
-                      (area or AREA_WORK), ""], value_input_option="RAW")
+    _ws().append_row([uid, text, now, kind, "Y" if star else "",
+                      (due or "").strip(), (area or AREA_WORK), ""],
+                     value_input_option="RAW")
     _rows.clear()
 
 
