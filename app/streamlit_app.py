@@ -692,9 +692,9 @@ def home_page():
         /* 머리글 높이 ~40px, 버튼 22px → 위아래 가운데는 9px */
         position:absolute; top:9px; width:auto !important; z-index:5; }
       /* 제목 길이가 달라 섹션마다 왼쪽 위치를 따로 준다(제목에서 약 10px 뒤) */
-      section[data-testid="stMain"] [class*="st-key-care_add_btn"]{ left:150px; }
-      section[data-testid="stMain"] [class*="st-key-todo_add_btn"]{ left:120px; }
-      section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:113px; }
+      section[data-testid="stMain"] [class*="st-key-care_add_btn"]{ left:137px; }
+      section[data-testid="stMain"] [class*="st-key-todo_add_btn"]{ left:107px; }
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:100px; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
