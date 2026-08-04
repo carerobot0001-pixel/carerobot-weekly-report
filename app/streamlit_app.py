@@ -901,7 +901,7 @@ def home_page():
 
     st.divider()
     # ── 좌: 오늘 챙길 것 + 내 할 일(7일) / 우: 그 외 일정(7일) ─────────────
-    left, right = st.columns([1, 1])
+    left, right = st.columns([1.6, 1])   # 왼쪽 글이 길어 더 넓게
     with left:
         uid = st.session_state.get("uid", "")
         _auto_import(uid, my)   # 보고(번호줄)·내 메일을 새 것만 자동 추가(세션당 1회)
@@ -3515,7 +3515,7 @@ def main():
       .block-container,
       [data-testid="stMainBlockContainer"]{
         padding-top:3.6rem;padding-bottom:2rem;
-        padding-left:2.4rem;padding-right:2.4rem;}
+        padding-left:1.6rem;padding-right:1.6rem;}
       /* 헤더·섹션 라벨(굵은글씨)·링크를 주황갈색으로 (알림박스 안 굵은글씨는 제외) */
       h1,h2,h3,h4,h5,h6{ color:#8A3F12; }
       [data-testid="stMarkdownContainer"] strong{ color:#A8501A; }
