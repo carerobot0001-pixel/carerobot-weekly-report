@@ -450,14 +450,21 @@ def _todo_badges(item, today):
 
 
 def _todo_sort_key(item, today):
-    """중요(⭐) → 마감 임박 → 오래된 순."""
+    """사용자가 드래그로 정한 순서가 있으면 그것을 따르고(맨 위가 1번),
+    없으면 예전 방식(중요 → 마감 임박 → 오래된 순)으로 정렬한다."""
+    o = (item.get("순서", "") or "").strip()
+    if o:
+        try:
+            return (0, int(o), "")
+        except ValueError:
+            pass
     star = 0 if (item.get("중요", "") or "").strip() else 1
     due = (item.get("마감일", "") or "").strip()
     try:
         dd = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
     except Exception:
         dd = 9999                      # 마감 없는 건 뒤로
-    return (star, dd, item.get("등록일시", ""))
+    return (1, star * 10000 + min(dd, 9999), item.get("등록일시", ""))
 
 
 def _req_peers(rq, me):
@@ -487,11 +494,66 @@ def _req_peers(rq, me):
             + "<br>".join(lines))
 
 
-def _todo_row(p, uid, today):
-    """업무 할 일 한 줄 — 내용·배지 + ☆(중요) + ✓(완료). 연구/업무 목록에서 공용."""
+def _drag_available() -> bool:
+    """드래그 정렬 컴포넌트가 설치돼 있는지(없으면 기존 목록만 보여준다)."""
+    try:
+        import streamlit_sortables  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def _drag_sort(by_area, uid, today):
+    """🔬 연구 / 🏢 업무 두 칸 사이로 끌어 옮기고 순서를 정하는 화면.
+
+    컴포넌트가 '글자'만 주고받으므로 앞에 번호를 붙여 고유하게 만든 뒤,
+    돌아온 순서대로 (행번호, 영역, 순번)을 계산해 한 번에 저장한다.
+    """
+    import streamlit_sortables as sortables
+
+    labels, back = {}, {}
+    for area in (todo_store.AREA_RESEARCH, todo_store.AREA_WORK):
+        items = sorted(by_area.get(area, []),
+                       key=lambda x: _todo_sort_key(x, today))
+        labels[area] = []
+        for i, p in enumerate(items, start=1):
+            tag = f"{p['_row']}❘ {p['내용']}"      # 행번호를 앞에 붙여 중복 방지
+            labels[area].append(tag)
+            back[tag] = p
+    st.caption("끌어서 순서를 바꾸고, 🔬연구 ↔ 🏢업무 사이로 옮길 수 있습니다. "
+               "맨 위가 1번입니다.")
+    res = sortables.sort_items(
+        [{"header": f"🔬 {todo_store.AREA_RESEARCH}",
+          "items": labels[todo_store.AREA_RESEARCH]},
+         {"header": f"🏢 {todo_store.AREA_WORK}",
+          "items": labels[todo_store.AREA_WORK]}],
+        multi_containers=True, direction="vertical", key="todo_drag")
+
+    if st.button("💾 순서 저장", key="todo_drag_save", type="primary"):
+        ordered = []
+        for cont in res:
+            area = (todo_store.AREA_RESEARCH
+                    if todo_store.AREA_RESEARCH in cont["header"]
+                    else todo_store.AREA_WORK)
+            for idx, tag in enumerate(cont["items"], start=1):
+                p = back.get(tag)
+                if p:
+                    ordered.append((p["_row"], area, idx))
+        try:
+            todo_store.reorder(uid, ordered)
+            st.session_state["todo_sort_mode"] = False
+            st.toast("↕ 순서를 저장했습니다.")
+        except Exception as e:
+            st.error(f"저장 실패: {e}")
+        st.rerun()
+
+
+def _todo_row(p, uid, today, no=None):
+    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료). 두 목록 공용."""
     star = bool((p.get("중요", "") or "").strip())
     c1, cs, c3 = st.columns([9, 1, 1])
-    c1.markdown(f"- {'⭐' if star else '📝'} {p['내용']}"
+    _head = f"{no}." if no else "-"
+    c1.markdown(f"{_head} {'⭐' if star else '📝'} {p['내용']}"
                 + _todo_badges(p, today), unsafe_allow_html=True)
     if cs.button("☆" if not star else "★", key=f"todo_star_{p['_row']}",
                  help="중요 표시(맨 위로)"):
@@ -990,20 +1052,35 @@ def home_page():
                     _by_area.setdefault(
                         _a if _a in _by_area else todo_store.AREA_WORK,
                         []).append(_p)
-                for _label, _icon in ((todo_store.AREA_RESEARCH, "🔬"),
-                                      (todo_store.AREA_WORK, "🏢")):
-                    _items = _by_area.get(_label, [])
-                    if not _items and not (
-                            _label == todo_store.AREA_WORK and todo_lines):
-                        continue
-                    st.markdown(f"**{_icon} {_label}**")
-                    # 시스템이 만든 알림(주간보고 미제출·협업 마감·내 일정)은
-                    # 업무 성격이라 업무 머리글 아래에 붙인다.
-                    if _label == todo_store.AREA_WORK and todo_lines:
-                        st.markdown("\n".join(f"- {t}" for t in todo_lines))
-                    for _p in sorted(_items,
-                                     key=lambda x: _todo_sort_key(x, today)):
-                        _todo_row(_p, uid, today)
+                # ↕ 정렬(드래그) 모드 — 켜면 두 칸 사이로 끌어 옮기고 순서도 바꾼다
+                _sortable = _drag_available()
+                if _mytodos and _sortable and st.button(
+                        "✅ 정렬 끝내기" if st.session_state.get("todo_sort_mode")
+                        else "↕ 순서 바꾸기",
+                        key="todo_sort_btn"):
+                    st.session_state["todo_sort_mode"] = \
+                        not st.session_state.get("todo_sort_mode", False)
+                    st.rerun()
+                if _mytodos and _sortable and st.session_state.get(
+                        "todo_sort_mode"):
+                    _drag_sort(_by_area, uid, today)
+                else:
+                    for _label, _icon in ((todo_store.AREA_RESEARCH, "🔬"),
+                                          (todo_store.AREA_WORK, "🏢")):
+                        _items = _by_area.get(_label, [])
+                        if not _items and not (
+                                _label == todo_store.AREA_WORK and todo_lines):
+                            continue
+                        st.markdown(f"**{_icon} {_label}**")
+                        # 시스템이 만든 알림(주간보고 미제출·협업 마감·내 일정)은
+                        # 업무 성격이라 업무 머리글 아래에 붙인다.
+                        if _label == todo_store.AREA_WORK and todo_lines:
+                            st.markdown("\n".join(f"- {t}" for t in todo_lines))
+                        for _i, _p in enumerate(
+                                sorted(_items,
+                                       key=lambda x: _todo_sort_key(x, today)),
+                                start=1):
+                            _todo_row(_p, uid, today, no=_i)
             # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
