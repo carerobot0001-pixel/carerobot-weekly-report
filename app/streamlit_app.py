@@ -1098,7 +1098,7 @@ def home_page():
                 # ↕ 정렬(드래그) 모드 — 켜면 두 칸 사이로 끌어 옮기고 순서도 바꾼다
                 _sortable = _drag_available()
                 if _mytodos and _sortable and st.button(
-                        "✓" if st.session_state.get("todo_sort_mode") else "↕",
+                        "✓" if st.session_state.get("todo_sort_mode") else "⇅",
                         key="todo_sort_btn",
                         help="정렬 끝내기"
                         if st.session_state.get("todo_sort_mode")
@@ -1152,7 +1152,7 @@ def home_page():
                                 st.rerun()
                     if _myper and _drag_available() and st.button(
                             "✓" if st.session_state.get("per_sort_mode")
-                            else "↕", key="per_sort_btn",
+                            else "⇅", key="per_sort_btn",
                             help="정렬 끝내기"
                             if st.session_state.get("per_sort_mode")
                             else "순서 바꾸기(끌어서 이동)"):
