@@ -682,6 +682,19 @@ def home_page():
         margin-bottom:1px; }
       section[data-testid="stMain"] [data-testid="stCaptionContainer"]{
         margin:0 0 2px; }
+      /* ＋(추가) 버튼을 확장패널 제목줄 오른쪽에 올린다.
+         st.expander 헤더에는 위젯을 못 넣고, 컬럼으로 나누면 그 안의 목록
+         행 컬럼이 3단 중첩이 되어 Streamlit 예외가 난다 → 겹쳐 배치. */
+      section[data-testid="stMain"] [data-testid="stExpander"]{ position:relative; }
+      section[data-testid="stMain"] [class*="st-key-todo_add_btn"],
+      section[data-testid="stMain"] [class*="st-key-care_add_btn"],
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"]{
+        position:absolute; top:2px; right:8px; width:auto !important; z-index:5; }
+      section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button{
+        min-height:0 !important; height:28px; padding:0 0.6rem !important;
+        font-size:1.05rem; line-height:1; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
          벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤. 기호는 이모지가 아닌 글자라
          CSS 색이 먹는다(이모지는 폰트가 그림을 그려 흰 박스로 보였음). */
