@@ -315,6 +315,27 @@ def _me_index(options, default=0):
 REPORT_HINT = "1. 큰 항목\n- 세부 내용\n- 세부 내용\n2. 큰 항목\n- 세부 내용"
 
 
+LEAVE_WORDS = ("연가", "휴가", "병가", "반차", "반가", "월차", "연차", "출장")
+
+
+def _on_leave(names, days=2):
+    """오늘~내일 캘린더에 연가·출장 일정이 있는 사람 이름 집합.
+    휴가 중이면 주간보고를 못 내므로 미제출 독촉에서 뺀다."""
+    out = set()
+    try:
+        evs = upcoming_events(days=days, maxn=60)
+    except Exception:
+        return out
+    for e in evs:
+        title = (e.get("summary", "") or "")
+        if not any(w in title for w in LEAVE_WORDS):
+            continue
+        for n in names:
+            if n in title:
+                out.add(n)
+    return out
+
+
 def _guess_due(text, today):
     """글에서 마감일을 조심스럽게 뽑는다. '8/5까지', '8월 5일 마감'처럼
     날짜 + 마감 표현이 함께 있을 때만 인정한다(숫자만 보고 넘겨짚지 않음)."""
@@ -1032,8 +1053,14 @@ def home_page():
                         dtxt = (f"⏰ 오늘 마감! (화 17시·"
                                 f"{max(0, int(delta.total_seconds() // 3600))}"
                                 "시간 남음)")
-                    st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
-                               f"{', '.join(missing)}")
+                    _leave = _on_leave(missing)
+                    _real = [n for n in missing if n not in _leave]
+                    _msg = f"📝 주간보고 {dtxt} · 미제출 {len(_real)}명"
+                    if _real:
+                        _msg += f" — {', '.join(_real)}"
+                    if _leave:
+                        _msg += f"  (휴가·출장 제외: {', '.join(sorted(_leave))})"
+                    st.warning(_msg)
                     any_reminder = True
             for r in active_collab:
                 dl = _pdate(r[6])
