@@ -695,11 +695,19 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-care_add_btn"]{ left:150px; }
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"]{ left:120px; }
       section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:113px; }
+      /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button{
-        min-height:0 !important; height:22px; padding:0 0.4rem !important;
-        font-size:0.9rem; line-height:1; border-radius:5px; }
+        min-height:0 !important; height:22px; padding:0 0.25rem !important;
+        font-size:1.15rem; line-height:1; font-weight:700;
+        background:transparent !important; border:none !important;
+        box-shadow:none !important; color:#C4622D !important; }
+      section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-care_add_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover{
+        background:transparent !important; border:none !important;
+        color:#A8501A !important; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
          벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤. 기호는 이모지가 아닌 글자라
          CSS 색이 먹는다(이모지는 폰트가 그림을 그려 흰 박스로 보였음). */
@@ -3668,6 +3676,11 @@ def main():
       [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button,
       [class*="st-key-todo_star_"] button{
         color:var(--ds-text) !important; font-size:1rem !important; }
+      /* 머리글 옆 ＋ 는 다크에서도 테두리·배경 없이(위 버튼 규칙보다 뒤에 와야 함) */
+      [class*="st-key-todo_add_btn"] button, [class*="st-key-care_add_btn"] button,
+      [class*="st-key-per_add_btn"] button{
+        background:transparent !important; border:none !important;
+        box-shadow:none !important; color:#e08a63 !important; }
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
       hr{ border-color:var(--ds-border) !important; }
