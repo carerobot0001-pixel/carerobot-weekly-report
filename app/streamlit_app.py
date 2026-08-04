@@ -885,9 +885,11 @@ def home_page():
                         str(v.get("title", "") or ""),
                         str(v.get("desc", "") or ""),
                     ])
-                    md = v["date"][5:].replace("-", "/")          # MM/DD
-                    tm = "종일" if v["when"] == "종일" else v["when"].split("~")[0]
-                    line = f"{md} {tm} · {v['title']}"
+                    # 오른쪽 칸이 좁아 줄이 접히므로 최대한 짧게:
+                    #   0 안 붙인 날짜, 종일이면 '종일' 표기 생략(제목만)
+                    md = f"{int(v['date'][5:7])}/{int(v['date'][8:10])}"
+                    tm = "" if v["when"] == "종일" else v["when"].split("~")[0]
+                    line = f"{md} {tm} · {v['title']}" if tm                         else f"{md} · {v['title']}"
                     if my in haystack:
                         sched_items.append(line)
                         # 오늘 것은 '오늘 챙길 것'에도 올린다(조퇴·출장 등을 놓치지 않게)
@@ -903,7 +905,7 @@ def home_page():
 
     st.divider()
     # ── 좌: 오늘 챙길 것 + 내 할 일(7일) / 우: 그 외 일정(7일) ─────────────
-    left, right = st.columns([1.6, 1])   # 왼쪽 글이 길어 더 넓게
+    left, right = st.columns([1.45, 1])  # 왼쪽 글이 길어 조금 더 넓게
     with left:
         uid = st.session_state.get("uid", "")
         _auto_import(uid, my)   # 보고(번호줄)·내 메일을 새 것만 자동 추가(세션당 1회)
