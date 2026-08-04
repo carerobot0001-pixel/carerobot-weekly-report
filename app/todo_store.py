@@ -13,9 +13,11 @@ from sheets_store import _get_client, KST
 TODO_WS = "개인할일"
 # '구분'은 맨 뒤에 둠 — 옛 3열 행(구분 없음)은 기본 '할일'로 처리(데이터 안 밀림).
 # '중요'·'마감일'도 맨 뒤 — 옛 4열 행이 밀리지 않게.
-TODO_HEADER = ["아이디", "내용", "등록일시", "구분", "중요", "마감일"]
+TODO_HEADER = ["아이디", "내용", "등록일시", "구분", "중요", "마감일", "영역"]
+AREA_RESEARCH, AREA_WORK = "연구", "업무"   # 주간보고의 연구/업무와 같은 구분
 _COL_STAR = TODO_HEADER.index("중요") + 1
 _COL_DUE = TODO_HEADER.index("마감일") + 1
+_COL_AREA = TODO_HEADER.index("영역") + 1
 KIND_TODO, KIND_CARE = "할일", "챙길것"      # 할일=업무, 챙길것=오늘 챙길 것
 KIND_PERSONAL = "개인"                        # 개인 할 일(업무와 분리해서 표시)
 KIND_DONE = "완료"                            # 완료 처리된 업무 할 일(업무보고 실적 반영용)
@@ -53,7 +55,7 @@ def set_sync(uid, key, value):
             _rows.clear()
             return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    ws.append_row([uid, f"{key}={value}", now, KIND_SYNC, "", ""],
+    ws.append_row([uid, f"{key}={value}", now, KIND_SYNC, "", "", ""],
                   value_input_option="RAW")
     _rows.clear()
 
@@ -104,14 +106,14 @@ def list_todos(uid, kind=KIND_TODO):
     return out
 
 
-def add_todo(uid, text, kind=KIND_TODO, due=""):
+def add_todo(uid, text, kind=KIND_TODO, due="", area=AREA_WORK):
     uid = (uid or "").strip()
     text = (text or "").strip()
     if not uid or not text:
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    _ws().append_row([uid, text, now, kind, "", (due or "").strip()],
-                     value_input_option="RAW")
+    _ws().append_row([uid, text, now, kind, "", (due or "").strip(),
+                      (area or AREA_WORK)], value_input_option="RAW")
     _rows.clear()
 
 
@@ -147,8 +149,10 @@ def complete_todo(uid, row, text):
     if not (r and r[0].strip() == uid and (len(r) < 2 or r[1].strip() == text)):
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    ws.append_row([uid, text, now, KIND_DONE, "", ""],
-                  value_input_option="RAW")   # 끝에 기록
+    _area = (r[TODO_HEADER.index("영역")].strip()
+             if len(r) > TODO_HEADER.index("영역") else "") or AREA_WORK
+    ws.append_row([uid, text, now, KIND_DONE, "", "", _area],
+                  value_input_option="RAW")   # 끝에 기록(영역 보존)
     ws.delete_rows(row)                                                   # 활성 행 제거
     _rows.clear()
 
@@ -171,6 +175,12 @@ def _update(uid, row, text, col, value):
 def set_star(uid, row, text, on: bool):
     """⭐ 중요 표시 켜기/끄기."""
     _update(uid, row, text, _COL_STAR, "Y" if on else "")
+
+
+def set_area(uid, row, text, area: str):
+    """연구/업무 영역 변경."""
+    if area in (AREA_RESEARCH, AREA_WORK):
+        _update(uid, row, text, _COL_AREA, area)
 
 
 def set_due(uid, row, text, due: str):

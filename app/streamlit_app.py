@@ -595,6 +595,28 @@ def _todo_sort_key(item, today):
     return (star, dd, item.get("등록일시", ""))
 
 
+def _todo_row(p, uid, today):
+    """업무 할 일 한 줄 — 내용·배지 + ☆(중요) + ✓(완료). 연구/업무 목록에서 공용."""
+    star = bool((p.get("중요", "") or "").strip())
+    c1, cs, c3 = st.columns([9, 1, 1])
+    c1.markdown(f"- {'⭐' if star else '📝'} {p['내용']}"
+                + _todo_badges(p, today), unsafe_allow_html=True)
+    if cs.button("☆" if not star else "★", key=f"todo_star_{p['_row']}",
+                 help="중요 표시(맨 위로)"):
+        try:
+            todo_store.set_star(uid, p["_row"], p["내용"], not star)
+        except Exception as e:
+            st.error(f"저장 실패: {e}")
+        st.rerun()
+    if c3.button("✓", key=f"todo_done_{p['_row']}",
+                 help="완료 — 주간보고 실적에 넣을 수 있게 기록됨"):
+        try:
+            todo_store.complete_todo(uid, p["_row"], p["내용"])
+        except Exception as e:
+            st.error(f"완료 처리 실패: {e}")
+        st.rerun()
+
+
 def _hm(ts: str) -> str:
     """'2026-07-30 09:12' → '7/30 09:12' (오늘이면 '09:12'). 빈 값은 그대로."""
     ts = (ts or "").strip()
@@ -1076,6 +1098,11 @@ def home_page():
                     with st.form("todo_add_form", clear_on_submit=True):
                         _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
                                             placeholder="예: 백정은 님께 자료 요청")
+                        _tarea = st.radio(
+                            "영역", [todo_store.AREA_RESEARCH,
+                                     todo_store.AREA_WORK],
+                            index=1, horizontal=True, key="todo_area_new",
+                            help="주간보고의 연구/업무와 같은 구분입니다.")
                         _tdue = st.date_input("마감일 (선택)", value=None,
                                               key="todo_due_new",
                                               format="YYYY-MM-DD")
@@ -1086,38 +1113,32 @@ def home_page():
                             try:
                                 todo_store.add_todo(
                                     uid, _tt, todo_store.KIND_TODO,
-                                    due=_tdue.strftime("%Y-%m-%d") if _tdue else "")
+                                    due=_tdue.strftime("%Y-%m-%d") if _tdue else "",
+                                    area=_tarea)
                                 st.session_state["todo_add_open"] = False  # 추가 후 닫기
                             except Exception as e:
                                 st.error(f"저장 실패: {e}")
                             st.rerun()
-                # 🏢 업무: 시스템 할 일(주간보고·협업·일정) + 업무 메모·가져온 항목
+                # 시스템 할 일(주간보고·협업·일정)은 업무 쪽에 둔다
                 if todo_lines:
                     st.markdown("\n".join(f"- {t}" for t in todo_lines))
-                for _p in sorted(_mytodos, key=lambda x: _todo_sort_key(x, today)):
-                    _star = bool((_p.get("중요", "") or "").strip())
-                    _pc1, _pcs, _pc3 = st.columns([9, 1, 1])
-                    _pc1.markdown(
-                        f"- {'⭐' if _star else '📝'} {_p['내용']}"
-                        + _todo_badges(_p, today), unsafe_allow_html=True)
-                    # ⭐ 중요 표시 — 켜면 목록 맨 위로
-                    if _pcs.button("☆" if not _star else "★",
-                                   key=f"todo_star_{_p['_row']}",
-                                   help="중요 표시(맨 위로)"):
-                        try:
-                            todo_store.set_star(uid, _p["_row"], _p["내용"],
-                                                not _star)
-                        except Exception as e:
-                            st.error(f"저장 실패: {e}")
-                        st.rerun()
-                    if _pc3.button("✓", key=f"todo_done_{_p['_row']}",
-                                   help="완료 — 업무보고 '업무실적'에 넣을 수 있게 기록됨"):
-                        try:
-                            # 업무 할 일은 완료 기록을 남김(보고 작성 때 실적으로 불러오기)
-                            todo_store.complete_todo(uid, _p["_row"], _p["내용"])
-                        except Exception as e:
-                            st.error(f"완료 처리 실패: {e}")
-                        st.rerun()
+                # 주간보고와 같은 구분으로 나눠 보여준다(영역 빈칸 = 옛 데이터 = 업무)
+                _by_area = {todo_store.AREA_RESEARCH: [],
+                            todo_store.AREA_WORK: []}
+                for _p in _mytodos:
+                    _a = (_p.get("영역", "") or "").strip()
+                    _by_area.setdefault(
+                        _a if _a in _by_area else todo_store.AREA_WORK,
+                        []).append(_p)
+                for _label, _icon in ((todo_store.AREA_RESEARCH, "🔬"),
+                                      (todo_store.AREA_WORK, "🏢")):
+                    _items = _by_area.get(_label, [])
+                    if not _items:
+                        continue
+                    st.markdown(f"**{_icon} {_label}**")
+                    for _p in sorted(_items,
+                                     key=lambda x: _todo_sort_key(x, today)):
+                        _todo_row(_p, uid, today)
             # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
@@ -1581,26 +1602,49 @@ def _report_write():
                           - timedelta(days=7)).strftime("%Y-%m-%d")
             except Exception:
                 _since = None
-            with st.expander("✅ 완료한 할 일을 업무실적에 넣기", expanded=False):
+            with st.expander("✅ 완료한 할 일을 실적에 넣기", expanded=False):
                 try:
                     _done = todo_store.completed_todos(_uid_w, since=_since)
                 except Exception:
                     _done = []
                 if not _done:
-                    st.caption("이번 주기에 완료 처리한 업무 할 일이 없습니다. "
-                               "(홈 '내 할 일'의 🏢 업무에서 ✓로 완료하면 여기에 모입니다)")
+                    st.caption("이번 주기에 완료 처리한 할 일이 없습니다. "
+                               "(홈 '내 할 일'에서 ✓로 완료하면 여기에 모입니다)")
                 else:
-                    st.caption("체크 후 버튼을 누르면 아래 '업무실적' 칸에 채워집니다.")
-                    _dpicks = [t["내용"] for t in _done
-                               if st.checkbox(t["내용"], key=f"done_{t['_row']}")]
-                    if st.button("⬇️ 업무실적에 넣기", key="done_btn"):
-                        if _dpicks:
-                            _dbase = existing.get("task_done", "")
-                            st.session_state["_task_done_val"] = (
-                                (_dbase + "\n" + "\n".join(_dpicks)).strip("\n"))
+                    # 홈에서 나눈 연구/업무 그대로 각 실적 칸에 넣는다
+                    st.caption("체크 후 버튼을 누르면 해당 실적 칸에 채워집니다.")
+                    _dsel = {todo_store.AREA_RESEARCH: [],
+                             todo_store.AREA_WORK: []}
+                    for _t in _done:
+                        _a = (_t.get("영역", "") or "").strip()
+                        _a = _a if _a in _dsel else todo_store.AREA_WORK
+                        if st.checkbox(f"[{_a}] {_t['내용']}",
+                                       key=f"done_{_t['_row']}"):
+                            _dsel[_a].append(_t["내용"])
+                    _bc1, _bc2 = st.columns(2)
+                    if "research_done" in fields and _bc1.button(
+                            "⬇️ 연구실적에 넣기", key="done_res_btn",
+                            use_container_width=True):
+                        if _dsel[todo_store.AREA_RESEARCH]:
+                            _rbase = existing.get("research_done", "")
+                            st.session_state["_research_done_val"] = (
+                                (_rbase + "\n"
+                                 + "\n".join(_dsel[todo_store.AREA_RESEARCH]))
+                                .strip("\n"))
                             st.rerun()
                         else:
-                            st.warning("먼저 넣을 항목을 체크해 주세요.")
+                            st.warning("연구로 표시된 항목을 체크해 주세요.")
+                    if _bc2.button("⬇️ 업무실적에 넣기", key="done_btn",
+                                   use_container_width=True):
+                        if _dsel[todo_store.AREA_WORK]:
+                            _dbase = existing.get("task_done", "")
+                            st.session_state["_task_done_val"] = (
+                                (_dbase + "\n"
+                                 + "\n".join(_dsel[todo_store.AREA_WORK]))
+                                .strip("\n"))
+                            st.rerun()
+                        else:
+                            st.warning("업무로 표시된 항목을 체크해 주세요.")
 
     values = {}
     with st.form("report_form", clear_on_submit=False):
@@ -1621,7 +1665,9 @@ def _report_write():
             with rc1:
                 values["research_done"] = st.text_area(
                     FIELD_LABELS["research_done"],
-                    value=existing.get("research_done", ""),
+                    value=st.session_state.get(
+                        "_research_done_val",
+                        existing.get("research_done", "")),
                     height=220, placeholder="한 줄에 한 항목씩 작성",
                 )
             with rc2:
@@ -1672,6 +1718,7 @@ def _report_write():
             action = save_submission(name, week, values)
             st.session_state.pop("_task_plan_val", None)   # 넘겨넣기 임시값 정리
             st.session_state.pop("_task_done_val", None)   # 실적 넣기 임시값 정리
+            st.session_state.pop("_research_done_val", None)
             st.success(f"저장 완료 ({'신규 제출' if action=='created' else '기존 내용 수정'})")
             # 개인 백업 텍스트 생성 → 다운로드 버튼 제공
             lines = [f"=== {name} / {week} ===\n"]
