@@ -551,6 +551,24 @@ def _drag_sort(by_area, uid, today):
         st.rerun()
 
 
+def _drag_sort_personal(uid, items):
+    """개인 할 일 순서 바꾸기 — 브라우저에 저장된 목록의 순서만 다시 쓴다."""
+    import streamlit_sortables as sortables
+
+    back, labels = {}, []
+    for p in items:
+        tag = p.get("t", "") + "​" * (len(back) + 1)   # 보이지 않게 고유화
+        labels.append(tag)
+        back[tag] = p
+    st.caption("끌어서 순서를 바꾸세요. 맨 위가 1번입니다.")
+    res = sortables.sort_items(labels, direction="vertical", key="per_drag")
+    if st.button("💾 순서 저장", key="per_drag_save", type="primary"):
+        save_personal(uid, [back[t] for t in res if t in back])
+        st.session_state["per_sort_mode"] = False
+        st.toast("↕ 순서를 저장했습니다.")
+        st.rerun()
+
+
 def _todo_row(p, uid, today, no=None):
     """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료). 두 목록 공용."""
     star = bool((p.get("중요", "") or "").strip())
@@ -640,19 +658,34 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:104px; }
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"]{
         position:absolute; top:9px; left:135px; width:auto !important; z-index:5; }
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"]{
+        position:absolute; top:9px; left:128px; width:auto !important; z-index:5; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
+      /* ＋ 와 ↕ 는 글리프 크기·기준선이 달라 그냥 두면 어긋난다 →
+         같은 정사각 상자에 넣고 가운데 정렬해 높이를 맞춘다. */
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button,
-      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button{
-        min-height:0 !important; height:22px; padding:0 0.25rem !important;
-        font-size:1.15rem; line-height:1; font-weight:700;
+      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button{
+        min-height:0 !important; width:22px; height:22px;
+        padding:0 !important; line-height:1; font-weight:700;
+        display:inline-flex !important; align-items:center !important;
+        justify-content:center !important;
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#C4622D !important; }
+      section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-care_add_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button p{
+        font-size:1.15rem !important; line-height:1 !important; margin:0; }
+      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p{
+        font-size:0.95rem !important; line-height:1 !important; margin:0; }
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover,
-      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button:hover{
+      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
@@ -1114,8 +1147,20 @@ def home_page():
                                         "%Y-%m-%d %H:%M")}])
                                 st.session_state["per_add_open"] = False
                                 st.rerun()
+                    if _myper and _drag_available() and st.button(
+                            "✓" if st.session_state.get("per_sort_mode")
+                            else "↕", key="per_sort_btn",
+                            help="정렬 끝내기"
+                            if st.session_state.get("per_sort_mode")
+                            else "순서 바꾸기(끌어서 이동)"):
+                        st.session_state["per_sort_mode"] =                             not st.session_state.get("per_sort_mode", False)
+                        st.rerun()
                     st.caption("🔒 이 목록은 **내 기기(브라우저)에만** 저장됩니다 — "
                                "팀 시트로 나가지 않습니다. (기기마다 따로 저장)")
+                    if _myper and _drag_available() and st.session_state.get(
+                            "per_sort_mode"):
+                        _drag_sort_personal(uid, _myper)
+                        _myper = []          # 정렬 화면일 땐 목록을 겹쳐 보이지 않게
                     for _i, _p in enumerate(_myper):
                         _pc1, _pc3 = st.columns([10, 1])
                         _pc1.markdown(f"- 🏠 {_p.get('t', '')}")
@@ -3775,7 +3820,8 @@ def main():
         color:var(--ds-text) !important; font-size:1rem !important; }
       /* 머리글 옆 ＋ 는 다크에서도 테두리·배경 없이(위 버튼 규칙보다 뒤에 와야 함) */
       [class*="st-key-todo_add_btn"] button, [class*="st-key-care_add_btn"] button,
-      [class*="st-key-per_add_btn"] button, [class*="st-key-todo_sort_btn"] button{
+      [class*="st-key-per_add_btn"] button, [class*="st-key-todo_sort_btn"] button,
+      [class*="st-key-per_sort_btn"] button{
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#e08a63 !important; }
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
