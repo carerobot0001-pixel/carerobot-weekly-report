@@ -2729,6 +2729,17 @@ def feedback_page():
                "남겨주세요. 업무 내용이 아니라 **앱 자체**에 대한 의견입니다.")
     _flash("fb_flash")
 
+    # 🆕 최근 수정 내용 — 레포 루트 CHANGELOG.md 를 그대로 보여준다.
+    #   (커밋 로그를 그대로 쓰면 미세 조정까지 섞여 팀원이 읽기 번잡함)
+    try:
+        _ch = (Path(__file__).parent.parent / "CHANGELOG.md").read_text(
+            encoding="utf-8")
+    except Exception:
+        _ch = ""
+    if _ch:
+        with st.expander("🆕 최근 수정 내용", expanded=False):
+            st.markdown(_ch.split("\n", 1)[1] if _ch.startswith("#") else _ch)
+
     with st.form("fb_add", clear_on_submit=True):
         c1, c2 = st.columns([1, 2])
         _writer = c1.selectbox("작성자", USER_NAMES,
