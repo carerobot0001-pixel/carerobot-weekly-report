@@ -571,10 +571,18 @@ def _drag_sort_personal(uid, items):
         st.rerun()
 
 
-def _todo_row(p, uid, today, no=None):
-    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료). 두 목록 공용."""
+def _todo_row(p, uid, today, no=None, show_del=False):
+    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료) [+ ✕(삭제)].
+
+    ✕는 ＋(추가)를 열었을 때만 보인다 — 평소 목록을 단순하게 두고,
+    실수로 지우는 것도 막기 위함.
+    """
     star = bool((p.get("중요", "") or "").strip())
-    c1, cs, c3, c4 = st.columns([9, 1, 1, 1])
+    if show_del:
+        c1, cs, c3, c4 = st.columns([9, 1, 1, 1])
+    else:
+        c1, cs, c3 = st.columns([9, 1, 1])
+        c4 = None
     _head = f"{no}." if no else "-"
     c1.markdown(f"{_head} {'⭐' if star else '📝'} {p['내용']}"
                 + _todo_badges(p, today), unsafe_allow_html=True)
@@ -593,8 +601,8 @@ def _todo_row(p, uid, today, no=None):
             st.error(f"완료 처리 실패: {e}")
         st.rerun()
     # ✕ 삭제 — 잘못 들어온 항목을 '완료'로 남기지 않고 그냥 지운다
-    if c4.button("✕", key=f"todo_del_{p['_row']}",
-                 help="삭제 — 실적 기록 없이 지움"):
+    if c4 is not None and c4.button("✕", key=f"todo_del_{p['_row']}",
+                                    help="삭제 — 실적 기록 없이 지움"):
         try:
             todo_store.delete_todo(uid, p["_row"], p["내용"])
         except Exception as e:
@@ -708,13 +716,6 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
-      /* ✕(삭제)는 평소 흐릿하게 두고, 그 줄에 마우스를 올릴 때만 또렷해진다.
-         (항상 진하면 실수로 누르기 쉽고 목록이 산만해짐. 휴대폰처럼 마우스가
-          없는 환경에서도 눌리도록 완전히 숨기지는 않는다.) */
-      section[data-testid="stMain"] [class*="st-key-todo_del_"] button{
-        opacity:.2; transition:opacity .15s; }
-      section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]:hover
-        [class*="st-key-todo_del_"] button{ opacity:1; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
          벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤. 기호는 이모지가 아닌 글자라
          CSS 색이 먹는다(이모지는 폰트가 그림을 그려 흰 박스로 보였음). */
@@ -1150,7 +1151,8 @@ def home_page():
                                 sorted(_items,
                                        key=lambda x: _todo_sort_key(x, today)),
                                 start=1):
-                            _todo_row(_p, uid, today, no=_i)
+                            _todo_row(_p, uid, today, no=_i,
+                                      show_del=_todo_open)
             # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
