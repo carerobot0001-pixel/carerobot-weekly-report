@@ -576,9 +576,11 @@ def _todo_badges(item, today):
                 out.append((f"{age}일", "#8a8781"))
         except Exception:
             pass
+    # white-space:nowrap — 없으면 '22일 / 째'처럼 배지 가운데서 줄이 바뀐다
     return "".join(
         f"<span style='margin-left:6px;font-size:.78em;color:{c};"
-        f"border:1px solid {c}55;border-radius:4px;padding:0 5px;'>{t}</span>"
+        f"border:1px solid {c}55;border-radius:4px;padding:0 5px;"
+        f"white-space:nowrap;display:inline-block;'>{t}</span>"
         for t, c in out)
 
 
@@ -688,9 +690,12 @@ def home_page():
       [class*="st-key-care_done_"] button, [class*="st-key-req_done_"] button,
       [class*="st-key-todo_toper_"] button, [class*="st-key-per_towork_"] button,
       [class*="st-key-req_del_"] button, [class*="st-key-req_edit_btn_"] button,
-      [class*="st-key-req_reply_"] button{
+      [class*="st-key-req_reply_"] button, [class*="st-key-todo_star_"] button{
         min-height:0 !important; height:26px; padding:0 0.45rem !important;
         line-height:1; }
+      /* ☆/★ 는 글자 기호라 크기·굵기를 맞춰야 ✓ 버튼과 나란해 보인다 */
+      [class*="st-key-todo_star_"] button p{
+        font-size:1.05rem !important; line-height:1 !important; margin:0; }
       section[data-testid="stMain"] div[data-testid="stHorizontalBlock"]{gap:0.55rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
@@ -3703,7 +3708,8 @@ def main():
         background:var(--ds-accent) !important; border-color:var(--ds-accent) !important;
         color:#fff !important; }
       /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
-      [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button{
+      [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button,
+      [class*="st-key-todo_star_"] button{
         color:var(--ds-text) !important; font-size:1rem !important; }
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
         border-color:#ff8a72 !important; }
