@@ -517,7 +517,10 @@ def _drag_sort(by_area, uid, today):
                        key=lambda x: _todo_sort_key(x, today))
         labels[area] = []
         for i, p in enumerate(items, start=1):
-            tag = f"{p['_row']}❘ {p['내용']}"      # 행번호를 앞에 붙여 중복 방지
+            # 컴포넌트는 '글자'로 항목을 구분하므로 고유해야 한다. 행번호를 앞에
+            # 붙이면 화면에 그대로 보이므로, 보이지 않는 문자(U+200B)를 개수만큼
+            # 덧붙여 눈에는 안 띄면서 서로 다른 값이 되게 한다.
+            tag = p["내용"] + "​" * (len(back) + 1)
             labels[area].append(tag)
             back[tag] = p
     st.caption("끌어서 순서를 바꾸고, 🔬연구 ↔ 🏢업무 사이로 옮길 수 있습니다. "
@@ -635,17 +638,21 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-care_add_btn"]{ left:129px; }
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"]{ left:111px; }
       section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:104px; }
+      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"]{
+        position:absolute; top:9px; left:135px; width:auto !important; z-index:5; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
-      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button{
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button{
         min-height:0 !important; height:22px; padding:0 0.25rem !important;
         font-size:1.15rem; line-height:1; font-weight:700;
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#C4622D !important; }
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button:hover,
-      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover{
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
@@ -1055,9 +1062,11 @@ def home_page():
                 # ↕ 정렬(드래그) 모드 — 켜면 두 칸 사이로 끌어 옮기고 순서도 바꾼다
                 _sortable = _drag_available()
                 if _mytodos and _sortable and st.button(
-                        "✅ 정렬 끝내기" if st.session_state.get("todo_sort_mode")
-                        else "↕ 순서 바꾸기",
-                        key="todo_sort_btn"):
+                        "✓" if st.session_state.get("todo_sort_mode") else "↕",
+                        key="todo_sort_btn",
+                        help="정렬 끝내기"
+                        if st.session_state.get("todo_sort_mode")
+                        else "순서 바꾸기(끌어서 이동)"):
                     st.session_state["todo_sort_mode"] = \
                         not st.session_state.get("todo_sort_mode", False)
                     st.rerun()
@@ -3755,7 +3764,7 @@ def main():
         color:var(--ds-text) !important; font-size:1rem !important; }
       /* 머리글 옆 ＋ 는 다크에서도 테두리·배경 없이(위 버튼 규칙보다 뒤에 와야 함) */
       [class*="st-key-todo_add_btn"] button, [class*="st-key-care_add_btn"] button,
-      [class*="st-key-per_add_btn"] button{
+      [class*="st-key-per_add_btn"] button, [class*="st-key-todo_sort_btn"] button{
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#e08a63 !important; }
       [class*="st-key-req_del_"] button:hover{ color:#ff8a72 !important;
