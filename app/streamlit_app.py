@@ -674,13 +674,16 @@ def home_page():
         justify-content:center !important;
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#C4622D !important; }
+      /* 기호 글자를 같은 크기·같은 상자로 — ＋(전각)와 ↕(반각)은 글리프 크기가
+         달라 크기를 따로 주면 한쪽만 커 보인다. 상자·글자 크기를 통일한다. */
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button p,
-      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button p{
-        font-size:1.15rem !important; line-height:1 !important; margin:0; }
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p{
-        font-size:0.95rem !important; line-height:1 !important; margin:0; }
+        font-size:1rem !important; line-height:22px !important; margin:0;
+        display:flex; align-items:center; justify-content:center;
+        width:22px; height:22px; }
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover,
