@@ -311,6 +311,10 @@ def _me_index(options, default=0):
     return options.index(me) if me in options else default
 
 
+# 보고 입력칸 안내 — 팀 공통 서식(번호 + 작대기)을 보여준다.
+REPORT_HINT = "1. 큰 항목\n- 세부 내용\n- 세부 내용\n2. 큰 항목\n- 세부 내용"
+
+
 def _guess_due(text, today):
     """글에서 마감일을 조심스럽게 뽑는다. '8/5까지', '8월 5일 마감'처럼
     날짜 + 마감 표현이 함께 있을 때만 인정한다(숫자만 보고 넘겨짚지 않음)."""
@@ -693,10 +697,14 @@ def home_page():
         margin:0 0 2px; }
       /* 조건부 위젯이 안 그려질 때 남는 빈 칸이 자리를 차지해 상자 간격이
          들쭉날쭉해진다 → 빈 컨테이너 접고 확장패널 간격을 통일. */
-      section[data-testid="stMain"] [data-testid="stElementContainer"]:empty{
+      /* 빈 컨테이너(조건부 위젯이 안 그려진 자리)가 높이를 차지해 상자 간격이
+         들쭉날쭉했다. 빈 것은 접고 확장패널 여백을 강제로 통일한다. */
+      section[data-testid="stMain"] [data-testid="stElementContainer"]:empty,
+      section[data-testid="stMain"] [data-testid="stMarkdownContainer"]:empty,
+      section[data-testid="stMain"] div[data-testid="stVerticalBlock"]:empty{
         display:none !important; }
       section[data-testid="stMain"] [data-testid="stExpander"]{
-        margin-bottom:8px; }
+        margin:0 0 8px !important; }
       /* ＋(추가) 버튼을 확장패널 제목줄 오른쪽에 올린다.
          st.expander 헤더에는 위젯을 못 넣고, 컬럼으로 나누면 그 안의 목록
          행 컬럼이 3단 중첩이 되어 Streamlit 예외가 난다 → 겹쳐 배치. */
@@ -1758,13 +1766,13 @@ def _report_write():
                     value=st.session_state.get(
                         "_research_done_val",
                         existing.get("research_done", "")),
-                    height=220, placeholder="한 줄에 한 항목씩 작성",
+                    height=220, placeholder=REPORT_HINT,
                 )
             with rc2:
                 values["research_plan"] = st.text_area(
                     FIELD_LABELS["research_plan"],
                     value=existing.get("research_plan", ""),
-                    height=220, placeholder="한 줄에 한 항목씩 작성",
+                    height=220, placeholder=REPORT_HINT,
                 )
 
         if "task_done" in fields:
@@ -1778,12 +1786,12 @@ def _report_write():
                 values["task_done"] = st.text_area(
                     FIELD_LABELS["task_done"],
                     value=_td_val,
-                    height=220, placeholder="한 줄에 한 항목씩 작성",
+                    height=220, placeholder=REPORT_HINT,
                 )
             with tc2:
                 values["task_plan"] = st.text_area(
                     FIELD_LABELS["task_plan"], value=_tp_val,
-                    height=220, placeholder="한 줄에 한 항목씩 작성",
+                    height=220, placeholder=REPORT_HINT,
                 )
 
         extra_fields = [f for f in fields if f in (
