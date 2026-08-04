@@ -689,12 +689,16 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"],
       section[data-testid="stMain"] [class*="st-key-care_add_btn"],
       section[data-testid="stMain"] [class*="st-key-per_add_btn"]{
-        position:absolute; top:2px; right:8px; width:auto !important; z-index:5; }
+        position:absolute; top:5px; width:auto !important; z-index:5; }
+      /* 제목 길이가 달라 섹션마다 왼쪽 위치를 따로 준다(제목 바로 옆에 붙게) */
+      section[data-testid="stMain"] [class*="st-key-care_add_btn"]{ left:152px; }
+      section[data-testid="stMain"] [class*="st-key-todo_add_btn"]{ left:126px; }
+      section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:112px; }
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-care_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button{
-        min-height:0 !important; height:28px; padding:0 0.6rem !important;
-        font-size:1.05rem; line-height:1; }
+        min-height:0 !important; height:22px; padding:0 0.4rem !important;
+        font-size:0.9rem; line-height:1; border-radius:5px; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
          벌어짐 → 낮춰서 글자 줄과 비슷하게 맞춤. 기호는 이모지가 아닌 글자라
          CSS 색이 먹는다(이모지는 폰트가 그림을 그려 흰 박스로 보였음). */
