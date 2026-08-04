@@ -633,8 +633,10 @@ def home_page():
       section[data-testid="stMain"] [data-testid="stMetricLabel"] p{font-size:0.7rem;}
       section[data-testid="stMain"] div[data-testid="stVerticalBlock"]{gap:0.3rem;}
       /* 목록·안내문 여백 — 너무 붙지도, 벌어지지도 않게 */
-      section[data-testid="stMain"] [data-testid="stMarkdownContainer"] ul{
-        margin:0; padding-left:1.1rem; }
+      /* ol(번호 목록)에도 같은 여백을 줘야 한다 — 빠지면 번호가 왼쪽 끝에 붙는다 */
+      section[data-testid="stMain"] [data-testid="stMarkdownContainer"] ul,
+      section[data-testid="stMain"] [data-testid="stMarkdownContainer"] ol{
+        margin:0; padding-left:1.4rem; }
       section[data-testid="stMain"] [data-testid="stMarkdownContainer"] li{
         margin:0 0 7px; }
       /* ✓ 버튼이 있는 줄(st.columns)은 버튼 높이 때문에 조금 더 벌어진다.
