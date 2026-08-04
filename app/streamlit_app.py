@@ -18,6 +18,7 @@ from team_config import (
 import account_store
 import todo_store
 import request_store
+import feedback_store
 import resource_store
 import mail_store
 from sheets_store import (
@@ -2735,6 +2736,101 @@ def common_page():
         )
     st.caption("한글 파일을 열어서 표가 잘 나오는지 한 번 확인해주세요.")
 
+def feedback_page():
+    """앱 개선 요청 — 팀원이 오류·개선 의견을 남기고 처리 상태를 공유."""
+    st.header("💡 개선 요청")
+    st.caption("Dolbom Studio를 쓰다가 **안 되는 것·불편한 것·있으면 좋겠는 것**을 "
+               "남겨주세요. 업무 내용이 아니라 **앱 자체**에 대한 의견입니다.")
+    _flash("fb_flash")
+
+    with st.form("fb_add", clear_on_submit=True):
+        c1, c2 = st.columns([1, 2])
+        _writer = c1.selectbox("작성자", USER_NAMES,
+                               index=_me_index(USER_NAMES), key="fb_writer")
+        _kind = c2.selectbox("분류", feedback_store.KINDS, key="fb_kind")
+        _text = st.text_area(
+            "내용", key="fb_text", height=110,
+            placeholder="예: 휴대폰에서 달력 글씨가 잘려요 / 할 일에 반복 기능이 있으면 좋겠어요")
+        if st.form_submit_button("등록", use_container_width=True):
+            if not _text.strip():
+                st.warning("내용을 적어주세요.")
+            else:
+                try:
+                    feedback_store.add_feedback(_writer, _kind, _text)
+                    st.session_state["fb_flash"] = "✅ 등록했습니다. 고맙습니다!"
+                except Exception as e:
+                    st.error(f"등록 실패: {e}")
+                st.rerun()
+
+    try:
+        rows = feedback_store.fb_rows()
+    except Exception as e:
+        st.error(f"목록을 불러오지 못했습니다: {e}")
+        return
+
+    _open = [r for r in rows
+             if r["상태"].strip() not in (feedback_store.ST_DONE,)]
+    _closed = [r for r in rows if r["상태"].strip() == feedback_store.ST_DONE]
+    st.markdown(f"### 처리 중 ({len(_open)})")
+    if not _open:
+        st.caption("처리할 요청이 없습니다.")
+    for r in _open:
+        _fb_item(r)
+    # 완료 목록은 바깥 expander로 감싸면 항목 expander와 2단 중첩이 되어 앱이 죽는다
+    # → 제목만 두고 최근 것부터 펼침 없이 나열.
+    if _closed:
+        st.markdown(f"### ✅ 처리 완료 ({len(_closed)})")
+        for r in _closed[:10]:
+            _fb_item(r)
+        if len(_closed) > 10:
+            st.caption(f"이하 {len(_closed) - 10}건은 구글시트에서 확인하세요.")
+
+
+def _fb_item(r):
+    """개선 요청 한 건 — 내용 + 상태 변경 + 삭제."""
+    _st = r["상태"].strip() or feedback_store.ST_NEW
+    _mark = {"접수": "🆕", "진행중": "🔧", "완료": "✅", "보류": "⏸️"}.get(_st, "🆕")
+    with st.expander(f"{_mark} [{_st}] {r['분류']} · {r['내용'][:40]}"
+                     + ("…" if len(r["내용"]) > 40 else ""),
+                     expanded=False):
+        st.text(r["내용"])
+        st.caption(f"{r['작성자']} · {r['등록일시']}"
+                   + (f" · 처리 {r['처리자']} {r['처리일시']}"
+                      if r["처리일시"].strip() else ""))
+        with st.form(f"fb_edit_{r['_row']}"):
+            c1, c2 = st.columns([1, 3])
+            _ns = c1.selectbox("상태", feedback_store.STATUSES,
+                               index=feedback_store.STATUSES.index(_st)
+                               if _st in feedback_store.STATUSES else 0,
+                               key=f"fb_st_{r['_row']}")
+            _memo = c2.text_input("처리 메모", value=r["처리메모"],
+                                  key=f"fb_memo_{r['_row']}",
+                                  placeholder="예: 다음 배포에 반영")
+            b1, b2 = st.columns(2)
+            if b1.form_submit_button("저장", use_container_width=True):
+                try:
+                    feedback_store.set_status(
+                        r["_row"], r["등록일시"], _ns, _memo,
+                        st.session_state.get("me", ""))
+                    st.session_state["fb_flash"] = "✅ 저장했습니다."
+                except feedback_store.RowMismatch as e:
+                    st.error(str(e))
+                except Exception as e:
+                    st.error(f"저장 실패: {e}")
+                st.rerun()
+            if b2.form_submit_button("삭제", use_container_width=True):
+                try:
+                    feedback_store.delete_feedback(r["_row"], r["등록일시"])
+                    st.session_state["fb_flash"] = "🗑️ 삭제했습니다."
+                except feedback_store.RowMismatch as e:
+                    st.error(str(e))
+                except Exception as e:
+                    st.error(f"삭제 실패: {e}")
+                st.rerun()
+        if r["처리메모"].strip():
+            st.info(f"📝 {r['처리메모']}")
+
+
 def visit_page():
     """실증 방문 일지 — 현장 방문 기록 등록·조회(실증별 필터)·삭제."""
     st.header("📍 실증 방문 일지")
@@ -3755,7 +3851,7 @@ def main():
     mode_options = ["🏠 홈", "🖥️ 주간취합", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
-                    "📚 과거 회의록 열람"]
+                    "📚 과거 회의록 열람", "💡 개선 요청"]
     if st.session_state.get("is_admin"):
         mode_options.append("👤 회원 관리")
     # 홈 바로가기(HTML 타일)의 ?go= 처리 — 메뉴 이동 또는 공지 토글 (radio 생성 전에)
@@ -3807,7 +3903,8 @@ def main():
                  ("업무", ["📝 업무보고 작성·취합", "🛒 구매요청서", "📋 문서 협업"]),
                  ("자료·장비", ["📁 자료실", "🔧 장비 사용현황",
                               "📍 실증 방문 일지", "📚 과거 회의록 열람"]),
-                 ("스페이스", ["🏠 스마트돌봄스페이스"])]
+                 ("스페이스", ["🏠 스마트돌봄스페이스"]),
+                 ("앱", ["💡 개선 요청"])]
         if st.session_state.get("is_admin"):
             _cats.append(("관리자", ["👤 회원 관리"]))
         for _cat, _items in _cats:
@@ -3849,6 +3946,8 @@ def main():
         member_page()
     elif mode == "🏠 스마트돌봄스페이스":
         space_page()
+    elif mode == "💡 개선 요청":
+        feedback_page()
     elif mode == "📍 실증 방문 일지":
         visit_page()
     elif mode == "🛒 구매요청서":
