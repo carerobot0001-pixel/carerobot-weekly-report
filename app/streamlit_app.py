@@ -520,11 +520,11 @@ def _drag_sort(by_area, uid, today):
             # 컴포넌트는 '글자'로 항목을 구분하므로 고유해야 한다. 행번호를 앞에
             # 붙이면 화면에 그대로 보이므로, 보이지 않는 문자(U+200B)를 개수만큼
             # 덧붙여 눈에는 안 띄면서 서로 다른 값이 되게 한다.
-            tag = p["내용"] + "​" * (len(back) + 1)
+            tag = f"{i}. {p['내용']}" + "​" * (len(back) + 1)
             labels[area].append(tag)
             back[tag] = p
     st.caption("끌어서 순서를 바꾸고, 🔬연구 ↔ 🏢업무 사이로 옮길 수 있습니다. "
-               "맨 위가 1번입니다.")
+               "맨 위가 1번 — 번호는 **저장하면** 새로 매겨집니다.")
     res = sortables.sort_items(
         [{"header": f"🔬 {todo_store.AREA_RESEARCH}",
           "items": labels[todo_store.AREA_RESEARCH]},
@@ -556,11 +556,13 @@ def _drag_sort_personal(uid, items):
     import streamlit_sortables as sortables
 
     back, labels = {}, []
-    for p in items:
-        tag = p.get("t", "") + "​" * (len(back) + 1)   # 보이지 않게 고유화
+    for i, p in enumerate(items, start=1):
+        # 번호를 붙여 보여주고, 보이지 않는 문자로 고유하게 만든다
+        tag = f"{i}. {p.get('t', '')}" + "​" * (len(back) + 1)
         labels.append(tag)
         back[tag] = p
-    st.caption("끌어서 순서를 바꾸세요. 맨 위가 1번입니다.")
+    st.caption("끌어서 순서를 바꾸세요. 맨 위가 1번 — 번호는 **저장하면** "
+               "새로 매겨집니다.")
     res = sortables.sort_items(labels, direction="vertical", key="per_drag")
     if st.button("💾 순서 저장", key="per_drag_save", type="primary"):
         save_personal(uid, [back[t] for t in res if t in back])
@@ -1168,7 +1170,7 @@ def home_page():
                         _myper = []          # 정렬 화면일 땐 목록을 겹쳐 보이지 않게
                     for _i, _p in enumerate(_myper):
                         _pc1, _pc3 = st.columns([10, 1])
-                        _pc1.markdown(f"- 🏠 {_p.get('t', '')}")
+                        _pc1.markdown(f"{_i + 1}. 🏠 {_p.get('t', '')}")
                         if _pc3.button("✓", key=f"per_done_{_i}",
                                        help="완료(삭제) — 기록에 남지 않음"):
                             save_personal(uid, [q for j, q in enumerate(_myper)
