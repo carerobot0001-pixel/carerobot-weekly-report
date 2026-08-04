@@ -2592,7 +2592,7 @@ def _cal_edit_form(v):
             update_event(eid, title.strip(), edate.strftime("%Y-%m-%d"), eallday,
                          "09:00" if eallday else est.strftime("%H:%M"),
                          "10:00" if eallday else eet.strftime("%H:%M"),
-                         edesc.strip(), eloc.strip())
+                         edesc.strip(), eloc.strip(), cal=v.get("cal", ""))
             st.session_state["cal_flash"] = f"✅ 수정됨 — {title.strip()}"
             st.session_state.pop(f"cal_edit_{eid}", None)
             st.rerun()
@@ -2669,7 +2669,7 @@ def _calendar_manage():
             if st.button("🗑️ 이 일정 삭제", key=f"cal_del_{v['id']}",
                          disabled=not delok, use_container_width=True):
                 try:
-                    delete_event(v["id"])
+                    delete_event(v["id"], cal=v.get("cal", ""))
                     st.session_state["cal_flash"] = f"🗑️ 삭제 — {v['title']}"
                     st.session_state.pop("cal_manage_sel", None)
                     st.rerun()
