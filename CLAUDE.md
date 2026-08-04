@@ -52,6 +52,7 @@
     ├── todo_store.py                        ← 홈 '내 할 일'(업무·완료기록) + 팀 공용 설정 저장
     │                                          (개인 할 일은 시트 아닌 브라우저 저장)
     ├── request_store.py                     ← 팀 할 일 '요청' 배정 (요청·회신·완료·회수)
+    ├── feedback_store.py                    ← 앱 개선 요청 (오류·개선 의견 수집)
     ├── mail_store.py                        ← CC 수신 메일 수집(Apps Script) + 키워드 분류
     ├── account_store.py                     ← 개인 계정(가입·승인·로그인, pbkdf2 해시)
     ├── calendar_image.py                    ← 취합본 마지막 장 월간 달력 BMP 생성
@@ -414,6 +415,20 @@ def ratio(a,b):
 cd app && grep -nE "stVerticalBlock|stHorizontalBlock" streamlit_app.py \
   | grep -E "gap|flex-direction|width|padding|margin" | grep -v "stMain\|stSidebar"
 ```
+
+## 💡 개선 요청 페이지 (2026-08 추가)
+
+앱(Dolbom Studio) **자체**에 대한 팀원 의견을 모으는 곳 — 업무 데이터가 아니라
+"쓰다 보니 안 되는 것·있으면 좋겠는 것"을 받는다.
+
+- 코드: `app/feedback_store.py` + `streamlit_app.py`의 `feedback_page()`/`_fb_item()`
+- 데이터: 제출함 스프레드시트 `개선요청` 탭.
+  `FB_HEADER=[등록일시,작성자,분류,내용,상태,처리메모,처리일시,처리자]`
+- 분류 3종(🐞 오류 / 💡 개선 / ❓ 문의), 상태 4종(접수·진행중·완료·보류).
+- 등록·상태변경·삭제 **전원 개방**(다른 기능과 같은 원칙). 수정·삭제 전
+  등록일시를 재확인해 행 밀림을 감지(`RowMismatch`).
+- ⚠️ **완료 목록을 바깥 expander로 감싸지 말 것** — 항목마다 expander를 쓰므로
+  2단 중첩이 되어 앱이 죽는다(제목만 두고 나열).
 
 ## 배포 (Streamlit Cloud)
 
