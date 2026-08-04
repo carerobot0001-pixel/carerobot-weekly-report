@@ -699,7 +699,9 @@ def home_page():
       section[data-testid="stMain"] div[data-testid="stAlert"]{padding:0.4rem 0.65rem;}
       section[data-testid="stMain"] div[data-testid="stAlert"] p{font-size:0.85rem;margin:0;}
       section[data-testid="stMain"] div[data-testid="stAlert"] a{font-size:0.85rem;}
-      section[data-testid="stMain"] hr{margin:0.45rem 0;}
+      /* 구분선 아래는 넉넉히 — 바로 밑에 오는 테두리 상자(확장패널)가
+         선에 걸쳐 보이지 않게. 양쪽 컬럼에 공통으로 적용됨. */
+      section[data-testid="stMain"] hr{margin:0.45rem 0 1rem;}
       section[data-testid="stMain"] div.stButton>button{padding:0.25rem 0.5rem;}
       /* ⚡ 바로가기 — 순수 HTML 타일 그리드(네이버식): 이모지 크게·박스 작게·라벨 밑·간격 촘촘 */
       .dsbar{ display:flex; flex-wrap:wrap; gap:9px 18px; align-items:flex-start;
