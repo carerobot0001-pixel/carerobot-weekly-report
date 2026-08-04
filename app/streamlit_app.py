@@ -687,7 +687,6 @@ def home_page():
          CSS 색이 먹는다(이모지는 폰트가 그림을 그려 흰 박스로 보였음). */
       [class*="st-key-todo_done_"] button, [class*="st-key-per_done_"] button,
       [class*="st-key-care_done_"] button, [class*="st-key-req_done_"] button,
-      [class*="st-key-todo_toper_"] button, [class*="st-key-per_towork_"] button,
       [class*="st-key-req_del_"] button, [class*="st-key-req_edit_btn_"] button,
       [class*="st-key-req_reply_"] button, [class*="st-key-todo_star_"] button{
         min-height:0 !important; height:26px; padding:0 0.45rem !important;
@@ -914,8 +913,8 @@ def home_page():
         any_reminder = False
         _mycare = []
         with st.expander("🔔 오늘 챙길 것", expanded=True):
-            if uid and st.button("＋ 챙길 것 추가", key="care_add_btn",
-                                 help="나만 보임 · 캘린더에 안 들어감"):
+            if uid and st.button("＋", key="care_add_btn",
+                                 help="오늘 챙길 것 추가(나만 보임)"):
                 st.session_state["care_add_open"] =                     not st.session_state.get("care_add_open", False)
                 st.rerun()
             if st.session_state.get("care_add_open") and uid:
@@ -1037,23 +1036,13 @@ def home_page():
             except Exception:
                 _old_per = []
             # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
-            _mv = st.session_state.get("todo_move_mode", False)
-            # 머리글 = 🏢 업무 ＋(추가) 🔀(옮기기). 한 HTML 줄이라 정렬이 어긋나지 않음.
-            _extra = [(("🔁", "move_off", "옮기기 모드 끄기") if _mv else
-                       ("🔀", "move_on", "업무↔개인 옮기기"))] \
-                if (_mytodos or _myper) else []
-            # 오른쪽 컬럼과 같은 st.expander. ＋·🔀 는 상자 안 첫 줄 버튼으로.
+            # 오른쪽 컬럼과 같은 st.expander. 추가는 ＋ 버튼 하나로.
+            # (마감일은 추가할 때 함께 입력 — 목록에서 고치는 '편집 모드'는 없앴다)
             with st.expander(f"🏢 업무 ({len(todo_lines) + len(_mytodos)})",
                              expanded=True):
-                _bc1, _bc2 = st.columns(2)
-                if uid and _bc1.button("＋ 할 일 추가", key="todo_add_btn",
-                                       use_container_width=True):
+                if uid and st.button("＋", key="todo_add_btn",
+                                     help="할 일 추가(마감일도 함께 입력)"):
                     st.session_state["todo_add_open"] = not _todo_open
-                    st.rerun()
-                if (_mytodos or _myper) and _bc2.button(
-                        ("🔁 편집 끝내기" if _mv else "✎ 마감일·개인 이동"),
-                        key="todo_move_btn2", use_container_width=True):
-                    st.session_state["todo_move_mode"] = not _mv
                     st.rerun()
                 if _todo_open:
                     with st.form("todo_add_form", clear_on_submit=True):
@@ -1079,11 +1068,7 @@ def home_page():
                     st.markdown("\n".join(f"- {t}" for t in todo_lines))
                 for _p in sorted(_mytodos, key=lambda x: _todo_sort_key(x, today)):
                     _star = bool((_p.get("중요", "") or "").strip())
-                    if _mv:   # 편집 모드: 마감일·개인이동 칸까지
-                        _pc1, _pcd, _pcs, _pc2, _pc3 = st.columns([6, 2, 1, 1, 1])
-                    else:
-                        _pc1, _pcs, _pc3 = st.columns([9, 1, 1])
-                        _pcd = _pc2 = None
+                    _pc1, _pcs, _pc3 = st.columns([9, 1, 1])
                     _pc1.markdown(
                         f"- {'⭐' if _star else '📝'} {_p['내용']}"
                         + _todo_badges(_p, today), unsafe_allow_html=True)
@@ -1097,37 +1082,6 @@ def home_page():
                         except Exception as e:
                             st.error(f"저장 실패: {e}")
                         st.rerun()
-                    # 📅 마감일 — 편집 모드에서만(평소엔 목록이 복잡해짐)
-                    if _pcd is not None:
-                        try:
-                            _cur = (datetime.strptime(
-                                _p["마감일"].strip(), "%Y-%m-%d").date()
-                                if (_p.get("마감일") or "").strip() else None)
-                        except Exception:
-                            _cur = None
-                        _nd = _pcd.date_input(
-                            "마감", value=_cur, key=f"todo_due_{_p['_row']}",
-                            format="YYYY-MM-DD", label_visibility="collapsed")
-                        if _nd != _cur:
-                            try:
-                                todo_store.set_due(
-                                    uid, _p["_row"], _p["내용"],
-                                    _nd.strftime("%Y-%m-%d") if _nd else "")
-                            except Exception as e:
-                                st.error(f"저장 실패: {e}")
-                            st.rerun()
-                    if _pc2 is not None and _pc2.button(
-                            "🙋", key=f"todo_toper_{_p['_row']}",
-                            help="개인으로 옮기기(시트에서 지우고 내 기기에 저장)"):
-                        try:
-                            save_personal(uid, _myper + [{
-                                "t": _p["내용"],
-                                "ts": datetime.now(KST).strftime(
-                                    "%Y-%m-%d %H:%M")}])
-                            todo_store.delete_todo(uid, _p["_row"], _p["내용"])
-                        except Exception as e:
-                            st.error(f"이동 실패: {e}")
-                        st.rerun()
                     if _pc3.button("✓", key=f"todo_done_{_p['_row']}",
                                    help="완료 — 업무보고 '업무실적'에 넣을 수 있게 기록됨"):
                         try:
@@ -1140,8 +1094,8 @@ def home_page():
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
                 with st.expander(f"🙋 개인 ({len(_myper)})", expanded=True):
-                    if st.button("＋ 개인 할 일 추가", key="per_add_btn",
-                                 help="내 기기에만 저장 · 팀 시트로 안 나감"):
+                    if st.button("＋", key="per_add_btn",
+                                 help="개인 할 일 추가(내 기기에만 저장)"):
                         st.session_state["per_add_open"] = \
                             not st.session_state.get("per_add_open", False)
                         st.rerun()
@@ -1160,24 +1114,8 @@ def home_page():
                     st.caption("🔒 이 목록은 **내 기기(브라우저)에만** 저장됩니다 — "
                                "팀 시트로 나가지 않습니다. (기기마다 따로 저장)")
                     for _i, _p in enumerate(_myper):
-                        if _mv:
-                            _pc1, _pc2, _pc3 = st.columns([8, 1, 1])
-                        else:
-                            _pc1, _pc3 = st.columns([8, 1])
-                            _pc2 = None
+                        _pc1, _pc3 = st.columns([10, 1])
                         _pc1.markdown(f"- 🏠 {_p.get('t', '')}")
-                        if _pc2 is not None and _pc2.button(
-                                "🏢", key=f"per_towork_{_i}",
-                                help="업무로 되돌리기(팀 시트에 저장됨)"):
-                            try:
-                                todo_store.add_todo(uid, _p.get("t", ""),
-                                                    todo_store.KIND_TODO)
-                                save_personal(
-                                    uid, [q for j, q in enumerate(_myper)
-                                          if j != _i])
-                            except Exception as e:
-                                st.error(f"이동 실패: {e}")
-                            st.rerun()
                         if _pc3.button("✓", key=f"per_done_{_i}",
                                        help="완료(삭제) — 기록에 남지 않음"):
                             save_personal(uid, [q for j, q in enumerate(_myper)
@@ -3792,9 +3730,6 @@ def main():
         elif _go == "cal":
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
-            st.session_state["main_menu"] = "🏠 홈"
-        elif _go in ("move_on", "move_off"):     # 할 일 업무↔개인 옮기기 모드
-            st.session_state["todo_move_mode"] = (_go == "move_on")
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in ("care_open", "care_close", "todo_open", "todo_close"):
             _nm, _act = _go.rsplit("_", 1)   # 명시적 열기/닫기(토글 아님)
