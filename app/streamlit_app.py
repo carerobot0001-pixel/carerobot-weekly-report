@@ -3715,6 +3715,13 @@ def main():
       /* 선택된 항목 칩(멀티셀렉트) */
       [data-baseweb="tag"]{ background:var(--ds-surface2) !important; color:var(--ds-text) !important; }
       [data-baseweb="tag"] *{ color:var(--ds-text) !important; }
+      /* 도움말 툴팁(? 아이콘·버튼 help) — BaseWeb 툴팁과 별개 요소라 따로 지정해야
+         흰 박스에 흰 글씨로 남는다. role=tooltip 까지 함께 덮어 새는 곳을 막는다. */
+      [data-testid="stTooltipContent"], [data-testid="stTooltipContent"] *,
+      [data-testid="stTooltipHoverTarget"] + div,
+      [role="tooltip"], [role="tooltip"] *{
+        background:var(--ds-surface2) !important; color:var(--ds-text) !important;
+        border-color:var(--ds-border) !important; }
       /* 코드 표시(`아이디` 같은 백틱·st.code) — 밝은 배경이 남아 글씨가 묻힘 */
       code, kbd, pre, [data-testid="stCode"], [data-testid="stCode"] pre,
       [data-testid="stCodeBlock"], [data-testid="stCodeBlock"] pre{
