@@ -1366,26 +1366,24 @@ def home_page():
                                 f" (총 {len(_grp)}명)" if len(_parts) > 1 else "")
                         # 사람별 상태 — '대기'를 12번 늘어놓으면 읽기 어렵고 회신이
                         # 누구 것인지도 묻힌다. → 응답한 사람만 쓰고 나머지는 숫자로.
-                        _lines, _waiting = [], []
+                        # 완료 먼저, 그다음 회신 — 시트 순서대로면 뒤죽박죽 보인다.
+                        # 대기 인원은 위 요약에 이미 있으므로 여기서 반복하지 않는다.
+                        _done_ln, _rep_ln = [], []
                         for g in _grp:
                             _rp = (g.get("회신", "") or "").strip()
                             _rpt = (g.get("회신일시", "") or "").strip()
                             _gd = g["상태"].strip() == request_store.ST_DONE
                             if _gd:
-                                _lines.append(
+                                # 완료·회신 모두 '이름 · 내용' 형태로 통일
+                                _done_ln.append(
                                     f"✅ {g['대상']} 완료 {_hm(g['완료일시'])}"
-                                    + (f" (💬 {_rp})" if _rp else ""))
+                                    + (f" · 💬 {_rp}" if _rp else ""))
                             elif _rp:
-                                _lines.append(
-                                    f"💬 {g['대상']}: {_rp}"
-                                    + (f" ({_hm(_rpt)})" if _rpt else ""))
-                            else:
-                                _waiting.append(g["대상"])
-                        if _waiting:
-                            _lines.append(
-                                f"⏳ 대기 {len(_waiting)}명"
-                                + (f" ({', '.join(_waiting)})"
-                                   if len(_waiting) <= 4 else ""))
+                                _rep_ln.append(
+                                    f"💬 {g['대상']} 회신"
+                                    + (f" {_hm(_rpt)}" if _rpt else "")
+                                    + f" · {_rp}")
+                        _lines = _done_ln + _rep_ln
                         # 가운데 점으로 다 이어 붙이면 문장이 끊긴 것처럼 보여
                         # 항목마다 줄을 나눈다(보낸 시각 → 응답 → 대기).
                         _detail = "<br>".join(
