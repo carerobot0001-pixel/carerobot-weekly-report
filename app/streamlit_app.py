@@ -934,7 +934,7 @@ def home_page():
                                 + (f" ({v['location']})"
                                    if (v.get("location") or "").strip() else ""))
                     else:   # 내 것 외에는 이름 구분 없이 전부 '그 외 일정'으로
-                        common_sched_items.append(line)
+                        common_sched_items.append((line, v["date"]))
             except Exception:
                 sched_items, common_sched_items, today_mine = [], [], []
 
@@ -1275,7 +1275,21 @@ def home_page():
         if common_sched_items:
             with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
                              expanded=False):
-                st.markdown("\n".join(f"- {s}" for s in common_sched_items))
+                st.caption("＋를 누르면 내 업무 할 일로 담깁니다(마감일은 그 날짜).")
+                for _ci, (_cs, _cd) in enumerate(common_sched_items):
+                    _oc1, _oc2 = st.columns([9, 1])
+                    _oc1.markdown(f"- {_cs}")
+                    if uid and _oc2.button("＋", key=f"osch_add_{_ci}",
+                                           help="내 업무 할 일로 담기"):
+                        try:
+                            todo_store.add_todo(
+                                uid, _cs.split(" · ", 1)[-1],
+                                todo_store.KIND_TODO, due=_cd,
+                                area=todo_store.AREA_WORK)
+                            st.toast("📥 내 업무에 담았습니다.")
+                        except Exception as e:
+                            st.error(f"담기 실패: {e}")
+                        st.rerun()
         else:
             st.markdown("**🗓️ 그 외 일정 (7일)**")
             st.caption("7일 내 다른 일정이 없습니다.")
