@@ -663,6 +663,12 @@ def home_page():
         margin-bottom:1px; }
       section[data-testid="stMain"] [data-testid="stCaptionContainer"]{
         margin:0 0 2px; }
+      /* 조건부 위젯이 안 그려질 때 남는 빈 칸이 자리를 차지해 상자 간격이
+         들쭉날쭉해진다 → 빈 컨테이너 접고 확장패널 간격을 통일. */
+      section[data-testid="stMain"] [data-testid="stElementContainer"]:empty{
+        display:none !important; }
+      section[data-testid="stMain"] [data-testid="stExpander"]{
+        margin-bottom:8px; }
       /* ＋(추가) 버튼을 확장패널 제목줄 오른쪽에 올린다.
          st.expander 헤더에는 위젯을 못 넣고, 컬럼으로 나누면 그 안의 목록
          행 컬럼이 3단 중첩이 되어 Streamlit 예외가 난다 → 겹쳐 배치. */
@@ -682,6 +688,9 @@ def home_page():
         position:absolute; top:9px; left:128px; width:auto !important; z-index:5; }
       section[data-testid="stMain"] [class*="st-key-req_add_btn"]{
         position:absolute; top:9px; left:196px; width:auto !important; z-index:5; }
+      /* 제목이 길어 왼쪽 계산이 어렵다 → 오른쪽 끝에 붙인다 */
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"]{
+        position:absolute; top:9px; right:10px; width:auto !important; z-index:5; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
       /* ＋ 와 ↕ 는 글리프 크기·기준선이 달라 그냥 두면 어긋난다 →
          같은 정사각 상자에 넣고 가운데 정렬해 높이를 맞춘다. */
@@ -690,7 +699,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button,
-      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button{
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button{
         min-height:0 !important; width:22px; height:22px;
         padding:0 !important; line-height:1; font-weight:700;
         display:inline-flex !important; align-items:center !important;
@@ -704,7 +714,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p,
-      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button p{
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button p{
         font-size:1rem !important; line-height:22px !important; margin:0;
         display:flex; align-items:center; justify-content:center;
         width:22px; height:22px; }
@@ -713,7 +724,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button:hover,
-      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button:hover{
+      section[data-testid="stMain"] [class*="st-key-req_add_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
@@ -1275,21 +1287,37 @@ def home_page():
         if common_sched_items:
             with st.expander(f"🗓️ 그 외 일정 (7일) — {len(common_sched_items)}건",
                              expanded=False):
-                st.caption("＋를 누르면 내 업무 할 일로 담깁니다(마감일은 그 날짜).")
-                for _ci, (_cs, _cd) in enumerate(common_sched_items):
-                    _oc1, _oc2 = st.columns([9, 1])
-                    _oc1.markdown(f"- {_cs}")
-                    if uid and _oc2.button("＋", key=f"osch_add_{_ci}",
-                                           help="내 업무 할 일로 담기"):
-                        try:
-                            todo_store.add_todo(
-                                uid, _cs.split(" · ", 1)[-1],
-                                todo_store.KIND_TODO, due=_cd,
-                                area=todo_store.AREA_WORK)
-                            st.toast("📥 내 업무에 담았습니다.")
-                        except Exception as e:
-                            st.error(f"담기 실패: {e}")
-                        st.rerun()
+                # 줄마다 ＋를 놓으면 좁은 칸에서 글이 깨진다 → 머리글 ＋ 하나로
+                # 담기 화면을 열고, 거기서 골라 한 번에 담는다.
+                _osch_open = st.session_state.get("osch_add_open", False)
+                if uid and st.button("－" if _osch_open else "＋",
+                                     key="osch_add_btn",
+                                     help="닫기" if _osch_open
+                                     else "내 업무 할 일로 담기"):
+                    st.session_state["osch_add_open"] = not _osch_open
+                    st.rerun()
+                if _osch_open and uid:
+                    with st.form("osch_add_form", clear_on_submit=True):
+                        _opick = st.multiselect(
+                            "담을 일정 고르기", [c[0] for c in common_sched_items],
+                            key="osch_pick",
+                            placeholder="여러 개 고를 수 있습니다")
+                        st.caption("마감일은 그 일정 날짜로 들어갑니다.")
+                        if st.form_submit_button("내 업무에 담기") and _opick:
+                            _dmap = dict(common_sched_items)
+                            try:
+                                for _line in _opick:
+                                    todo_store.add_todo(
+                                        uid, _line.split(" · ", 1)[-1],
+                                        todo_store.KIND_TODO,
+                                        due=_dmap.get(_line, ""),
+                                        area=todo_store.AREA_WORK)
+                                st.session_state["osch_add_open"] = False
+                                st.toast(f"📥 {len(_opick)}건 담았습니다.")
+                            except Exception as e:
+                                st.error(f"담기 실패: {e}")
+                            st.rerun()
+                st.markdown("\n".join(f"- {c[0]}" for c in common_sched_items))
         else:
             st.markdown("**🗓️ 그 외 일정 (7일)**")
             st.caption("7일 내 다른 일정이 없습니다.")
@@ -3873,7 +3901,8 @@ def main():
       [class*="st-key-todo_add_btn"] button, [class*="st-key-care_add_btn"] button,
       [class*="st-key-per_add_btn"] button, [class*="st-key-todo_sort_btn"] button,
       [class*="st-key-per_sort_btn"] button,
-      [class*="st-key-req_add_btn"] button{
+      [class*="st-key-req_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button{
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#e08a63 !important; }
       [class*="st-key-req_del_"] button:hover,
