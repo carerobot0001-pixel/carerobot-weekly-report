@@ -304,12 +304,6 @@ def auth_gate():
     return False
 
 
-def _goto(page):
-    """홈의 바로가기 버튼용 — 사이드바 메뉴를 page로 바꾸고 재실행."""
-    st.session_state["_nav_to"] = page
-    st.rerun()
-
-
 def _me_index(options, default=0):
     """전역 정체성 me(홈에서 1회 설정)의 options 내 위치. 이름 selectbox 기본값용.
     me가 없거나 목록에 없으면 default(기본 0=첫 항목, 기존 동작 유지)."""
@@ -379,135 +373,6 @@ def _auto_import(uid, name):
 
     if added:
         st.toast(f"📥 새 항목 {added}건을 '내 할 일'에 자동 추가했습니다.")
-
-
-def _mail_import_panel(uid, existing_rows):
-    """CC로 받은 '내' 보고 메일(보낸이메일=내 등록 이메일)을 골라 할 일로 추가."""
-    with st.container(border=True):
-        try:
-            acc = account_store.get_account(uid) or {}
-        except Exception:
-            acc = {}
-        my_emails = [acc.get("이메일_korea", ""), acc.get("이메일_gmail", "")]
-        my_emails = [e for e in my_emails if (e or "").strip()]
-        if not my_emails:
-            st.caption("계정에 이메일이 없습니다. 회원 정보에 이메일을 등록해 주세요.")
-            return
-        try:
-            mails = mail_store.mails_for(my_emails)
-        except Exception as e:
-            st.error(f"메일함을 불러오지 못했습니다: {e}")
-            return
-        if not mails:
-            st.caption("CC로 받은 내 메일이 아직 없습니다. "
-                       "(과장님께 보고 시 carerobot0001@gmail.com 을 CC에 넣으면 여기 모입니다)")
-            return
-        exist = {r["내용"].strip() for r in (existing_rows or [])}
-        # 키워드 자동 분류 → 태그 + 우선순위(높은 것 먼저, 같으면 최신순)
-        tagged = []
-        for m in mails:
-            tag, pri = mail_store.classify(m.get("제목", ""), m.get("본문", ""))
-            tagged.append((pri, m.get("날짜", ""), tag, m))
-        tagged.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        st.caption(f"내 메일 {len(mails)}건 — 긴급·결재 순으로 정렬됨. 할 일로 만들 것을 고르세요. "
-                   f"({', '.join(my_emails)})")
-        picks = []
-        for i, (_pri, _dt, tag, m) in enumerate(tagged[:30]):
-            subj = m.get("제목", "(제목 없음)")
-            label = f"{tag} · {(m.get('날짜', '') or '')[:10]} · {subj}"
-            item = f"📧 {tag} · {subj}"
-            if item in exist:
-                continue
-            if st.checkbox(label, key=f"mimp_{i}"):
-                picks.append(item)
-            body = (m.get("본문", "") or "").strip()
-            if body:
-                st.caption(body[:160] + ("…" if len(body) > 160 else ""))
-        c1, c2 = st.columns(2)
-        if c1.button("선택 추가", type="primary", key="mail_import_add"):
-            for p in picks:
-                try:
-                    todo_store.add_todo(uid, p)
-                except Exception:
-                    pass
-            st.session_state["mail_import_open"] = False
-            st.rerun()
-        if c2.button("닫기", key="mail_import_close"):
-            st.session_state["mail_import_open"] = False
-            st.rerun()
-
-
-def _todo_import_panel(uid, name, existing_rows):
-    """최근 주간보고의 '연구계획·업무계획'을 줄 단위 후보로 보여주고, 고른 것만 할 일로 추가."""
-    with st.container(border=True):
-        try:
-            latest = latest_submission(name)
-        except Exception as e:
-            st.error(f"보고 조회 실패: {e}")
-            return
-        if not latest:
-            st.caption("최근 제출한 주간보고가 없습니다.")
-            return
-        wk, data = latest
-        _HEADERS = {"연구 계획", "업무 계획", "연구계획", "업무계획", "계획"}
-
-        def _is_noise(s):
-            if s.startswith("(완료)") or s.startswith("(완료 )"):
-                return True   # 이미 끝난 항목
-            if s in _HEADERS:
-                return True   # 제목/라벨
-            if s.startswith("[") and s.endswith("]"):
-                return True   # [소제목]
-            return False
-
-        # 세부 줄(일시·장소·연가 등)은 바로 위 '항목'에 묶어 하나로.
-        _DETAIL = ("일시", "기간", "시간", "장소", "위치", "연가", "조퇴", "대상",
-                   "담당", "참석", "인원", "방법", "내용", "비고", "일정")
-
-        def _parse_items(text):
-            items = []
-            for raw in (text or "").replace("\r", "").split("\n"):
-                core = raw.strip(" ·-•*\t")
-                if not core:
-                    continue
-                indented = raw[:1] in (" ", "\t")
-                is_detail = indented or (
-                    any(core.startswith(p) for p in _DETAIL) and ":" in core[:6])
-                if is_detail and items:
-                    items[-1][1].append(core)
-                elif not _is_noise(core):
-                    items.append([core, []])
-            return items
-
-        cands = []
-        for fk in ("research_plan", "task_plan"):
-            for _head, _dets in _parse_items(data.get(fk, "")):
-                cands.append(f"{_head} ({' / '.join(_dets)})" if _dets else _head)
-        exist = {r["내용"].strip() for r in (existing_rows or [])}
-        seen, uniq = set(), []
-        for c in cands:
-            if c in seen or c in exist:
-                continue
-            seen.add(c)
-            uniq.append(c)
-        if not uniq:
-            st.caption(f"‘{wk}’ 계획에서 새로 가져올 항목이 없습니다.")
-            return
-        st.caption(f"‘{wk}’ 주간보고 계획에서 가져올 항목을 고르세요.")
-        picks = [c for i, c in enumerate(uniq)
-                 if st.checkbox(c, key=f"imp_{i}")]
-        _ic1, _ic2 = st.columns(2)
-        if _ic1.button("선택 추가", type="primary", key="todo_import_add"):
-            for c in picks:
-                try:
-                    todo_store.add_todo(uid, c)
-                except Exception:
-                    pass
-            st.session_state["todo_import_open"] = False
-            st.rerun()
-        if _ic2.button("닫기", key="todo_import_close"):
-            st.session_state["todo_import_open"] = False
-            st.rerun()
 
 
 # ── 개인 할 일: 브라우저(내 기기)에만 저장 ────────────────────────────────
@@ -595,6 +460,33 @@ def _todo_sort_key(item, today):
     return (star, dd, item.get("등록일시", ""))
 
 
+def _req_peers(rq, me):
+    """같은 요청을 받은 다른 사람들의 완료·회신 요약(받은 사람 화면용).
+    누가 이미 했는지 보이면 중복 작업·눈치보기가 줄어든다."""
+    try:
+        grp = request_store.group_rows(rq["요청자"], rq["내용"], rq["등록일시"])
+    except Exception:
+        return ""
+    others = [g for g in grp if g["대상"].strip() != (me or "").strip()]
+    if not others:
+        return ""
+    done, rep, lines = 0, 0, []
+    for g in others:
+        _rp = (g.get("회신", "") or "").strip()
+        if g["상태"].strip() == request_store.ST_DONE:
+            done += 1
+            lines.append(f"✅ {g['대상']} {_hm(g['완료일시'])}"
+                         + (f" · 💬 {_rp}" if _rp else ""))
+        elif _rp:
+            rep += 1
+            lines.append(f"💬 {g['대상']}: {_rp}")
+    if not lines:
+        return (f"<br>다른 {len(others)}명은 아직 응답 없음")
+    return ("<br>다른 사람 — 완료 " + str(done) + "명 · 회신 " + str(rep)
+            + f"명 · 대기 {len(others) - done - rep}명<br>"
+            + "<br>".join(lines))
+
+
 def _todo_row(p, uid, today):
     """업무 할 일 한 줄 — 내용·배지 + ☆(중요) + ✓(완료). 연구/업무 목록에서 공용."""
     star = bool((p.get("중요", "") or "").strip())
@@ -629,43 +521,6 @@ def _hm(ts: str) -> str:
     except Exception:
         pass
     return f"{int(d[5:7])}/{int(d[8:10])} {t}"
-
-
-def _inline_plus(title, go=None, is_open=False, help_txt="추가", extra=None):
-    """제목 + 작은 인라인 아이콘들을 한 줄에 렌더(정렬 보장).
-
-    go      : 지정하면 ＋/－(추가 폼 열기) 아이콘. None이면 안 붙임.
-    extra   : (기호, go키, 툴팁) 또는 그 리스트 — ＋ 옆에 아이콘 추가.
-    st.columns로 버튼을 붙이면 제목과 높이가 어긋나 보이므로 전부 HTML 한 줄로 만든다.
-    """
-    uid = st.session_state.get("uid", "")
-    tok = st.session_state.get("tok", "")
-    cb = f"uid={quote(uid)}&tok={quote(tok)}"
-    # 아이콘은 글리프마다 높이가 달라 그냥 나열하면 위아래로 어긋난다.
-    # → 같은 크기의 박스(1.5em 정사각)에 넣고 중앙 정렬해 기준선을 맞춘다.
-    # 다크에선 제목이 진한 주황(#A8501A)이면 배경에 묻혀 안 보임 → 흰색으로
-    _dk = bool(st.session_state.get("dark"))
-    _tc = "#fbfaf7" if _dk else "#A8501A"
-    _ic = "#d97757" if _dk else "#C4622D"
-    _box = ("display:inline-flex;align-items:center;justify-content:center;"
-            f"width:1.5em;height:1.5em;text-decoration:none;color:{_ic};")
-
-    def _a(sym, gokey, tip, size="0.95rem", op=".6", bold=""):
-        return (f"<a href='?{cb}&go={gokey}' target='_self' title='{tip}' "
-                f"style='{_box}font-size:{size};opacity:{op};{bold}'>{sym}</a>")
-
-    icons = ""
-    if go:
-        icons += _a("－" if is_open else "＋",
-                    f"{go}_{'close' if is_open else 'open'}",
-                    help_txt, size="1.35rem", op="1", bold="font-weight:700;")
-    for _e in ([extra] if extra and isinstance(extra, tuple) else (extra or [])):
-        icons += _a(*_e)
-    st.markdown(
-        "<div style='display:flex;align-items:center;gap:0;margin:10px 0 6px;'>"
-        f"<span style='font-weight:700;color:{_tc};font-size:1.05rem;"
-        f"line-height:1.5;margin-right:2px;'>{title}</span>{icons}</div>",
-        unsafe_allow_html=True)
 
 
 def home_page():
@@ -913,8 +768,8 @@ def home_page():
     todos, sched_items, common_sched_items = [], [], []
     today_mine = []          # 오늘(D-0) 내 일정 — '오늘 챙길 것'에 올림
     if my:
-        if not next((s["submitted"] for s in status if s["name"] == my), False):
-            todos.append("📝 이번주 주간보고 미제출 (화 17시 마감)")
+        # 주간보고 미제출은 '오늘 챙길 것'에서 마감일(화)에만 알린다 — 할 일
+        # 목록에 상시로 두면 매일 보이는 잔소리가 된다.
         for r in active_collab:
             assignees = [x.strip() for x in r[7].split(",")
                          if x.strip() and x.strip() != "전체"]
@@ -963,8 +818,11 @@ def home_page():
         any_reminder = False
         _mycare = []
         with st.expander("🔔 오늘 챙길 것", expanded=True):
-            if uid and st.button("＋", key="care_add_btn",
-                                 help="오늘 챙길 것 추가(나만 보임)"):
+            if uid and st.button(
+                    "－" if st.session_state.get("care_add_open") else "＋",
+                    key="care_add_btn",
+                    help="닫기" if st.session_state.get("care_add_open")
+                    else "오늘 챙길 것 추가(나만 보임)"):
                 st.session_state["care_add_open"] =                     not st.session_state.get("care_add_open", False)
                 st.rerun()
             if st.session_state.get("care_add_open") and uid:
@@ -987,14 +845,14 @@ def home_page():
                 deadline = (wed_dt - timedelta(days=1)).replace(hour=17, minute=0)
                 delta = deadline - now
                 overdue = delta.total_seconds() < 0
-                if overdue or delta.days <= 1:   # 마감 지남 + D-0(오늘)·D-1(내일)만
+                # 마감일(화요일)에만 알린다 — 매일 띄우면 무뎌진다
+                if today.weekday() == 1:
                     if overdue:
                         dtxt = "🔴 마감 지남 (화 17시)"
-                    elif delta.days == 0:
-                        dtxt = (f"⏰ 오늘 마감! (화 17시·"
-                                f"{int(delta.total_seconds() // 3600)}시간 남음)")
                     else:
-                        dtxt = f"⏳ 마감 D-{delta.days} (화 17시)"
+                        dtxt = (f"⏰ 오늘 마감! (화 17시·"
+                                f"{max(0, int(delta.total_seconds() // 3600))}"
+                                "시간 남음)")
                     st.warning(f"📝 주간보고 {dtxt} · 미제출 {len(missing)}명 — "
                                f"{', '.join(missing)}")
                     any_reminder = True
@@ -1090,8 +948,10 @@ def home_page():
             # (마감일은 추가할 때 함께 입력 — 목록에서 고치는 '편집 모드'는 없앴다)
             with st.expander(f"🏢 업무 ({len(todo_lines) + len(_mytodos)})",
                              expanded=True):
-                if uid and st.button("＋", key="todo_add_btn",
-                                     help="할 일 추가(마감일도 함께 입력)"):
+                if uid and st.button("－" if _todo_open else "＋",
+                                     key="todo_add_btn",
+                                     help="닫기" if _todo_open
+                                     else "할 일 추가(마감일도 함께 입력)"):
                     st.session_state["todo_add_open"] = not _todo_open
                     st.rerun()
                 if _todo_open:
@@ -1133,9 +993,14 @@ def home_page():
                 for _label, _icon in ((todo_store.AREA_RESEARCH, "🔬"),
                                       (todo_store.AREA_WORK, "🏢")):
                     _items = _by_area.get(_label, [])
-                    if not _items:
+                    if not _items and not (
+                            _label == todo_store.AREA_WORK and todo_lines):
                         continue
                     st.markdown(f"**{_icon} {_label}**")
+                    # 시스템이 만든 알림(주간보고 미제출·협업 마감·내 일정)은
+                    # 업무 성격이라 업무 머리글 아래에 붙인다.
+                    if _label == todo_store.AREA_WORK and todo_lines:
+                        st.markdown("\n".join(f"- {t}" for t in todo_lines))
                     for _p in sorted(_items,
                                      key=lambda x: _todo_sort_key(x, today)):
                         _todo_row(_p, uid, today)
@@ -1143,8 +1008,11 @@ def home_page():
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
                 with st.expander(f"🙋 개인 ({len(_myper)})", expanded=True):
-                    if st.button("＋", key="per_add_btn",
-                                 help="개인 할 일 추가(내 기기에만 저장)"):
+                    if st.button(
+                            "－" if st.session_state.get("per_add_open")
+                            else "＋", key="per_add_btn",
+                            help="닫기" if st.session_state.get("per_add_open")
+                            else "개인 할 일 추가(내 기기에만 저장)"):
                         st.session_state["per_add_open"] = \
                             not st.session_state.get("per_add_open", False)
                         st.rerun()
@@ -1208,7 +1076,10 @@ def home_page():
                             + (f" · 내 회신: {_rrp}"
                                + (f" ({_hm(_rq.get('회신일시', ''))})"
                                   if (_rq.get('회신일시') or '').strip() else "")
-                               if _rrp else "") + "</span>",
+                               if _rrp else "")
+                            # 같은 요청을 받은 다른 사람들의 응답도 함께 보여준다
+                            # (지금까지는 요청자만 볼 수 있었음)
+                            + _req_peers(_rq, my) + "</span>",
                             unsafe_allow_html=True)
                         # 💬 한 줄 회신 — 완료 말고 상황만 알릴 때(예: "8/5까지 드릴게요")
                         _rkey = f"reply_open_{_rq['_row']}"
@@ -1237,25 +1108,6 @@ def home_page():
                                     st.error(f"회신 실패: {e}")
                                 st.rerun()
             # (요청 보내기 폼은 오른쪽 컬럼 '정보 미입력 일정' 아래에 있음 — 좌우 균형)
-            # 새 항목은 자동으로 들어오므로(_auto_import), 수동 가져오기는 접어둔다.
-            # (지난 주차 계획·오래된 메일처럼 '이미 지나간 것'을 뒤늦게 담을 때만 사용)
-            with st.expander("⚙️ 지난 항목 가져오기", expanded=False):
-                st.caption("새 보고·새 메일은 자동으로 들어옵니다. "
-                           "여기서는 **지난 것**을 골라 담을 수 있어요.")
-                if st.button("📥 지난 보고에서 가져오기", key="todo_import_btn",
-                             help="최근 주간보고의 연구·업무 계획을 골라 할 일에 추가"):
-                    st.session_state["todo_import_open"] = \
-                        not st.session_state.get("todo_import_open", False)
-                    st.rerun()
-                if st.session_state.get("todo_import_open"):
-                    _todo_import_panel(uid, my, _mytodos)
-                if st.button("📧 메일에서 가져오기", key="mail_import_btn",
-                             help="carerobot0001로 CC된 내 메일을 골라 할 일에 추가"):
-                    st.session_state["mail_import_open"] = \
-                        not st.session_state.get("mail_import_open", False)
-                    st.rerun()
-                if st.session_state.get("mail_import_open"):
-                    _mail_import_panel(uid, _mytodos)
     with right:
         # (이전엔 왼쪽이 글자 제목이라 오른쪽만 9px 내렸는데, 지금은 양쪽 다
         #  확장패널로 시작하므로 보정이 필요 없다 — 넣으면 왼쪽이 위로 올라가 보임)

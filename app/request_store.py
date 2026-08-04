@@ -99,6 +99,17 @@ def sent_by(requester):
     return list(reversed(out))
 
 
+def group_rows(requester, text, ts):
+    """같은 요청(요청자+내용+보낸시각)으로 나간 전체 행.
+    받은 사람도 '다른 사람들은 어떻게 했는지'를 볼 수 있게 하기 위함."""
+    requester, text, ts = ((requester or "").strip(), (text or "").strip(),
+                           (ts or "").strip())
+    return [d for d in _rows()
+            if d["요청자"].strip() == requester
+            and d["내용"].strip() == text
+            and d["등록일시"].strip() == ts]
+
+
 def complete_request(req_id, target, text):
     """대상자가 완료 처리 — 상태=완료, 완료일시 기록. 행밀림 방지로 요청ID 재확인."""
     req_id = (req_id or "").strip()
