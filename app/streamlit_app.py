@@ -387,7 +387,8 @@ def _auto_import(uid, name):
                         s = ln.strip()
                         if not re.match(r"^\d+\s*[.)]\s*\S", s):
                             continue
-                        item = f"📄 {s}"
+                        # 앱이 번호를 매기므로 보고 쪽 번호는 뗀다
+                        item = "📄 " + re.sub(r"^\d+\s*[.)]\s*", "", s)
                         if item in existing:
                             continue
                         todo_store.add_todo(uid, item)
@@ -646,7 +647,8 @@ def _report_pick_panel(uid, name, existing_rows, today):
         for ln in (data.get(fk, "") or "").splitlines():
             t = ln.strip()
             if re.match(r"^\d+\s*[.)]\s*\S", t):
-                rows.append((f"📄 {t}", area, t))
+                _clean = re.sub(r"^\d+\s*[.)]\s*", "", t)
+                rows.append((f"📄 {_clean}", area, t))
     if not rows:
         st.caption(f"{wk} 보고에 번호로 시작하는 줄이 없습니다.")
         return
@@ -687,7 +689,12 @@ def _todo_row(p, uid, today, no=None, show_del=False):
         c1, cs, c3 = st.columns([9, 1, 1])
         c4 = None
     _head = f"{no}." if no else "-"
-    c1.markdown(f"{_head} {'⭐' if star else '📝'} {p['내용']}"
+    # 내용 앞에 출처 아이콘(📄 보고 · 📧 메일 · 📅 일정)이 이미 있으면
+    # 기본 아이콘(📝)을 덧붙이지 않는다 — 두 개가 겹쳐 보인다.
+    _has_src = p["내용"].lstrip().startswith(("📄", "📧", "📅"))
+    c1.markdown(f"{_head} "
+                + ("⭐ " if star else ("" if _has_src else "📝 "))
+                + p["내용"]
                 + _todo_badges(p, today), unsafe_allow_html=True)
     if cs.button("☆" if not star else "★", key=f"todo_star_{p['_row']}",
                  help="중요 표시(맨 위로)"):
