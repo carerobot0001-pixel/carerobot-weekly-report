@@ -790,7 +790,7 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-todo_add_btn"]{ left:111px; }
       section[data-testid="stMain"] [class*="st-key-per_add_btn"]{ left:104px; }
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"]{
-        position:absolute; top:9px; left:135px; width:auto !important; z-index:5; }
+        position:absolute; top:9px; left:157px; width:auto !important; z-index:5; }
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"]{
         position:absolute; top:9px; left:128px; width:auto !important; z-index:5; }
       section[data-testid="stMain"] [class*="st-key-req_add_btn"]{
