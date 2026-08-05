@@ -624,6 +624,56 @@ def _drag_sort_personal(uid, items):
         st.rerun()
 
 
+def _report_pick_panel(uid, name, existing_rows, today):
+    """최근 주간보고의 번호 줄을 보여주고 골라서 할 일로 담는다.
+
+    자동 수집은 주차당 1회만 돌아서, 회의 중 계획을 고쳐도 안 들어온다.
+    그때 이 버튼으로 새 항목만 골라 담는다. 이미 있는 것은 회색으로 표시.
+    """
+    try:
+        latest = latest_submission(name)
+    except Exception as e:
+        st.error(f"보고를 불러오지 못했습니다: {e}")
+        return
+    if not latest:
+        st.caption("최근 제출한 보고가 없습니다.")
+        return
+    wk, data = latest
+    have = {r["내용"].strip() for r in existing_rows}
+    rows = []
+    for fk, area in (("research_plan", todo_store.AREA_RESEARCH),
+                     ("task_plan", todo_store.AREA_WORK)):
+        for ln in (data.get(fk, "") or "").splitlines():
+            t = ln.strip()
+            if re.match(r"^\d+\s*[.)]\s*\S", t):
+                rows.append((f"📄 {t}", area, t))
+    if not rows:
+        st.caption(f"{wk} 보고에 번호로 시작하는 줄이 없습니다.")
+        return
+    st.caption(f"{wk} 보고 계획 — 담을 항목을 고르세요.")
+    picks = []
+    for i, (item, area, raw) in enumerate(rows):
+        if item in have:
+            st.markdown(f"<span style='opacity:.45'>[{area}] {raw} — 이미 있음"
+                        "</span>", unsafe_allow_html=True)
+            continue
+        if st.checkbox(f"[{area}] {raw}", key=f"rp_{i}"):
+            picks.append((item, area, raw))
+    if st.button("📥 내 업무에 담기", key="rp_add", type="primary"):
+        if not picks:
+            st.warning("먼저 담을 항목을 고르세요.")
+        else:
+            try:
+                for item, area, raw in picks:
+                    todo_store.add_todo(uid, item, area=area,
+                                        due=_guess_due(raw, today))
+                st.session_state["report_pick_open"] = False
+                st.toast(f"📥 {len(picks)}건 담았습니다.")
+            except Exception as e:
+                st.error(f"담기 실패: {e}")
+            st.rerun()
+
+
 def _todo_row(p, uid, today, no=None, show_del=False):
     """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료) [+ ✕(삭제)].
 
@@ -746,6 +796,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-req_add_btn"]{
         position:absolute; top:9px; left:196px; width:auto !important; z-index:5; }
       /* 제목이 길어 왼쪽 계산이 어렵다 → 오른쪽 끝에 붙인다 */
+      section[data-testid="stMain"] [class*="st-key-report_pick_btn"]{
+        position:absolute; top:9px; left:135px; width:auto !important; z-index:5; }
       section[data-testid="stMain"] [class*="st-key-osch_add_btn"]{
         position:absolute; top:9px; right:10px; width:auto !important; z-index:5; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
@@ -757,7 +809,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button,
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button,
-      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button{
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button{
         min-height:0 !important; width:22px; height:22px;
         padding:0 !important; line-height:1; font-weight:700;
         display:inline-flex !important; align-items:center !important;
@@ -772,7 +825,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button p,
-      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button p{
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button p{
         font-size:1rem !important; line-height:22px !important; margin:0;
         display:flex; align-items:center; justify-content:center;
         width:22px; height:22px; }
@@ -782,7 +836,8 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-todo_sort_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button:hover,
-      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button:hover{
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
       /* 항목 옆 작은 아이콘 버튼(✓·🙋·🏢·✎·✕): 기본 높이(38px)가 커서 줄간격이
@@ -1160,6 +1215,17 @@ def home_page():
                                      else "할 일 추가(마감일도 함께 입력)"):
                     st.session_state["todo_add_open"] = not _todo_open
                     st.rerun()
+                # 📄 보고에서 골라 담기 — 자동 수집은 주차당 1회라 보고를 고친
+                # 뒤에는 안 들어온다. 그때 여기서 새 항목만 고른다.
+                _rp_open = st.session_state.get("report_pick_open", False)
+                if uid and st.button("✓" if _rp_open else "📄",
+                                     key="report_pick_btn",
+                                     help="닫기" if _rp_open
+                                     else "주간보고 계획에서 골라 담기"):
+                    st.session_state["report_pick_open"] = not _rp_open
+                    st.rerun()
+                if _rp_open and uid:
+                    _report_pick_panel(uid, my, _mytodos, today)
                 if _todo_open:
                     with st.form("todo_add_form", clear_on_submit=True):
                         _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
@@ -3965,7 +4031,8 @@ def main():
       [class*="st-key-per_add_btn"] button, [class*="st-key-todo_sort_btn"] button,
       [class*="st-key-per_sort_btn"] button,
       [class*="st-key-req_add_btn"] button,
-      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button{
+      section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button{
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#e08a63 !important; }
       [class*="st-key-req_del_"] button:hover,
