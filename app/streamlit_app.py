@@ -691,10 +691,8 @@ def _todo_row(p, uid, today, no=None, show_del=False):
     _head = f"{no}." if no else "-"
     # 내용 앞에 출처 아이콘(📄 보고 · 📧 메일 · 📅 일정)이 이미 있으면
     # 기본 아이콘(📝)을 덧붙이지 않는다 — 두 개가 겹쳐 보인다.
-    _has_src = p["내용"].lstrip().startswith(("📄", "📧", "📅"))
-    c1.markdown(f"{_head} "
-                + ("⭐ " if star else ("" if _has_src else "📝 "))
-                + p["내용"]
+    _txt = re.sub(r"^(📄|📧|📅)\s*", "", p["내용"].lstrip())
+    c1.markdown(f"{_head} " + ("⭐ " if star else "") + _txt
                 + _todo_badges(p, today), unsafe_allow_html=True)
     if cs.button("☆" if not star else "★", key=f"todo_star_{p['_row']}",
                  help="중요 표시(맨 위로)"):
@@ -1341,7 +1339,7 @@ def home_page():
                         _myper = []          # 정렬 화면일 땐 목록을 겹쳐 보이지 않게
                     for _i, _p in enumerate(_myper):
                         _pc1, _pc3 = st.columns([10, 1])
-                        _pc1.markdown(f"{_i + 1}. 🏠 {_p.get('t', '')}")
+                        _pc1.markdown(f"{_i + 1}. {_p.get('t', '')}")
                         if _pc3.button("✓", key=f"per_done_{_i}",
                                        help="완료(삭제) — 기록에 남지 않음"):
                             save_personal(uid, [q for j, q in enumerate(_myper)
