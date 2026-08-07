@@ -469,6 +469,15 @@ def _todo_badges(item, today):
     """할 일 옆에 붙는 배지 — 마감(D-day)과 등록 후 경과일.
     오래 묵은 일과 임박한 일이 눈에 띄게 색을 달리한다."""
     out = []
+    wait = (item.get("대기", "") or "").strip()
+    if wait:
+        # 며칠째 답이 없는지가 핵심 — 오래될수록 붉게
+        try:
+            wd = (today - datetime.strptime(wait, "%Y-%m-%d").date()).days
+        except Exception:
+            wd = 0
+        out.append((f"회신대기 {wd}일" if wd else "회신대기",
+                    "#e05252" if wd >= 7 else "#5a86c4"))
     due = (item.get("마감일", "") or "").strip()
     if due:
         try:
@@ -513,12 +522,14 @@ def _todo_sort_key(item, today):
         except ValueError:
             pass
     star = 0 if (item.get("중요", "") or "").strip() else 1
+    # 답 기다리는 중인 일은 지금 손댈 게 없으니 아래로 내린다(사라지지는 않음)
+    wait = 1 if (item.get("대기", "") or "").strip() else 0
     due = (item.get("마감일", "") or "").strip()
     try:
         dd = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
     except Exception:
         dd = 9999                      # 마감 없는 건 뒤로
-    return (1, star * 10000 + min(dd, 9999), item.get("등록일시", ""))
+    return (1 + wait, star * 10000 + min(dd, 9999), item.get("등록일시", ""))
 
 
 def _req_peers(rq, me):
@@ -760,16 +771,17 @@ def _mail_panel(uid, existing_rows, today):
 
 
 def _todo_row(p, uid, today, no=None, show_del=False):
-    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료) [+ ✕(삭제)].
+    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ⋯(회신대기) + ✓(완료) [+ ✕].
 
     ✕는 ＋(추가)를 열었을 때만 보인다 — 평소 목록을 단순하게 두고,
     실수로 지우는 것도 막기 위함.
     """
     star = bool((p.get("중요", "") or "").strip())
+    wait = bool((p.get("대기", "") or "").strip())
     if show_del:
-        c1, cs, c3, c4 = st.columns([9, 1, 1, 1])
+        c1, cs, cw, c3, c4 = st.columns([9, 1, 1, 1, 1])
     else:
-        c1, cs, c3 = st.columns([9, 1, 1])
+        c1, cs, cw, c3 = st.columns([9, 1, 1, 1])
         c4 = None
     _head = f"{no}." if no else "-"
     # 내용 앞에 출처 아이콘(📄 보고 · 📧 메일 · 📅 일정)이 이미 있으면
@@ -781,6 +793,17 @@ def _todo_row(p, uid, today, no=None, show_del=False):
                  help="중요 표시(맨 위로)"):
         try:
             todo_store.set_star(uid, p["_row"], p["내용"], not star)
+        except Exception as e:
+            st.error(f"저장 실패: {e}")
+        st.rerun()
+    # ⋯ 회신대기 — 내 손은 떠났고 상대 답을 기다리는 일. ✓(완료)는 실적 기록이라
+    # 아직 못 누르고, 그냥 두면 손도 안 댄 일처럼 보이는 문제를 메운다.
+    # 기호는 이모지가 아닌 글자를 쓴다(이모지는 CSS 색이 안 먹어 흰 박스로 보임).
+    if cw.button("↩" if wait else "⋯", key=f"todo_wait_{p['_row']}",
+                 help="회신대기 해제" if wait
+                 else "회신대기로 — 보내놓고 답 기다리는 중(아래로 내려감)"):
+        try:
+            todo_store.set_wait(uid, p["_row"], p["내용"], not wait)
         except Exception as e:
             st.error(f"저장 실패: {e}")
         st.rerun()
@@ -940,6 +963,7 @@ def home_page():
       [class*="st-key-care_done_"] button, [class*="st-key-req_done_"] button,
       [class*="st-key-req_del_"] button, [class*="st-key-req_edit_btn_"] button,
       [class*="st-key-req_reply_"] button, [class*="st-key-todo_star_"] button,
+      [class*="st-key-todo_wait_"] button,
       [class*="st-key-todo_del_"] button{
         min-height:0 !important; height:26px; padding:0 0.45rem !important;
         line-height:1; }
@@ -4128,7 +4152,8 @@ def main():
         color:#fff !important; }
       /* 항목 옆 작은 기호 버튼(✎ 수정 · ✕ 회수)은 또렷하게 */
       [class*="st-key-req_edit_btn_"] button, [class*="st-key-req_del_"] button,
-      [class*="st-key-todo_star_"] button, [class*="st-key-todo_del_"] button{
+      [class*="st-key-todo_star_"] button, [class*="st-key-todo_del_"] button,
+      [class*="st-key-todo_wait_"] button{
         color:var(--ds-text) !important; font-size:1rem !important; }
       /* 머리글 옆 ＋ 는 다크에서도 테두리·배경 없이(위 버튼 규칙보다 뒤에 와야 함) */
       [class*="st-key-todo_add_btn"] button, [class*="st-key-care_add_btn"] button,
