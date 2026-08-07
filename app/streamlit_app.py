@@ -516,7 +516,8 @@ def _todo_note_line(item, today):
             age = f" · {d}일째"
     except Exception:
         pass
-    return ("<br><span style='opacity:.62;font-size:.84rem'>↳ "
+    # └ (박스 그리기 문자) — ↳ 는 한글 폰트에서 'L'처럼 찌그러져 보인다
+    return ("<br><span style='opacity:.62;font-size:.84rem'>└ "
             f"{html_escape(note)}{age}</span>")
 
 
