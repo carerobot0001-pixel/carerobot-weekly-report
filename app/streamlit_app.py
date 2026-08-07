@@ -676,6 +676,89 @@ def _report_pick_panel(uid, name, existing_rows, today):
             st.rerun()
 
 
+def _mail_ask_lines(body):
+    """메일 본문에서 '지시로 보이는 줄'만 뽑는다.
+
+    수집된 본문은 전달(FW) 구조라 [원본 헤더 → 지시 → 서명 → 인용 체인] 순이다.
+    서명·인용을 골라 지우려 하면 사람마다 형식이 달라 끝이 없으므로, 반대로
+    **부탁하는 말투인 줄만** 남긴다 — 서명·주소·전화번호는 자연히 걸러진다.
+    """
+    out, seen = [], set()
+    for ln in (body or "").replace("\r", "").split("\n"):
+        t = " ".join(ln.split())                      # 줄바꿈으로 끊긴 공백 정리
+        if not (6 <= len(t) <= 140):
+            continue
+        # '*'=원본 헤더, '>'=이전 메일 인용(내가 이미 보낸 말), 그 외 서명·링크
+        if t.startswith(("*", ">")) or "@" in t or "http" in t:
+            continue
+        if not re.search(r"(주세요|주시기|주십시오|바랍니다|부탁|해야|"
+                         r"필요합니다|해\s*주|송부|회신|제출|중요합니다)", t):
+            continue
+        if t in seen:                                  # 인용 체인에 같은 줄이 또 나옴
+            continue
+        seen.add(t)
+        out.append(t)
+        if len(out) >= 8:
+            break
+    return out
+
+
+def _mail_panel(uid, existing_rows, today):
+    """수집된 내 메일을 본문까지 펼쳐 보고, 지시 문장을 골라 할 일로 담는다.
+
+    자동 수집은 '제목'만 할 일로 만든다. 정작 무엇을 하라는지는 본문에 있어서
+    제목만으로는 일을 알 수 없다 — 여기서 본문을 읽고 문장 단위로 담는다.
+    ⚠ 이 패널은 st.expander 안에서 호출되므로 expander를 또 쓰면 앱이 죽는다.
+    """
+    try:
+        acc = account_store.get_account(uid) or {}
+        mails = mail_store.mails_for([acc.get("이메일_korea", ""),
+                                      acc.get("이메일_gmail", "")])[:8]
+    except Exception as e:
+        st.error(f"메일을 불러오지 못했습니다: {e}")
+        return
+    if not mails:
+        st.caption("수집된 메일이 없습니다. (대표 계정으로 전달(FW)하면 모입니다)")
+        return
+    have = {r["내용"].strip() for r in existing_rows}
+    picks = []
+    for mi, m in enumerate(mails):
+        subj = m.get("제목", "(제목 없음)")
+        st.markdown(
+            f"<div style='margin:.5rem 0 .15rem'><b>{subj}</b><br>"
+            f"<span style='opacity:.6;font-size:.82rem'>{m.get('날짜','')} · "
+            f"{m.get('보낸이름','')}</span></div>", unsafe_allow_html=True)
+        asks = _mail_ask_lines(m.get("본문", ""))
+        if asks:
+            for ai, a in enumerate(asks):
+                item = f"📧 {a}"
+                if item in have:
+                    st.markdown(f"<span style='opacity:.45'>{a} — 이미 있음</span>",
+                                unsafe_allow_html=True)
+                    continue
+                if st.checkbox(a, key=f"mp_{mi}_{ai}"):
+                    picks.append(item)
+        else:
+            st.caption("부탁하는 문장을 못 찾았습니다 — 아래 전문을 보세요.")
+        if st.checkbox("본문 전문 보기", key=f"mpfull_{mi}"):
+            st.text_area("본문", m.get("본문", ""), height=220,
+                         key=f"mpbody_{mi}", disabled=True,
+                         label_visibility="collapsed")
+    if st.button("📥 내 업무에 담기", key="mp_add", type="primary"):
+        if not picks:
+            st.warning("먼저 담을 문장을 고르세요.")
+        else:
+            try:
+                for item in picks:
+                    todo_store.add_todo(uid, item,
+                                        due=_guess_due(item, today))
+                st.session_state["mail_pick_open"] = False
+                st.toast(f"📥 {len(picks)}건 담았습니다.")
+            except Exception as e:
+                st.error(f"담기 실패: {e}")
+            st.rerun()
+
+
 def _todo_row(p, uid, today, no=None, show_del=False):
     """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ✓(완료) [+ ✕(삭제)].
 
@@ -803,6 +886,8 @@ def home_page():
       /* 제목이 길어 왼쪽 계산이 어렵다 → 오른쪽 끝에 붙인다 */
       section[data-testid="stMain"] [class*="st-key-report_pick_btn"]{
         position:absolute; top:9px; left:135px; width:auto !important; z-index:5; }
+      section[data-testid="stMain"] [class*="st-key-mail_pick_btn"]{
+        position:absolute; top:9px; left:179px; width:auto !important; z-index:5; }
       section[data-testid="stMain"] [class*="st-key-osch_add_btn"]{
         position:absolute; top:9px; right:10px; width:auto !important; z-index:5; }
       /* 테두리·배경 없는 아이콘으로(사업단 일정의 ＋와 같은 모양) */
@@ -815,6 +900,7 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button,
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-mail_pick_btn"] button,
       section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button{
         min-height:0 !important; width:22px; height:22px;
         padding:0 !important; line-height:1; font-weight:700;
@@ -831,6 +917,7 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button p,
+      section[data-testid="stMain"] [class*="st-key-mail_pick_btn"] button p,
       section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button p{
         font-size:1rem !important; line-height:22px !important; margin:0;
         display:flex; align-items:center; justify-content:center;
@@ -842,6 +929,7 @@ def home_page():
       section[data-testid="stMain"] [class*="st-key-per_sort_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-req_add_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button:hover,
+      section[data-testid="stMain"] [class*="st-key-mail_pick_btn"] button:hover,
       section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button:hover{
         background:transparent !important; border:none !important;
         color:#A8501A !important; }
@@ -1231,6 +1319,17 @@ def home_page():
                     st.rerun()
                 if _rp_open and uid:
                     _report_pick_panel(uid, my, _mytodos, today)
+                # 📧 메일 본문에서 골라 담기 — 자동 수집은 제목만 가져오므로
+                # 정작 '무엇을 하라'는지가 안 보인다. 여기서 본문을 읽는다.
+                _mp_open = st.session_state.get("mail_pick_open", False)
+                if uid and st.button("✓" if _mp_open else "📧",
+                                     key="mail_pick_btn",
+                                     help="닫기" if _mp_open
+                                     else "받은 메일 본문에서 골라 담기"):
+                    st.session_state["mail_pick_open"] = not _mp_open
+                    st.rerun()
+                if _mp_open and uid:
+                    _mail_panel(uid, _mytodos, today)
                 if _todo_open:
                     with st.form("todo_add_form", clear_on_submit=True):
                         _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
@@ -4037,6 +4136,7 @@ def main():
       [class*="st-key-per_sort_btn"] button,
       [class*="st-key-req_add_btn"] button,
       section[data-testid="stMain"] [class*="st-key-osch_add_btn"] button,
+      section[data-testid="stMain"] [class*="st-key-mail_pick_btn"] button,
       section[data-testid="stMain"] [class*="st-key-report_pick_btn"] button{
         background:transparent !important; border:none !important;
         box-shadow:none !important; color:#e08a63 !important; }
