@@ -469,15 +469,6 @@ def _todo_badges(item, today):
     """할 일 옆에 붙는 배지 — 마감(D-day)과 등록 후 경과일.
     오래 묵은 일과 임박한 일이 눈에 띄게 색을 달리한다."""
     out = []
-    wait = (item.get("대기", "") or "").strip()
-    if wait:
-        # 며칠째 답이 없는지가 핵심 — 오래될수록 붉게
-        try:
-            wd = (today - datetime.strptime(wait, "%Y-%m-%d").date()).days
-        except Exception:
-            wd = 0
-        out.append((f"회신대기 {wd}일" if wd else "회신대기",
-                    "#e05252" if wd >= 7 else "#5a86c4"))
     due = (item.get("마감일", "") or "").strip()
     if due:
         try:
@@ -512,6 +503,23 @@ def _todo_badges(item, today):
         for t, c in out)
 
 
+def _todo_note_line(item, today):
+    """진행 메모를 항목 아래 한 줄로. 며칠째 그대로인지 함께 보여준다."""
+    note = (item.get("진행", "") or "").strip()
+    if not note:
+        return ""
+    since = (item.get("진행일", "") or "").strip()
+    age = ""
+    try:
+        d = (today - datetime.strptime(since, "%Y-%m-%d").date()).days
+        if d >= 1:
+            age = f" · {d}일째"
+    except Exception:
+        pass
+    return ("<br><span style='opacity:.62;font-size:.84rem'>↳ "
+            f"{html_escape(note)}{age}</span>")
+
+
 def _todo_sort_key(item, today):
     """사용자가 드래그로 정한 순서가 있으면 그것을 따르고(맨 위가 1번),
     없으면 예전 방식(중요 → 마감 임박 → 오래된 순)으로 정렬한다."""
@@ -522,14 +530,12 @@ def _todo_sort_key(item, today):
         except ValueError:
             pass
     star = 0 if (item.get("중요", "") or "").strip() else 1
-    # 답 기다리는 중인 일은 지금 손댈 게 없으니 아래로 내린다(사라지지는 않음)
-    wait = 1 if (item.get("대기", "") or "").strip() else 0
     due = (item.get("마감일", "") or "").strip()
     try:
         dd = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
     except Exception:
         dd = 9999                      # 마감 없는 건 뒤로
-    return (1 + wait, star * 10000 + min(dd, 9999), item.get("등록일시", ""))
+    return (1, star * 10000 + min(dd, 9999), item.get("등록일시", ""))
 
 
 def _req_peers(rq, me):
@@ -771,13 +777,13 @@ def _mail_panel(uid, existing_rows, today):
 
 
 def _todo_row(p, uid, today, no=None, show_del=False):
-    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ⋯(회신대기) + ✓(완료) [+ ✕].
+    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ⋯(진행 메모) + ✓(완료) [+ ✕].
 
     ✕는 ＋(추가)를 열었을 때만 보인다 — 평소 목록을 단순하게 두고,
     실수로 지우는 것도 막기 위함.
     """
     star = bool((p.get("중요", "") or "").strip())
-    wait = bool((p.get("대기", "") or "").strip())
+    note = (p.get("진행", "") or "").strip()
     if show_del:
         c1, cs, cw, c3, c4 = st.columns([9, 1, 1, 1, 1])
     else:
@@ -788,7 +794,8 @@ def _todo_row(p, uid, today, no=None, show_del=False):
     # 기본 아이콘(📝)을 덧붙이지 않는다 — 두 개가 겹쳐 보인다.
     _txt = re.sub(r"^(📄|📧|📅)\s*", "", p["내용"].lstrip())
     c1.markdown(f"{_head} " + ("⭐ " if star else "") + _txt
-                + _todo_badges(p, today), unsafe_allow_html=True)
+                + _todo_badges(p, today) + _todo_note_line(p, today),
+                unsafe_allow_html=True)
     if cs.button("☆" if not star else "★", key=f"todo_star_{p['_row']}",
                  help="중요 표시(맨 위로)"):
         try:
@@ -796,17 +803,36 @@ def _todo_row(p, uid, today, no=None, show_del=False):
         except Exception as e:
             st.error(f"저장 실패: {e}")
         st.rerun()
-    # ⋯ 회신대기 — 내 손은 떠났고 상대 답을 기다리는 일. ✓(완료)는 실적 기록이라
-    # 아직 못 누르고, 그냥 두면 손도 안 댄 일처럼 보이는 문제를 메운다.
+    # ⋯ 진행 메모 — 지금 어디까지 왔는지 본인 말로 적는다("메일 회신 기다리는 중").
+    # ✓(완료)는 실적 기록이라 아직 못 누르고, 그냥 두면 손도 안 댄 일처럼 보인다.
     # 기호는 이모지가 아닌 글자를 쓴다(이모지는 CSS 색이 안 먹어 흰 박스로 보임).
-    if cw.button("↩" if wait else "⋯", key=f"todo_wait_{p['_row']}",
-                 help="회신대기 해제" if wait
-                 else "회신대기로 — 보내놓고 답 기다리는 중(아래로 내려감)"):
-        try:
-            todo_store.set_wait(uid, p["_row"], p["내용"], not wait)
-        except Exception as e:
-            st.error(f"저장 실패: {e}")
+    _nkey = f"note_open_{p['_row']}"
+    if cw.button("⋯", key=f"todo_wait_{p['_row']}",
+                 help="진행 상황 적기 — 주간보고 실적에도 함께 넣을 수 있음"):
+        st.session_state[_nkey] = not st.session_state.get(_nkey, False)
         st.rerun()
+    if st.session_state.get(_nkey):
+        _nv = st.text_input(
+            "진행 상황", value=note, key=f"todo_note_{p['_row']}",
+            placeholder="예: 메일 보내고 회신 기다리는 중",
+            label_visibility="collapsed")
+        _n1, _n2 = st.columns(2)
+        if _n1.button("저장", key=f"todo_note_save_{p['_row']}",
+                      use_container_width=True):
+            try:
+                todo_store.set_note(uid, p["_row"], p["내용"], _nv)
+                st.session_state[_nkey] = False
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+            st.rerun()
+        if _n2.button("지우기", key=f"todo_note_del_{p['_row']}",
+                      use_container_width=True):
+            try:
+                todo_store.set_note(uid, p["_row"], p["내용"], "")
+                st.session_state[_nkey] = False
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+            st.rerun()
     if c3.button("✓", key=f"todo_done_{p['_row']}",
                  help="완료 — 주간보고 실적에 넣을 수 있게 기록됨"):
         try:
@@ -1921,14 +1947,21 @@ def _report_write():
                           - timedelta(days=7)).strftime("%Y-%m-%d")
             except Exception:
                 _since = None
-            with st.expander("✅ 완료한 할 일을 실적에 넣기", expanded=False):
+            with st.expander("✅ 완료·진행 중인 할 일을 실적에 넣기", expanded=False):
                 try:
                     _done = todo_store.completed_todos(_uid_w, since=_since)
                 except Exception:
                     _done = []
-                if not _done:
-                    st.caption("이번 주기에 완료 처리한 할 일이 없습니다. "
-                               "(홈 '내 할 일'에서 ✓로 완료하면 여기에 모입니다)")
+                # 진행 메모를 적어 둔 항목 — 아직 안 끝났어도 그 주에 한 일이다.
+                # "(진행) 내용 — 메모" 형태로 실적에 넣는다.
+                try:
+                    _prog = [t for t in todo_store.list_todos(_uid_w)
+                             if (t.get("진행", "") or "").strip()]
+                except Exception:
+                    _prog = []
+                if not _done and not _prog:
+                    st.caption("이번 주기에 완료(✓)하거나 진행(⋯)을 적어 둔 할 일이 "
+                               "없습니다. (홈 '내 할 일'에서 표시하면 여기에 모입니다)")
                 else:
                     # 홈에서 나눈 연구/업무 그대로 각 실적 칸에 넣는다
                     st.caption("체크 후 버튼을 누르면 해당 실적 칸에 채워집니다.")
@@ -1940,6 +1973,14 @@ def _report_write():
                         if st.checkbox(f"[{_a}] {_t['내용']}",
                                        key=f"done_{_t['_row']}"):
                             _dsel[_a].append(_t["내용"])
+                    for _t in _prog:
+                        _a = (_t.get("영역", "") or "").strip()
+                        _a = _a if _a in _dsel else todo_store.AREA_WORK
+                        _line = (f"(진행) {_t['내용']} — "
+                                 f"{(_t.get('진행', '') or '').strip()}")
+                        if st.checkbox(f"[{_a}] {_line}",
+                                       key=f"prog_{_t['_row']}"):
+                            _dsel[_a].append(_line)
                     _bc1, _bc2 = st.columns(2)
                     if "research_done" in fields and _bc1.button(
                             "⬇️ 연구실적에 넣기", key="done_res_btn",
