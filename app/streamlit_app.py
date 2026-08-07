@@ -21,6 +21,7 @@ import request_store
 import feedback_store
 import resource_store
 import mail_store
+import voice_note
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
@@ -3261,6 +3262,9 @@ def visit_page():
         st.rerun()
 
     if st.session_state.get("visit_show_form"):
+        # 음성으로 받아 적은 결과를 위젯이 만들어지기 **전에** 옮긴다
+        # (이미 만들어진 위젯의 session_state는 Streamlit이 못 고치게 막는다)
+        voice_note.apply_buffer("visit_content", "visit_issue")
         with st.container(border=True):
             vc1, vc2, vc3 = st.columns(3)
             with vc1:
@@ -3276,7 +3280,11 @@ def visit_page():
             content = st.text_area(
                 "방문내용 (한 일)", key="visit_content", height=90,
                 placeholder="예: 효돌 재설치, 센서 배터리 교체, 대상자 인터뷰")
+            # 🎤 현장에서 손을 못 쓸 때 — 헤드셋 꽂고 말하면 이 칸에 들어간다.
+            # 여러 번 나눠 말해도 뒤에 이어 붙는다.
+            voice_note.mic("visit_content", "방문내용 말하기")
             issue = st.text_area("이슈·특이사항 (선택)", key="visit_issue", height=70)
+            voice_note.mic("visit_issue", "이슈 말하기")
             if st.button("➕ 기록 저장", type="primary", use_container_width=True):
                 if not (site and content.strip()):
                     st.warning("실증과 방문내용은 필수입니다.")
