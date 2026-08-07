@@ -4,10 +4,13 @@
 문제가 생겨도 공급자에게 돌아갈 길이 없다". 현장에서 기기를 만지는 사람이
 매뉴얼과 문의처를 못 찾는다. 그 길을 만든다.
 
-**파일을 받지 않고 링크만 받는다.** 제조사가 500곳 규모로 늘어나면 파일 보관은
-버전 관리(개정본이 나와도 우리 것은 옛날 판)·저작권·삭제 요청이 전부 우리 일이
-된다. 링크면 제조사가 자기 사이트에서 갱신하는 순간 최신이 된다.
-(문서 협업이 링크 방식인 것과 같은 이유 — `collab_store` 참고)
+**링크를 우선으로 받되, 파일도 받는다.** 링크면 제조사가 자기 사이트에서 갱신하는
+순간 최신이라 버전 관리·저작권·삭제 요청이 우리 일이 되지 않는다. 그런데 중소
+제조사는 홈페이지에 자료를 안 올려두는 곳이 많아 **링크만 받으면 제출 자체를
+못 한다**. 그래서 파일 업로드를 대안으로 둔다(`upload_file`).
+
+⚠️ 파일로 받은 것은 **우리가 보관하는 옛날 판이 될 수 있다.** 그래서 파일 제출에는
+`설명`에 개정일·판번호를 적게 안내하고, 화면에 '파일 보관본'임을 표시한다.
 
 **흐름**: 제조사가 로그인 없이 제출(`?maker=` 페이지) → `대기` 로 쌓임
 → 팀원이 확인 후 `공개` 로 전환 → 자료실·장비 대장에 나타남.
@@ -108,6 +111,68 @@ def for_device(device_name, status=ST_OPEN):
         if dev in n or n in dev or (mdl and (mdl in n or n in mdl)):
             out.append(d)
     return out
+
+
+MAX_MB = 20
+UPLOAD_EXTS = ["pdf", "jpg", "jpeg", "png", "docx", "xlsx", "pptx", "hwp",
+               "hwpx", "zip"]
+
+
+def upload_enabled() -> bool:
+    """파일 업로드 가능 여부 — 구글 OAuth(본인 드라이브) 설정이 있어야 한다.
+
+    서비스 계정은 드라이브에 파일을 못 넣는다(용량 0). 그래서 `collab_store`가
+    쓰는 것과 **같은 OAuth 자격**(carerobot0001 계정, 구글원 5TB)을 재사용한다.
+    """
+    try:
+        return "google_oauth" in st.secrets
+    except Exception:
+        return False
+
+
+def upload_file(file_bytes: bytes, filename: str) -> str:
+    """제조사가 올린 파일을 **변환 없이 원본 그대로** 우리 드라이브에 올리고
+    '링크가 있는 사람 보기' 공유를 건 뒤 보기 링크를 반환.
+
+    ⚠️ `collab_store.create_drive_doc`은 구글 문서로 **변환**하지만 여기선 안 한다 —
+    매뉴얼은 대개 PDF라 변환하면 서식이 깨지고, 원본 그대로가 맞다.
+    ⚠️ 공유 권한도 `writer`가 아니라 **`reader`** — 남이 올린 자료를 아무나 고치면 안 된다.
+    """
+    if not upload_enabled():
+        raise RuntimeError("파일 업로드가 설정되지 않았습니다. 링크로 등록해 주세요.")
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in UPLOAD_EXTS:
+        raise ValueError(f"지원하지 않는 형식(.{ext})입니다. "
+                         f"{'·'.join(UPLOAD_EXTS)} 만 올릴 수 있습니다.")
+    if len(file_bytes) > MAX_MB * 1024 * 1024:
+        raise ValueError(f"파일이 너무 큽니다({len(file_bytes)//1024//1024}MB). "
+                         f"{MAX_MB}MB 이하로 올려 주세요.")
+    import json as _json
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request, AuthorizedSession
+    o = st.secrets["google_oauth"]
+    creds = Credentials(None, refresh_token=o["refresh_token"],
+                        client_id=o["client_id"],
+                        client_secret=o["client_secret"],
+                        token_uri="https://oauth2.googleapis.com/token",
+                        scopes=["https://www.googleapis.com/auth/drive.file"])
+    creds.refresh(Request())
+    sess = AuthorizedSession(creds)
+    b = "carebotmakerboundary"
+    meta = {"name": filename}                    # mimeType 지정 안 함 = 원본 유지
+    body = (f"--{b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+            + _json.dumps(meta)
+            + f"\r\n--{b}\r\nContent-Type: application/octet-stream\r\n\r\n"
+            ).encode("utf-8") + file_bytes + f"\r\n--{b}--".encode()
+    r = sess.post("https://www.googleapis.com/upload/drive/v3/files"
+                  "?uploadType=multipart&fields=id,webViewLink", data=body,
+                  headers={"Content-Type": f"multipart/related; boundary={b}"})
+    r.raise_for_status()
+    info = r.json()
+    fid = info["id"]
+    sess.post(f"https://www.googleapis.com/drive/v3/files/{fid}/permissions",
+              json={"role": "reader", "type": "anyone"})
+    return info.get("webViewLink") or f"https://drive.google.com/open?id={fid}"
 
 
 def add_item(maker, device, model, kind, title, link, desc,

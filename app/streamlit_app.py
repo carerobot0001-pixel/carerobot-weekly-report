@@ -2789,9 +2789,20 @@ def maker_submit_page():
     st.title("📘 기기 자료 제출")
     st.caption("국립재활원 돌봄로봇중개연구사업단 · 실증 현장에서 쓰는 "
                "매뉴얼·설치안내·문의처를 등록해 주세요.")
-    st.info("**파일이 아니라 링크를 받습니다.** 귀사 홈페이지·드라이브의 자료 주소를 "
-            "넣어 주세요. 자료를 개정하시면 현장에서도 자동으로 최신본을 봅니다.")
+    _up_ok = maker_store.upload_enabled()
+    st.info("자료 **주소(링크)** 를 넣어 주시면 개정하실 때 현장에서도 자동으로 "
+            "최신본을 봅니다. 홈페이지에 올려두신 자료가 없으면 "
+            "**파일로 올려 주셔도 됩니다.**" if _up_ok else
+            "귀사 홈페이지·드라이브에 있는 자료의 **주소(링크)** 를 넣어 주세요.")
     _flash("mk_flash")
+
+    # ⚠️ 전달 방법 선택은 **폼 밖**에 둔다 — st.form 안의 위젯은 바꿔도 리런이 안 나서
+    #    '파일 올리기'를 골라도 파일 칸이 나타나지 않는다(실제로 그렇게 만들었다가 고침).
+    how = "링크 주소"
+    if _up_ok:
+        how = st.radio("자료 전달 방법", ["링크 주소", "파일 올리기"],
+                       horizontal=True, key="mk_how",
+                       help="가능하면 링크를 권합니다 — 개정하시면 자동으로 최신본이 됩니다.")
 
     with st.form("maker_form", clear_on_submit=True):
         c1, c2 = st.columns(2)
@@ -2801,19 +2812,37 @@ def maker_submit_page():
         model = c3.text_input("모델명 (선택)", placeholder="예: WIM-B2B")
         kind = c4.selectbox("자료 종류", maker_store.KINDS)
         title = st.text_input("자료 제목 *", placeholder="예: WIM 사용설명서 v2.1")
-        link = st.text_input("링크(URL) *", placeholder="https://...")
+        # 링크가 원칙, 파일은 대안 — 홈페이지에 자료를 안 올려두는 제조사가 많다
+        upfile = None
+        if _up_ok and how == "파일 올리기":
+            link = ""
+            upfile = st.file_uploader(
+                f"파일 올리기 * ({'·'.join(maker_store.UPLOAD_EXTS)} / "
+                f"{maker_store.MAX_MB}MB 이하)",
+                type=maker_store.UPLOAD_EXTS)
+            st.caption("파일로 주시면 저희가 보관합니다. **개정판이 나오면 다시 "
+                       "올려 주세요** — 아래 설명에 판번호·개정일을 적어 주시면 "
+                       "현장에서 판단하기 좋습니다.")
+        else:
+            link = st.text_input("링크(URL) *", placeholder="https://...")
         desc = st.text_area("설명 (선택)", height=70,
-                            placeholder="어떤 내용인지 한 줄로")
+                            placeholder="예: 2026-05 개정 3판 / 설치와 초기화 부분")
         c5, c6 = st.columns(2)
         person = c5.text_input("담당자 (선택)")
         contact = c6.text_input("연락처·이메일 (선택)",
                                 placeholder="현장 문의를 받을 곳")
-        st.caption("* 표시는 필수입니다. 등록하신 자료는 사업단 확인 후 공개됩니다.")
+        st.caption("* 표시는 필수입니다. 등록하신 자료는 사업단 확인 후 공개되며, "
+                   "실증 현장의 종사자가 열람합니다.")
         if st.form_submit_button("제출", type="primary",
                                  use_container_width=True):
             try:
+                _desc = desc
+                if upfile is not None:
+                    link = maker_store.upload_file(upfile.getvalue(),
+                                                   upfile.name)
+                    _desc = (desc + " " if desc.strip() else "") + "[파일 보관본]"
                 maker_store.add_item(maker, device, model, kind, title, link,
-                                     desc, person, contact)
+                                     _desc, person, contact)
                 st.session_state["mk_flash"] = (
                     "✅ 제출됐습니다. 사업단 확인 후 공개됩니다. 감사합니다.")
             except ValueError as e:
