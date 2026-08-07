@@ -411,9 +411,9 @@ def _auto_import(uid, name):
             tag, _pri = mail_store.classify(m.get("제목", ""), m.get("본문", ""))
             item = f"📧 {tag} · {m.get('제목', '(제목 없음)')}"
             if item not in existing:
-                # 긴급·결정필요(우선도 4 이상)는 ⭐로 올려 둔다
+                # 긴급 여부는 제목 앞 태그(🔴 긴급 등)로 이미 보인다
                 todo_store.add_todo(
-                    uid, item, star=_pri >= 4,
+                    uid, item,
                     due=_guess_due(f"{m.get('제목','')} {m.get('본문','')[:300]}",
                                    datetime.now(KST).date()))
                 existing.add(item)
@@ -522,20 +522,20 @@ def _todo_note_line(item, today):
 
 def _todo_sort_key(item, today):
     """사용자가 드래그로 정한 순서가 있으면 그것을 따르고(맨 위가 1번),
-    없으면 예전 방식(중요 → 마감 임박 → 오래된 순)으로 정렬한다."""
+    없으면 마감 임박 → 오래된 순으로 정렬한다.
+    (중요 ⭐ 는 없앴다 — 순서를 직접 정할 수 있어 겹쳤다)"""
     o = (item.get("순서", "") or "").strip()
     if o:
         try:
             return (0, int(o), "")
         except ValueError:
             pass
-    star = 0 if (item.get("중요", "") or "").strip() else 1
     due = (item.get("마감일", "") or "").strip()
     try:
         dd = (datetime.strptime(due, "%Y-%m-%d").date() - today).days
     except Exception:
         dd = 9999                      # 마감 없는 건 뒤로
-    return (1, star * 10000 + min(dd, 9999), item.get("등록일시", ""))
+    return (1, min(dd, 9999), item.get("등록일시", ""))
 
 
 def _req_peers(rq, me):
@@ -777,32 +777,26 @@ def _mail_panel(uid, existing_rows, today):
 
 
 def _todo_row(p, uid, today, no=None, show_del=False):
-    """업무 할 일 한 줄 — 번호·내용·배지 + ☆(중요) + ⋯(진행 메모) + ✓(완료) [+ ✕].
+    """업무 할 일 한 줄 — 번호·내용·배지 + ⋯(진행 메모) + ✓(완료) [+ ✕].
 
     ✕는 ＋(추가)를 열었을 때만 보인다 — 평소 목록을 단순하게 두고,
     실수로 지우는 것도 막기 위함.
+    ☆(중요)는 없앴다 — 드래그로 순서를 정하니 '맨 위로' 표시가 겹쳤다.
+    시트의 `중요` 칸과 `set_star`는 옛 데이터 때문에 남겨 둔다.
     """
-    star = bool((p.get("중요", "") or "").strip())
     note = (p.get("진행", "") or "").strip()
     if show_del:
-        c1, cs, cw, c3, c4 = st.columns([9, 1, 1, 1, 1])
+        c1, cw, c3, c4 = st.columns([9, 1, 1, 1])
     else:
-        c1, cs, cw, c3 = st.columns([9, 1, 1, 1])
+        c1, cw, c3 = st.columns([9, 1, 1])
         c4 = None
     _head = f"{no}." if no else "-"
     # 내용 앞에 출처 아이콘(📄 보고 · 📧 메일 · 📅 일정)이 이미 있으면
     # 기본 아이콘(📝)을 덧붙이지 않는다 — 두 개가 겹쳐 보인다.
     _txt = re.sub(r"^(📄|📧|📅)\s*", "", p["내용"].lstrip())
-    c1.markdown(f"{_head} " + ("⭐ " if star else "") + _txt
+    c1.markdown(f"{_head} " + _txt
                 + _todo_badges(p, today) + _todo_note_line(p, today),
                 unsafe_allow_html=True)
-    if cs.button("☆" if not star else "★", key=f"todo_star_{p['_row']}",
-                 help="중요 표시(맨 위로)"):
-        try:
-            todo_store.set_star(uid, p["_row"], p["내용"], not star)
-        except Exception as e:
-            st.error(f"저장 실패: {e}")
-        st.rerun()
     # ⋯ 진행 메모 — 지금 어디까지 왔는지 본인 말로 적는다("메일 회신 기다리는 중").
     # ✓(완료)는 실적 기록이라 아직 못 누르고, 그냥 두면 손도 안 댄 일처럼 보인다.
     # 기호는 이모지가 아닌 글자를 쓴다(이모지는 CSS 색이 안 먹어 흰 박스로 보임).

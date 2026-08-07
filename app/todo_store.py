@@ -85,6 +85,20 @@ def _ws():
     return ws
 
 
+def _ensure_cols(ws):
+    """컬럼을 늘린 코드가 배포돼도 시트가 그대로인 경우를 메운다.
+
+    `_ws()`는 `@st.cache_resource`라 **프로세스가 살아 있는 동안 한 번만** 헤더를
+    확인한다. Streamlit Cloud가 재배포에서 프로세스를 안 죽이면 새 컬럼이 영영
+    안 생기고, 그 칸에 쓰는 저장이 조용히 실패한다(실제로 '진행' 칸에서 발생).
+    그래서 쓰기 직전에 한 번 더 확인한다.
+    """
+    if ws.col_count < len(TODO_HEADER):
+        ws.add_cols(len(TODO_HEADER) - ws.col_count)
+        end = gspread.utils.rowcol_to_a1(1, len(TODO_HEADER))
+        ws.update(values=[TODO_HEADER], range_name=f"A1:{end}")
+
+
 @st.cache_data(ttl=10)
 def _rows():
     vals = _ws().get_all_values()
@@ -121,7 +135,9 @@ def add_todo(uid, text, kind=KIND_TODO, due="", area=AREA_WORK,
     if not uid or not text:
         return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    _ws().append_row([uid, text, now, kind, "Y" if star else "",
+    ws = _ws()
+    _ensure_cols(ws)
+    ws.append_row([uid, text, now, kind, "Y" if star else "",
                       (due or "").strip(), (area or AREA_WORK), "", "", ""],
                      value_input_option="RAW")
     _rows.clear()
@@ -173,6 +189,7 @@ def _update(uid, row, text, col, value):
     if not uid or not row:
         return
     ws = _ws()
+    _ensure_cols(ws)
     vals = ws.get_all_values()
     if not (1 <= row - 1 < len(vals)):
         return
