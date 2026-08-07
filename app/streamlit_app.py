@@ -22,6 +22,7 @@ import feedback_store
 import resource_store
 import mail_store
 import voice_note
+import maker_store
 from sheets_store import (
     load_week, save_submission, submission_status, weeks_with_counts,
     build_full_backup_xlsx, latest_submission, FIELD_KEYS, KST,
@@ -2770,9 +2771,167 @@ def collab_page():
             st.divider()
 
 
+def maker_submit_page():
+    """제조사용 공개 제출 페이지 — 로그인 없이 `?maker=<토큰>` 으로 들어온다.
+
+    **별도 홈페이지가 아니라 같은 앱의 다른 입구**다. 사이드바·메뉴 없이 폼만 뜬다.
+    (별도 사이트를 만들면 팀원이 안 쓴다 — 자료는 팀원이 이미 가는 곳에 나타나야 한다)
+    올린 자료는 바로 안 보이고 `대기` 로 쌓여 팀원이 확인한 뒤 공개된다.
+    """
+    # ⚠️ set_page_config는 모듈 맨 위에서 이미 불렸다 — 두 번 부르면 앱이 죽는다.
+    #    대신 사이드바만 숨겨 '폼 하나짜리 페이지'로 보이게 한다.
+    st.markdown("""<style>
+      section[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"]
+        { display:none !important; }
+      section[data-testid="stMain"] .block-container
+        { max-width:760px; padding-top:2.4rem; }
+    </style>""", unsafe_allow_html=True)
+    st.title("📘 기기 자료 제출")
+    st.caption("국립재활원 돌봄로봇중개연구사업단 · 실증 현장에서 쓰는 "
+               "매뉴얼·설치안내·문의처를 등록해 주세요.")
+    st.info("**파일이 아니라 링크를 받습니다.** 귀사 홈페이지·드라이브의 자료 주소를 "
+            "넣어 주세요. 자료를 개정하시면 현장에서도 자동으로 최신본을 봅니다.")
+    _flash("mk_flash")
+
+    with st.form("maker_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        maker = c1.text_input("제조사 *", placeholder="예: (주)위로보틱스")
+        device = c2.text_input("기기명 *", placeholder="예: WIM")
+        c3, c4 = st.columns(2)
+        model = c3.text_input("모델명 (선택)", placeholder="예: WIM-B2B")
+        kind = c4.selectbox("자료 종류", maker_store.KINDS)
+        title = st.text_input("자료 제목 *", placeholder="예: WIM 사용설명서 v2.1")
+        link = st.text_input("링크(URL) *", placeholder="https://...")
+        desc = st.text_area("설명 (선택)", height=70,
+                            placeholder="어떤 내용인지 한 줄로")
+        c5, c6 = st.columns(2)
+        person = c5.text_input("담당자 (선택)")
+        contact = c6.text_input("연락처·이메일 (선택)",
+                                placeholder="현장 문의를 받을 곳")
+        st.caption("* 표시는 필수입니다. 등록하신 자료는 사업단 확인 후 공개됩니다.")
+        if st.form_submit_button("제출", type="primary",
+                                 use_container_width=True):
+            try:
+                maker_store.add_item(maker, device, model, kind, title, link,
+                                     desc, person, contact)
+                st.session_state["mk_flash"] = (
+                    "✅ 제출됐습니다. 사업단 확인 후 공개됩니다. 감사합니다.")
+            except ValueError as e:
+                st.warning(str(e))
+            except Exception as e:
+                st.error(f"제출 실패: {e}")
+            st.rerun()
+
+    st.divider()
+    st.caption("문의: 국립재활원 재활보조기술연구과 돌봄로봇중개연구사업단")
+
+
+def _maker_review():
+    """팀원용 — 제조사가 올린 자료를 확인하고 공개로 넘긴다."""
+    me = st.session_state.get("me", "")
+    try:
+        waiting = maker_store.list_items(maker_store.ST_WAIT)
+    except Exception as e:
+        st.error(f"목록을 불러오지 못했습니다: {e}")
+        return
+    if not waiting:
+        st.caption("검토 대기 중인 자료가 없습니다.")
+        return
+    st.warning(f"검토 대기 {len(waiting)}건 — 확인 후 공개해 주세요.")
+    for d in waiting:
+        with st.container(border=True):
+            st.markdown(
+                f"**{d['제조사']} · {d['기기명']}**"
+                + (f" ({d['모델']})" if d.get("모델") else "")
+                + f"<br>{d['자료종류']} — [{d['제목']}]({d['링크']})"
+                + (f"<br><span style='opacity:.7'>{d['설명']}</span>"
+                   if d.get("설명") else "")
+                + f"<br><span style='opacity:.6;font-size:.85rem'>제출 "
+                  f"{d['등록일시']}"
+                + (f" · 담당 {d['담당자']} {d['연락처']}"
+                   if d.get("담당자") or d.get("연락처") else "") + "</span>",
+                unsafe_allow_html=True)
+            b1, b2, b3 = st.columns(3)
+            if b1.button("✅ 공개", key=f"mk_ok_{d['_row']}",
+                         use_container_width=True, type="primary"):
+                try:
+                    maker_store.set_status(d["_row"], d["기기명"],
+                                           maker_store.ST_OPEN, me)
+                    st.rerun()
+                except maker_store.RowMismatch as e:
+                    st.warning(str(e))
+            if b2.button("보류", key=f"mk_hold_{d['_row']}",
+                         use_container_width=True):
+                try:
+                    maker_store.set_status(d["_row"], d["기기명"],
+                                           maker_store.ST_HOLD, me)
+                    st.rerun()
+                except maker_store.RowMismatch as e:
+                    st.warning(str(e))
+            if b3.button("🗑 삭제", key=f"mk_del_{d['_row']}",
+                         use_container_width=True):
+                try:
+                    maker_store.delete_item(d["_row"], d["기기명"])
+                    st.rerun()
+                except maker_store.RowMismatch as e:
+                    st.warning(str(e))
+
+
+def _maker_tab():
+    """📁 자료실 안의 '기기 자료' 탭 — 검색 + 검토. 새 메뉴를 만들지 않는다."""
+    st.caption("제조사가 직접 올린 매뉴얼·설치안내·문의처입니다. "
+               "🔧 장비 사용현황에서도 기기 옆에 바로 뜹니다.")
+    kw = st.text_input("기기명·제조사·모델로 찾기", key="mk_search",
+                       placeholder="예: 효돌, WIM, EMFIT")
+    try:
+        found = maker_store.search(kw)
+    except Exception as e:
+        st.error(f"불러오지 못했습니다: {e}")
+        return
+    if not found:
+        st.caption("공개된 자료가 없습니다." if not kw else "찾는 자료가 없습니다.")
+    for d in found:
+        st.markdown(
+            f"- **{d['기기명']}**"
+            + (f" ({d['모델']})" if d.get("모델") else "")
+            + f" · {d['제조사']} · {d['자료종류']} — [{d['제목']}]({d['링크']})"
+            + (f"  \n  <span style='opacity:.6;font-size:.85rem'>"
+               f"문의 {d['담당자']} {d['연락처']}</span>"
+               if d.get("담당자") or d.get("연락처") else ""),
+            unsafe_allow_html=True)
+    st.divider()
+    _maker_review()
+    with st.expander("🔗 제조사에게 보낼 제출 링크", expanded=False):
+        tok = ""
+        try:
+            tok = st.secrets.get("maker", {}).get("token", "")
+        except Exception:
+            pass
+        st.code(f"https://dolbom-studio.streamlit.app/?maker={tok or 'open'}")
+        st.caption("이 주소로 들어가면 로그인 없이 제출 폼만 보입니다. "
+                   "올라온 자료는 위 '검토 대기'에 쌓입니다.")
+        if not tok:
+            st.warning("아직 토큰이 설정되지 않아 `?maker=` 값이면 아무거나 열립니다. "
+                       "Streamlit Secrets에 `[maker] token = \"...\"` 을 넣으면 "
+                       "그 값과 같을 때만 열립니다.")
+
+
 def resource_page():
-    """자료실 — 팀 공용 참고자료·양식 링크 보드(파일이 아니라 링크만 관리)."""
+    """자료실 — 팀 자료 + 제조사가 올린 기기 자료. 메뉴는 하나로 둔다.
+
+    기기 자료를 **별도 메뉴로 만들지 않는 이유**: 팀원이 이미 가는 곳에 있어야
+    쓴다. 새 메뉴·새 사이트는 아무도 안 간다.
+    """
     st.header("📁 자료실")
+    _t1, _t2 = st.tabs(["📂 팀 자료", "🔧 기기 자료 (제조사)"])
+    with _t1:
+        _res_links()
+    with _t2:
+        _maker_tab()
+
+
+def _res_links():
+    """팀 공용 참고자료·양식 링크 보드(파일이 아니라 링크만 관리)."""
     st.caption("팀 공용 참고자료·양식·매뉴얼 **링크** 모음. (파일이 아니라 구글문서/드라이브/URL 링크를 등록)")
     _flash("res_flash")
     me = st.session_state.get("me", "")
@@ -2866,6 +3025,33 @@ def equip_page():
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
         st.caption("표시할 장비가 없습니다.")
+
+    # 📘 이 목록에 뜬 기기의 제조사 자료 — "이거 어떻게 초기화하지" 할 때
+    # 다른 화면으로 안 가도 되게, 대장 바로 아래에 붙인다.
+    # (표는 캔버스로 그려져 행 안에 링크를 못 넣는다 → 표 아래 목록으로)
+    if shown:
+        _seen, _hit = set(), []
+        for _r in shown:
+            _dev = (_r[0] or "").strip()
+            if not _dev or _dev in _seen:
+                continue
+            _seen.add(_dev)
+            try:
+                for _m in maker_store.for_device(_dev):
+                    _hit.append((_dev, _m))
+            except Exception:
+                break                    # 시트를 못 읽어도 대장은 계속 보이게
+        if _hit:
+            with st.expander(f"📘 이 기기들의 매뉴얼·문의처 ({len(_hit)}건)",
+                             expanded=False):
+                for _dev, _m in _hit:
+                    st.markdown(
+                        f"- **{_dev}** · {_m['제조사']} · {_m['자료종류']} — "
+                        f"[{_m['제목']}]({_m['링크']})"
+                        + (f"  \n  <span style='opacity:.6;font-size:.85rem'>"
+                           f"문의 {_m['담당자']} {_m['연락처']}</span>"
+                           if _m.get("담당자") or _m.get("연락처") else ""),
+                        unsafe_allow_html=True)
 
     st.divider()
     ed = st.session_state.get("equip_edit", False)
@@ -3976,6 +4162,18 @@ def _inject_pwa():
 
 
 def main():
+    # 🔧 제조사 제출 입구 — 로그인 **앞**에 둔다(같은 앱의 다른 문).
+    #    토큰을 secrets에 넣어두면 그 값일 때만 열린다. 없으면 값이 있기만 하면 열림
+    #    (1단계 시험용) — 주소를 아는 곳만 들어오게 하려는 최소한의 가림막이다.
+    _mk = st.query_params.get("maker")
+    if _mk:
+        try:
+            _tok = st.secrets.get("maker", {}).get("token", "")
+        except Exception:
+            _tok = ""
+        if not _tok or _mk == _tok:
+            maker_submit_page()
+            return
     if not auth_gate():
         return
     _inject_pwa()
