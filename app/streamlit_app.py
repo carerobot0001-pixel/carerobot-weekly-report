@@ -1868,13 +1868,16 @@ def home_page():
                     # 기계번역이 틀릴 때 확인할 길은 있어야 한다.
                     tip = (f" title='{html_escape(it['title'])}'"
                            if ko and ko != it["title"] else "")
+                    # 메타는 제목 **옆에** 붙인다 — 아래 줄에 두면 다음 기사 제목과
+                    # 붙어 보여서 어느 기사의 출처인지 헷갈렸다.
                     st.markdown(
-                        f"<div style='margin:0 0 .5rem'>"
+                        f"<div style='margin:0 0 .45rem;line-height:1.4'>"
                         f"<a href='{it['link']}' target='_blank'{tip} "
                         f"style='color:{_tcol};text-decoration:none;"
-                        f"font-size:.95rem;line-height:1.35'>{html_escape(head)}</a>"
-                        f"<div style='color:{_mcol};font-size:.75rem;"
-                        f"margin-top:.1rem'>{' · '.join(meta)}</div></div>",
+                        f"font-size:.95rem'>{html_escape(head)}</a>"
+                        f"<span style='color:{_mcol};font-size:.75rem;"
+                        f"white-space:nowrap'>&nbsp;&nbsp;"
+                        f"{' · '.join(meta)}</span></div>",
                         unsafe_allow_html=True)
             else:
                 st.caption("불러오지 못했어요 (잠시 후 새로고침).")
