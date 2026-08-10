@@ -131,6 +131,103 @@ def done_map(day=None):
     return out
 
 
+# ── 출결 ──────────────────────────────────────────────────────────────
+# 주간보호센터는 출퇴근형이라 '오늘 누가 왔나'가 하루의 출발점이다.
+ATT = ["등원", "결석", "미확인"]
+
+
+def attendance(day=None):
+    """{이용자: 상태}. 기록이 없으면 '미확인'."""
+    day = day or today()
+    saved = _load("attend", {}).get(day, {})
+    return {u["이름"]: saved.get(u["이름"], "미확인") for u in users()}
+
+
+def set_attendance(user, state, day=None):
+    if state not in ATT:
+        return
+    day = day or today()
+    all_ = _load("attend", {})
+    all_.setdefault(day, {})[user] = state
+    _save("attend", all_)
+
+
+# ── 직원 ──────────────────────────────────────────────────────────────
+def staff():
+    return _load("staff", [])
+
+
+def add_staff(name, role="요양보호사"):
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("이름은 필수입니다.")
+    ss = staff()
+    if any(s["이름"] == name for s in ss):
+        raise ValueError(f"이미 있는 직원 — {name}")
+    ss.append({"이름": name, "직무": role})
+    _save("staff", ss)
+
+
+def delete_staff(name):
+    _save("staff", [s for s in staff() if s["이름"] != name])
+
+
+# ── 공지 ──────────────────────────────────────────────────────────────
+def notices():
+    return sorted(_load("notices", []), key=lambda n: n["등록"], reverse=True)
+
+
+def add_notice(text, by=""):
+    text = (text or "").strip()
+    if not text:
+        return
+    ns = _load("notices", [])
+    ns.append({"내용": text, "작성자": by,
+               "등록": datetime.now(KST).strftime("%Y-%m-%d %H:%M")})
+    _save("notices", ns)
+
+
+def delete_notice(stamp):
+    _save("notices", [n for n in _load("notices", []) if n["등록"] != stamp])
+
+
+# ── 인계 ──────────────────────────────────────────────────────────────
+# 논문 AS-IS 문제 2(정서·인지 부담)에서 나온 것 — 다음 교대가 알아야 할 것이
+# 사람 머릿속에만 있다. 이용자와 연결해 남긴다.
+HANDOVER_KINDS = ["건강", "정서·행동", "가족 연락", "기기·환경", "기타"]
+
+
+def handovers(day=None):
+    day = day or today()
+    return [h for h in _load("handover", []) if h["날짜"] == day]
+
+
+def add_handover(user, kind, text, by=""):
+    text = (text or "").strip()
+    if not text:
+        return
+    hs = _load("handover", [])
+    hs.append({"날짜": today(), "시각": now_hm(), "이용자": user,
+               "종류": kind, "내용": text, "작성자": by, "확인": ""})
+    _save("handover", hs)
+
+
+def ack_handover(day, time_hm, user, who):
+    """다음 교대가 '봤다'고 표시. 누가 언제 봤는지 남긴다."""
+    hs = _load("handover", [])
+    for h in hs:
+        if h["날짜"] == day and h["시각"] == time_hm and h["이용자"] == user:
+            h["확인"] = f"{who} {now_hm()}"
+    _save("handover", hs)
+
+
+def delete_handover(day, time_hm, user):
+    keep = [h for h in _load("handover", [])
+            if not (h["날짜"] == day and h["시각"] == time_hm
+                    and h["이용자"] == user)]
+    _save("handover", keep)
+
+
 # ── 말 → 기록 초안 ────────────────────────────────────────────────────
 def parse(text, known_users=None):
     """말한 문장에서 (이용자, 항목, 상태, 특이사항) 초안을 뽑는다.
