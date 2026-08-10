@@ -11,6 +11,7 @@ Dolbom Studio(우리 팀 업무 공간)와 **같은 구조**로 만든다 — �
 import streamlit as st
 
 import store
+import voice
 
 st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", layout="wide")
 
@@ -166,6 +167,9 @@ def page_care():
         st.info("등원으로 표시된 이용자가 없습니다.")
         return
 
+    _voice_block(here)
+
+    st.divider()
     st.subheader("케어 체크")
     st.caption("한 것만 누르면 됩니다. 특이사항이 있으면 그 줄에 적으세요.")
     done = store.done_map()
@@ -209,6 +213,72 @@ def page_care():
         c1.markdown(line, unsafe_allow_html=True)
         if c2.button("✕", key=f"d_{r['시각']}_{r['이용자']}_{r['항목']}"):
             store.delete_record(r["날짜"], r["시각"], r["이용자"], r["항목"])
+            st.rerun()
+
+
+# ── 음성 기록 ─────────────────────────────────────────────────────────
+def _voice_block(here):
+    """말로 케어를 기록한다. **말한 것을 바로 저장하지 않는다** —
+    초안을 띄우고 사람이 고쳐 저장한다. 잘못 들은 기록은 되돌릴 수 없다."""
+    st.subheader("🎤 말해서 기록")
+    st.caption("예: \"김OO 님 배설 완료, 시간이 좀 걸렸어요\"  ·  "
+               "말하면 아래에 초안이 뜹니다. 확인 후 저장하세요.")
+    heard = voice.listen_box("care")
+    if heard:
+        st.session_state["draft"] = heard
+
+    with st.expander("말이 안 되는 상황이면 적어서 넣기", expanded=False):
+        typed = st.text_input("문장", key="typed",
+                              label_visibility="collapsed",
+                              placeholder="김OO 님 점심 다 드셨어요")
+        if st.button("초안 만들기", key="mk_draft") and typed.strip():
+            st.session_state["draft"] = typed.strip()
+
+    raw = st.session_state.get("draft", "")
+    if not raw:
+        return
+    d = store.parse(raw, names)
+    with st.container(border=True):
+        st.markdown(f"들린 말 — **{raw}**")
+        if not d["이용자"]:
+            st.warning("이용자를 못 알아들었습니다. 골라 주세요.")
+        elif d["이용자"] not in here:
+            st.warning(f"{d['이용자']} 님은 오늘 등원으로 표시돼 있지 않습니다.")
+        if not d["항목"]:
+            st.warning("항목을 못 알아들었습니다. 골라 주세요.")
+
+        c1, c2, c3 = st.columns([2, 2, 1])
+        u = c1.selectbox("이용자", names,
+                         index=names.index(d["이용자"]) if d["이용자"] in names else 0,
+                         key="v_user")
+        it = c2.selectbox(
+            "항목", store.ITEM_KEYS,
+            index=(store.ITEM_KEYS.index(d["항목"])
+                   if d["항목"] in store.ITEM_KEYS else 0),
+            format_func=lambda k: store.ITEM_LABEL[k], key="v_item")
+        sts = ["완료", "일부", "거부"]
+        stt = c3.selectbox("상태", sts,
+                           index=sts.index(d["상태"]) if d["상태"] in sts else 0,
+                           key="v_stat")
+        note = st.text_input("특이사항", value=d["특이사항"], key="v_note")
+        b1, b2, b3 = st.columns(3)
+        if b1.button("✅ 확인하고 저장", type="primary", use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.add_record(u, it, stt, note, me, "음성")
+                st.session_state.pop("draft", None)
+                st.rerun()
+        # 인계로 보내기 — "기분이 안 좋으세요" 처럼 케어 항목이 아닌 말이 자주 온다
+        if b2.button("🔄 인계로 넘기기", use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.add_handover(u, "기타", note or raw, me)
+                st.session_state.pop("draft", None)
+                st.rerun()
+        if b3.button("버리기", use_container_width=True):
+            st.session_state.pop("draft", None)
             st.rerun()
 
 
