@@ -1845,7 +1845,12 @@ def home_page():
             if items:
                 for it in items:
                     src = f" · {it['source']}" if it.get("source") else ""
-                    st.markdown(f"- [{it['title']}]({it['link']}){src}")
+                    # 해외 기사만 표시 — 국내가 기본이라 굳이 라벨을 안 붙인다
+                    tag = ("<span style='color:#C4622D;font-size:.8rem;"
+                           "font-weight:700'>해외</span> "
+                           if it.get("region") == "해외" else "")
+                    st.markdown(f"- {tag}[{it['title']}]({it['link']}){src}",
+                                unsafe_allow_html=True)
             else:
                 st.caption("불러오지 못했어요 (잠시 후 새로고침).")
 
