@@ -61,7 +61,8 @@ NEWS_SECTIONS = [
     #    일반 분야는 키워드 검색보다 **구글뉴스 토픽 피드**가 훨씬 낫다 —
     #    편집된 헤드라인이 와서 잡음이 적다. `topic:` 접두어로 쓴다.
     ("🌍 세계", (("topic:WORLD", KO), ("topic:WORLD", EN))),
-    ("🇰🇷 한국", (("topic:NATION", KO),)),
+    # ⚠️ 국기 이모지(🇰🇷)는 윈도우에서 'KR' 글자로 나온다(폰트에 국기 글리프 없음)
+    ("🏛 한국", (("topic:NATION", KO),)),
     ("💹 경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
                   ("Federal Reserve rate decision", EN))),
     ("⚽ 축구", (("손흥민", KO), ("K리그", KO), ("해외축구 이적", KO),
