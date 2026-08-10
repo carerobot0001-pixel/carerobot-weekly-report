@@ -1849,24 +1849,33 @@ def home_page():
             except Exception:
                 items = []
             if items:
+                # 한 항목 = 제목 한 줄 + 작은 회색 메타 한 줄.
+                # 예전엔 [해외]배지·출처·원문이 제목과 같은 줄에 섞여 읽기 어려웠다.
+                # 링크 밑줄도 뺀다 — 목록 전체가 밑줄이면 글이 안 읽힌다.
+                _dark = st.session_state.get("dark")
+                _tcol = "#e8e4dd" if _dark else "#24211d"
+                _mcol = "#8f8a82" if _dark else "#8a857d"
                 for it in items:
-                    src = f" · {it['source']}" if it.get("source") else ""
-                    # 해외 기사만 표시 — 국내가 기본이라 굳이 라벨을 안 붙인다
-                    tag = ("<span style='color:#C4622D;font-size:.8rem;"
-                           "font-weight:700'>해외</span> "
-                           if it.get("region") == "해외" else "")
                     ko = (it.get("title_ko") or "").strip()
-                    if ko and ko != it["title"]:
-                        # 한국어를 앞세우되 **원문을 아래 작게** 둔다 —
-                        # 기계번역이라 틀릴 수 있어 원문을 볼 수 있어야 한다
-                        st.markdown(
-                            f"- {tag}[{ko}]({it['link']}){src}<br>"
-                            f"<span style='opacity:.5;font-size:.78rem'>"
-                            f"{html_escape(it['title'])}</span>",
-                            unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"- {tag}[{it['title']}]({it['link']}){src}",
-                                    unsafe_allow_html=True)
+                    head = ko if (ko and ko != it["title"]) else it["title"]
+                    meta = []
+                    if it.get("region") == "해외":
+                        meta.append("해외")
+                    if it.get("source"):
+                        meta.append(html_escape(it["source"]))
+                    # 원문 제목은 **화면에 안 띄운다**(줄이 길어져 읽기 어려웠다).
+                    # 대신 제목에 마우스를 올리면 뜨게 title 속성에만 남긴다 —
+                    # 기계번역이 틀릴 때 확인할 길은 있어야 한다.
+                    tip = (f" title='{html_escape(it['title'])}'"
+                           if ko and ko != it["title"] else "")
+                    st.markdown(
+                        f"<div style='margin:0 0 .5rem'>"
+                        f"<a href='{it['link']}' target='_blank'{tip} "
+                        f"style='color:{_tcol};text-decoration:none;"
+                        f"font-size:.95rem;line-height:1.35'>{html_escape(head)}</a>"
+                        f"<div style='color:{_mcol};font-size:.75rem;"
+                        f"margin-top:.1rem'>{' · '.join(meta)}</div></div>",
+                        unsafe_allow_html=True)
             else:
                 st.caption("불러오지 못했어요 (잠시 후 새로고침).")
 
