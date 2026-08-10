@@ -43,6 +43,33 @@ def _region(loc: str) -> str:
     return "국내" if loc == KO else "해외"
 
 
+def _src_lang(loc: str) -> str:
+    return "ja" if loc == JA else "en"
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def translate(text: str, src: str) -> str:
+    """해외 기사 제목을 한국어로. 실패하면 빈 문자열(원문만 보여준다).
+
+    구글 번역의 키 없는 endpoint를 쓴다 — 무료·무설정이지만 **공식 API가 아니라
+    막히거나 바뀔 수 있다.** 그래서 실패를 정상 경로로 취급하고 원문으로 돌아간다.
+    ⚠️ 기계번역이라 틀린다. 실제로 `令和8年度`(2026년도)를 '2007년'으로 옮겼다.
+    그래서 화면에는 **원문 제목을 함께** 보여주고, 인용할 때는 원문을 봐야 한다.
+    """
+    t = (text or "").strip()
+    if not t:
+        return ""
+    try:
+        url = ("https://translate.googleapis.com/translate_a/single?client=gtx"
+               f"&sl={src}&tl=ko&dt=t&q={quote(t)}")
+        r = requests.get(url, timeout=6, headers=_UA)
+        if r.status_code != 200:
+            return ""
+        return "".join(part[0] for part in r.json()[0]).strip()
+    except Exception:
+        return ""
+
+
 def _fetch_specs(specs, per_query: int = 3, cap: int = 6) -> list:
     """[{title, link, source, region}] — (키워드, 로케일) 목록에서 중복 제거 후 최대 cap개.
 
@@ -65,7 +92,7 @@ def _fetch_specs(specs, per_query: int = 3, cap: int = 6) -> list:
                 if not title or not link:
                     continue
                 got.append({"title": title, "link": link, "source": source,
-                            "region": _region(loc)})
+                            "region": _region(loc), "lang": _src_lang(loc)})
                 if len(got) >= per_query:
                     break
         except Exception:
@@ -79,8 +106,16 @@ def _fetch_specs(specs, per_query: int = 3, cap: int = 6) -> list:
                 seen.add(b[i]["title"])
                 out.append(b[i])
                 if len(out) >= cap:
-                    return out
-    return out
+                    return _with_ko(out)
+    return _with_ko(out)
+
+
+def _with_ko(items):
+    """해외 기사에 한국어 제목(`title_ko`)을 붙인다. 담긴 것만 번역해 호출을 아낀다."""
+    for it in items:
+        if it.get("region") == "해외":
+            it["title_ko"] = translate(it["title"], it.get("lang", "en"))
+    return items
 
 
 @st.cache_data(ttl=3600)

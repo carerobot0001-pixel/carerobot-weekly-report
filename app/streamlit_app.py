@@ -1849,8 +1849,18 @@ def home_page():
                     tag = ("<span style='color:#C4622D;font-size:.8rem;"
                            "font-weight:700'>해외</span> "
                            if it.get("region") == "해외" else "")
-                    st.markdown(f"- {tag}[{it['title']}]({it['link']}){src}",
-                                unsafe_allow_html=True)
+                    ko = (it.get("title_ko") or "").strip()
+                    if ko and ko != it["title"]:
+                        # 한국어를 앞세우되 **원문을 아래 작게** 둔다 —
+                        # 기계번역이라 틀릴 수 있어 원문을 볼 수 있어야 한다
+                        st.markdown(
+                            f"- {tag}[{ko}]({it['link']}){src}<br>"
+                            f"<span style='opacity:.5;font-size:.78rem'>"
+                            f"{html_escape(it['title'])}</span>",
+                            unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"- {tag}[{it['title']}]({it['link']}){src}",
+                                    unsafe_allow_html=True)
             else:
                 st.caption("불러오지 못했어요 (잠시 후 새로고침).")
 
