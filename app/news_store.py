@@ -30,8 +30,12 @@ NEWS_SECTIONS = [
     ("🧑‍🦳 돌봄·복지", (("노인 돌봄 로봇", KO), ("보건복지부 돌봄", KO),
                     ("eldercare technology policy", EN),
                     ("介護 テクノロジー 導入支援", JA))),
-    ("✨ AI·신기술", (("생성형 AI 의료", KO), ("AI 돌봄 서비스", KO),
-                   ("AI caregiving assistive", EN))),
+    # ⚠️ 이 탭은 **기술 동향**이다. 예전에 '생성형 AI 의료'·'AI 돌봄 서비스'로 좁혔더니
+    #    앞의 돌봄 탭들과 겹쳐 지자체 돌봄 소식만 나왔다(모델·인프라 뉴스가 사라짐).
+    ("✨ AI·LLM", (("오픈AI 앤스로픽", KO), ("생성형 AI 모델 출시", KO),
+                  ("AI 반도체 추론", KO),
+                  ("OpenAI Anthropic model release", EN),
+                  ("AI agents enterprise", EN))),
     ("🦿 로봇·휴머노이드", (("휴머노이드 로봇", KO), ("서비스 로봇", KO),
                        ("humanoid service robot", EN))),
 ]
