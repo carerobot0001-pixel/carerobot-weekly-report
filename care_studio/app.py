@@ -105,9 +105,9 @@ def page_home():
     c1.metric("등원", f"{len(here)} / {len(users)}")
     c2.metric("결석", len(absent))
     c3.metric("출결 미확인", len(unknown))
-    _left = sum(1 for k in store.ITEM_KEYS for u in here
+    _left = sum(1 for k in store.FIELD_KEYS for u in here
                 if u not in done.get(k, set()))
-    c4.metric("남은 케어", _left)
+    c4.metric("빈 칸", _left)
 
     if unknown:
         st.warning("출결 미확인 — " + ", ".join(unknown[:10])
@@ -115,19 +115,20 @@ def page_home():
 
     left, right = st.columns([1.5, 1])
     with left:
-        st.subheader("오늘 남은 케어")
+        st.subheader("아직 안 채운 칸")
         if not here:
             st.caption("등원한 이용자가 없습니다. **✅ 케어 기록**에서 출결을 먼저 찍으세요.")
         else:
             rows = []
-            for key in store.ITEM_KEYS:
+            for key in store.FIELD_KEYS:
                 miss = [u for u in here if u not in done.get(key, set())]
                 if miss:
-                    rows.append((store.ITEM_TIME[key], store.ITEM_LABEL[key], miss))
+                    rows.append((store.FIELDS[key][0], store.FIELDS[key][1], miss))
             if not rows:
-                st.success("오늘 케어가 모두 기록됐습니다.")
-            for hhmm, label, miss in sorted(rows):
-                st.markdown(f"**{hhmm} {label}** — {len(miss)}명 남음  \n"
+                st.success("서식이 모두 채워졌습니다.")
+            for sec, label, miss in rows:
+                st.markdown(f"**{label}** <span class='cs-dim'>{sec}</span> — "
+                            f"{len(miss)}명 남음  \n"
                             f"<span class='cs-dim'>{', '.join(miss)}</span>",
                             unsafe_allow_html=True)
     with right:
@@ -142,9 +143,11 @@ def page_home():
                         unsafe_allow_html=True)
 
 
-# ── 케어 기록 ─────────────────────────────────────────────────────────
+# ── 케어 기록(급여제공기록지) ─────────────────────────────────────────
 def page_care():
     st.header("✅ 케어 기록")
+    st.caption("노인장기요양보험법 시행규칙 **별지 제15호서식** "
+               "장기요양급여제공기록지(주·야간보호) 항목입니다.")
     if _need_users():
         return
     att = store.attendance()
@@ -154,83 +157,154 @@ def page_care():
     for i, u in enumerate(users):
         with cols[i % len(cols)]:
             cur = att[u["이름"]]
-            pick = st.radio(u["이름"], store.ATT,
-                            index=store.ATT.index(cur),
+            pick = st.radio(u["이름"], store.ATT, index=store.ATT.index(cur),
                             key=f"att_{u['이름']}", horizontal=True)
             if pick != cur:
                 store.set_attendance(u["이름"], pick)
                 st.rerun()
 
-    st.divider()
     here = [u for u, s in att.items() if s == "등원"]
     if not here:
         st.info("등원으로 표시된 이용자가 없습니다.")
         return
 
+    st.divider()
     _voice_block(here)
 
     st.divider()
-    st.subheader("케어 체크")
-    st.caption("한 것만 누르면 됩니다. 특이사항이 있으면 그 줄에 적으세요.")
-    done = store.done_map()
-    item = st.selectbox("항목", store.ITEM_KEYS,
-                        format_func=lambda k: f"{store.ITEM_TIME[k]} "
-                                              f"{store.ITEM_LABEL[k]}")
-    for u in here:
-        c1, c2, c3 = st.columns([2, 5, 2])
-        already = u in done.get(item, set())
-        c1.markdown(("✅ " if already else "") + f"**{u}**")
-        note = c2.text_input("특이사항", key=f"n_{item}_{u}",
-                             label_visibility="collapsed",
-                             placeholder="특이사항(선택)")
-        if already:
-            c3.caption("기록됨")
-        else:
-            b1, b2 = c3.columns(2)
-            if b1.button("완료", key=f"ok_{item}_{u}", use_container_width=True):
-                if not me:
-                    st.warning("왼쪽에서 이름을 먼저 고르세요.")
-                else:
-                    store.add_record(u, item, "완료", note, me, "화면")
-                    st.rerun()
-            if b2.button("거부", key=f"no_{item}_{u}", use_container_width=True):
-                if not me:
-                    st.warning("왼쪽에서 이름을 먼저 고르세요.")
-                else:
-                    store.add_record(u, item, "거부", note, me, "화면")
-                    st.rerun()
-
+    who = st.selectbox("이용자", here, key="care_user")
+    sh = store.sheet(who)
+    _session_row(who, sh)
     st.divider()
-    rs = sorted(store.records(), key=lambda r: r["시각"], reverse=True)
-    st.subheader(f"오늘 기록 — {len(rs)}건")
-    for r in rs[:30]:
-        c1, c2 = st.columns([9, 1])
-        line = (f"**{r['시각']}** {r['이용자']} · "
-                f"{store.ITEM_LABEL.get(r['항목'], r['항목'])} · {r['상태']}")
-        if r["특이사항"]:
-            line += f" — {r['특이사항']}"
-        line += f"  <span class='cs-dim'>{r['기록자']}</span>"
-        c1.markdown(line, unsafe_allow_html=True)
-        if c2.button("✕", key=f"d_{r['시각']}_{r['이용자']}_{r['항목']}"):
-            store.delete_record(r["날짜"], r["시각"], r["이용자"], r["항목"])
-            st.rerun()
+    _form(who, sh)
+
+
+def _session_row(who, sh):
+    """서식 앞쪽 머리 — 시작/종료시각, 총시간(자동), 이동서비스(차량번호)."""
+    se = sh.get("세션", {})
+    c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1.4])
+    a = c1.text_input("시작시간", value=se.get("시작", ""), key=f"s_{who}",
+                      placeholder="09:10")
+    b = c2.text_input("종료시간", value=se.get("종료", ""), key=f"e_{who}",
+                      placeholder="17:30")
+    ride = c3.checkbox("이동서비스", value=se.get("이동", False), key=f"r_{who}")
+    car = c4.text_input("차량번호", value=se.get("차량", ""), key=f"c_{who}",
+                        disabled=not ride)
+    if c5.button("급여시간 저장", use_container_width=True):
+        store.set_session(who, a, b, ride, car)
+        st.rerun()
+    mins = store.total_minutes(who)
+    st.caption(f"총시간 {mins}분" if mins is not None
+               else "총시간 — 시작·종료시각을 넣으면 자동 계산됩니다.")
+
+
+def _form(who, sh):
+    """서식 본문. 구역별로 항목을 그리고, 구역마다 특이사항·작성자를 받는다."""
+    vals = sh["필드"]
+    for sec, items in store.SECTIONS:
+        st.markdown(f"#### {sec}")
+        for k, label, typ in items:
+            cur = vals.get(k)
+            c1, c2 = st.columns([3, 4])
+            c1.markdown(("✅ " if k in vals else "") + label)
+            with c2:
+                _field_widget(who, k, typ, cur)
+        note = st.text_input(
+            f"특이사항 ({sec})", value=sh["특이"].get(sec, ""),
+            key=f"note_{who}_{sec}",
+            placeholder="예: 설사를 해서 엉덩이 짓물러 파우더 바름")
+        cA, cB = st.columns([1, 4])
+        if cA.button("특이사항 저장", key=f"nb_{who}_{sec}",
+                     use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.set_section_note(who, sec, note, me)
+                st.rerun()
+        if sh["작성자"].get(sec):
+            cB.caption(f"작성자 {sh['작성자'][sec]}")
+        st.divider()
+
+
+def _field_widget(who, k, typ, cur):
+    """항목 유형별 입력칸. 저장은 각 칸의 버튼을 눌러야 일어난다."""
+    if typ == "check":
+        b1, b2 = st.columns(2)
+        if b1.button("제공함", key=f"f_{who}_{k}", use_container_width=True,
+                     disabled=bool(cur)):
+            _set(who, k, True)
+        if b2.button("지우기", key=f"x_{who}_{k}", use_container_width=True,
+                     disabled=not cur):
+            _set(who, k, None)
+    elif typ == "count":
+        c1, c2 = st.columns([2, 1])
+        n = c1.number_input("횟수", 0, 30, int(cur or 0), key=f"f_{who}_{k}",
+                            label_visibility="collapsed")
+        if c2.button("저장", key=f"b_{who}_{k}", use_container_width=True):
+            _set(who, k, int(n))
+    elif typ == "bath":
+        v = cur or {}
+        c1, c2, c3 = st.columns([1, 1.4, 1])
+        m = c1.number_input("분", 0, 240, int(v.get("분", 0)),
+                            key=f"f_{who}_{k}", label_visibility="collapsed")
+        w = c2.selectbox("방법", store.BATH_WAYS,
+                         index=store.BATH_WAYS.index(v["방법"])
+                         if v.get("방법") in store.BATH_WAYS else 0,
+                         key=f"w_{who}_{k}", label_visibility="collapsed")
+        if c3.button("저장", key=f"b_{who}_{k}", use_container_width=True):
+            _set(who, k, {"분": int(m), "방법": w})
+    elif typ == "meal":
+        v = cur or {}
+        c1, c2, c3 = st.columns([1.3, 1.3, 1])
+        kind = c1.selectbox("종류", store.MEAL_KINDS,
+                            index=store.MEAL_KINDS.index(v["종류"])
+                            if v.get("종류") in store.MEAL_KINDS else 0,
+                            key=f"k_{who}_{k}", label_visibility="collapsed")
+        amt = c2.selectbox("섭취량", store.MEAL_AMOUNTS,
+                           index=store.MEAL_AMOUNTS.index(v["섭취량"])
+                           if v.get("섭취량") in store.MEAL_AMOUNTS else 0,
+                           key=f"a_{who}_{k}", label_visibility="collapsed")
+        if c3.button("저장", key=f"b_{who}_{k}", use_container_width=True):
+            _set(who, k, {"종류": kind, "섭취량": amt})
+    elif typ == "vitals":
+        v = cur or {}
+        c1, c2, c3 = st.columns([1.3, 1.3, 1])
+        bp = c1.text_input("혈압", value=v.get("혈압", ""), key=f"p_{who}_{k}",
+                           label_visibility="collapsed", placeholder="130/80")
+        tp = c2.text_input("체온", value=v.get("체온", ""), key=f"t_{who}_{k}",
+                           label_visibility="collapsed", placeholder="36.7")
+        if c3.button("저장", key=f"b_{who}_{k}", use_container_width=True):
+            _set(who, k, {"혈압": bp, "체온": tp})
+    else:                                   # program — 프로그램명을 적는다
+        c1, c2 = st.columns([3, 1])
+        nm = c1.text_input("프로그램명", value=cur or "", key=f"f_{who}_{k}",
+                           label_visibility="collapsed",
+                           placeholder="예: 회상훈련, 음악활동")
+        if c2.button("저장", key=f"b_{who}_{k}", use_container_width=True):
+            _set(who, k, nm.strip())
+
+
+def _set(who, k, v, src="화면"):
+    if not me:
+        st.warning("왼쪽에서 이름을 먼저 고르세요.")
+        return
+    store.set_field(who, k, v, me, src=src)
+    st.rerun()
 
 
 # ── 음성 기록 ─────────────────────────────────────────────────────────
 def _voice_block(here):
-    """말로 케어를 기록한다. **말한 것을 바로 저장하지 않는다** —
+    """말로 서식을 채운다. **말한 것을 바로 저장하지 않는다** —
     초안을 띄우고 사람이 고쳐 저장한다. 잘못 들은 기록은 되돌릴 수 없다."""
-    st.subheader("🎤 말해서 기록")
-    st.caption("예: \"김OO 님 배설 완료, 시간이 좀 걸렸어요\"  ·  "
-               "말하면 아래에 초안이 뜹니다. 확인 후 저장하세요.")
+    st.subheader("말해서 기록")
+    st.caption("예: \"김OO 님 기저귀 세 번 갈았어요\"  ·  "
+               "\"이OO 님 목욕 25분 샤워식\"  ·  \"김OO 혈압 130에 80\"")
     heard = voice.listen_box("care")
     if heard:
         st.session_state["draft"] = heard
-
     with st.expander("말이 안 되는 상황이면 적어서 넣기", expanded=False):
-        typed = st.text_input("문장", key="typed",
-                              label_visibility="collapsed",
-                              placeholder="김OO 님 점심 다 드셨어요")
+        typed = st.text_input("문장", key="typed", label_visibility="collapsed",
+                              placeholder="김OO 님 점심 죽으로 절반 넘게 드셨어요")
         if st.button("초안 만들기", key="mk_draft") and typed.strip():
             st.session_state["draft"] = typed.strip()
 
@@ -245,32 +319,33 @@ def _voice_block(here):
         elif d["이용자"] not in here:
             st.warning(f"{d['이용자']} 님은 오늘 등원으로 표시돼 있지 않습니다.")
         if not d["항목"]:
-            st.warning("항목을 못 알아들었습니다. 골라 주세요.")
+            st.warning("서식 항목을 못 알아들었습니다. 골라 주세요. "
+                       "서식에 없는 내용이면 아래 **인계로 넘기기**를 쓰세요.")
 
-        c1, c2, c3 = st.columns([2, 2, 1])
+        c1, c2 = st.columns(2)
         u = c1.selectbox("이용자", names,
                          index=names.index(d["이용자"]) if d["이용자"] in names else 0,
                          key="v_user")
-        it = c2.selectbox(
-            "항목", store.ITEM_KEYS,
-            index=(store.ITEM_KEYS.index(d["항목"])
-                   if d["항목"] in store.ITEM_KEYS else 0),
-            format_func=lambda k: store.ITEM_LABEL[k], key="v_item")
-        sts = ["완료", "일부", "거부"]
-        stt = c3.selectbox("상태", sts,
-                           index=sts.index(d["상태"]) if d["상태"] in sts else 0,
-                           key="v_stat")
-        note = st.text_input("특이사항", value=d["특이사항"], key="v_note")
+        keys = store.FIELD_KEYS
+        it = c2.selectbox("서식 항목", keys,
+                          index=keys.index(d["항목"]) if d["항목"] in keys else 0,
+                          format_func=lambda k: store.FIELDS[k][1], key="v_item")
+        typ = store.FIELDS[it][2]
+        val = _draft_value(it, typ, d)
+        note = st.text_input("특이사항(해당 구역에 기록)", value=d["특이사항"],
+                             key="v_note")
         b1, b2, b3 = st.columns(3)
-        if b1.button("✅ 확인하고 저장", type="primary", use_container_width=True):
+        if b1.button("확인하고 저장", type="primary", use_container_width=True):
             if not me:
                 st.warning("왼쪽에서 이름을 먼저 고르세요.")
             else:
-                store.add_record(u, it, stt, note, me, "음성")
+                store.set_field(u, it, val, me, src="음성")
+                if note.strip():
+                    store.set_section_note(u, store.FIELDS[it][0], note, me)
                 st.session_state.pop("draft", None)
                 st.rerun()
-        # 인계로 보내기 — "기분이 안 좋으세요" 처럼 케어 항목이 아닌 말이 자주 온다
-        if b2.button("🔄 인계로 넘기기", use_container_width=True):
+        # 서식에 없는 말("기분이 안 좋으세요")이 자주 온다 → 인계로 보낸다
+        if b2.button("인계로 넘기기", use_container_width=True):
             if not me:
                 st.warning("왼쪽에서 이름을 먼저 고르세요.")
             else:
@@ -280,6 +355,31 @@ def _voice_block(here):
         if b3.button("버리기", use_container_width=True):
             st.session_state.pop("draft", None)
             st.rerun()
+
+
+def _draft_value(key, typ, d):
+    """말에서 못 뽑는 세부값(분·방법·섭취량 등)은 여기서 사람이 채운다."""
+    if typ == "check":
+        st.caption("'제공함'으로 기록됩니다.")
+        return True
+    if typ == "count":
+        return int(st.number_input("횟수", 0, 30, int(d.get("숫자") or 0),
+                                   key="v_cnt"))
+    if typ == "bath":
+        c1, c2 = st.columns(2)
+        m = c1.number_input("소요시간(분)", 0, 240, int(d.get("숫자") or 0),
+                            key="v_min")
+        w = c2.selectbox("방법", store.BATH_WAYS, key="v_way")
+        return {"분": int(m), "방법": w}
+    if typ == "meal":
+        c1, c2 = st.columns(2)
+        return {"종류": c1.selectbox("종류", store.MEAL_KINDS, key="v_kind"),
+                "섭취량": c2.selectbox("섭취량", store.MEAL_AMOUNTS, key="v_amt")}
+    if typ == "vitals":
+        c1, c2 = st.columns(2)
+        return {"혈압": c1.text_input("혈압", value=d.get("혈압", ""), key="v_bp"),
+                "체온": c2.text_input("체온", value=d.get("체온", ""), key="v_tp")}
+    return st.text_input("프로그램명", value=d.get("특이사항", ""), key="v_prog")
 
 
 # ── 인계 ──────────────────────────────────────────────────────────────
@@ -393,9 +493,10 @@ def page_users():
             if u.get("주의사항"):
                 c1.markdown(f"<span class='cs-warn'>⚠ {u['주의사항']}</span>",
                             unsafe_allow_html=True)
-            todo = [store.ITEM_LABEL[k] for k in store.ITEM_KEYS
+            todo = [store.FIELDS[k][1] for k in store.FIELD_KEYS
                     if u["이름"] not in done.get(k, set())]
-            c1.caption("오늘 남은 것: " + (", ".join(todo) if todo else "없음"))
+            c1.caption("서식에서 안 채운 칸: "
+                       + (", ".join(todo) if todo else "없음"))
             if u.get("메모"):
                 c1.caption(u["메모"])
             if c2.button("삭제", key=f"du_{u['이름']}"):

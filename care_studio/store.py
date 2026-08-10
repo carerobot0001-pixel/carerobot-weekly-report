@@ -14,33 +14,65 @@ KST = timezone(timedelta(hours=9))
 DATA = os.path.join(os.path.dirname(__file__), "data")
 os.makedirs(DATA, exist_ok=True)
 
-# 급여제공기록지 서식 요건(복지부 고시)은 아직 확인하지 못했다.
-# 그래서 1단계 항목은 논문(도우누리 워크숍)에서 확인된 하루 일과를 따른다.
-# [[확인필요: 급여제공기록지 고시 서식과 항목명]]
-CARE_ITEMS = [
-    ("등원", "등원 · 차량", "08:00"),
-    ("프로그램", "인지·재활 프로그램", "10:00"),
-    ("배설", "배설 지원", "11:00"),
-    ("식사", "점심 · 식사 지원", "12:00"),
-    ("목욕", "목욕 · 위생", "14:00"),
-    ("투약", "투약", "13:00"),
-    ("활력징후", "활력징후 확인", "09:00"),
-    ("하원", "하원 · 차량", "17:00"),
+# ── 급여제공기록지(주·야간보호) — 노인장기요양보험법 시행규칙 별지 제15호서식
+#    <개정 2019. 9. 27.> 원문에서 옮긴 항목이다. 임의로 만든 것이 아니다.
+#    출처: 국가법령정보센터 별지 제15호서식 PDF (2026-08 확인)
+#
+# 유형
+#   check   제공 여부 체크
+#   bath    목욕 — 소요시간(분) + 방법(전신입욕/샤워식)
+#   meal    식사 — 종류(일반식/죽/유동식(미음)) + 섭취량(1 / 1/2이상 / 1/2미만)
+#   count   횟수 (화장실 이용 = 급여제공시간 동안 소변·대변 총 횟수, 기저귀는 교환 횟수)
+#   vitals  혈압 / 체온
+#   program 제공한 프로그램명을 적는다(서식 유의사항 5)
+SECTIONS = [
+    ("신체활동지원", [
+        ("세면등", "세면·구강·머리감기·몸단장·옷 갈아입히기", "check"),
+        ("목욕", "목욕", "bath"),
+        ("식사", "식사", "meal"),
+        ("화장실", "화장실 이용하기(기저귀 교환)", "count"),
+        ("이동도움", "이동도움 및 신체기능 유지·증진", "check"),
+    ]),
+    ("간호 및 처치", [
+        ("활력징후", "혈압 / 체온", "vitals"),
+        ("욕창관리", "욕창관리", "check"),
+        ("투약관리", "투약관리", "check"),
+    ]),
+    ("기능회복훈련", [
+        ("프로그램", "신체·인지기능 향상 프로그램", "program"),
+        ("신체기능훈련", "신체기능·기본동작·일상생활동작 훈련", "check"),
+        ("인지훈련", "인지·정신기능 훈련", "check"),
+        ("물리작업치료", "물리(작업)치료", "check"),
+    ]),
 ]
-ITEM_KEYS = [k for k, _, _ in CARE_ITEMS]
-ITEM_LABEL = {k: la for k, la, _ in CARE_ITEMS}
-ITEM_TIME = {k: t for k, _, t in CARE_ITEMS}
+SECTION_NAMES = [s for s, _ in SECTIONS]
+FIELDS = {k: (sec, label, typ)
+          for sec, items in SECTIONS for k, label, typ in items}
+FIELD_KEYS = list(FIELDS)
+BATH_WAYS = ["전신입욕", "샤워식"]
+MEAL_KINDS = ["일반식", "죽", "유동식(미음)"]
+MEAL_AMOUNTS = ["1", "1/2이상", "1/2미만"]
+
+# 옛 이름(임시로 쓰던 8항목)을 새 서식 항목으로 옮기는 표.
+# 음성 인식 말뭉치와 기존 데이터가 이 이름을 쓰고 있었다.
+LEGACY = {"배설": "화장실", "식사": "식사", "목욕": "목욕",
+          "프로그램": "프로그램", "투약": "투약관리",
+          "활력징후": "활력징후", "등원": "이동도움", "하원": "이동도움"}
 
 # 말에서 항목을 알아내는 말뭉치. 요양보호사가 실제로 쓰는 말을 넣는다.
 ITEM_WORDS = {
-    "배설": ["배설", "기저귀", "화장실", "소변", "대변", "패드"],
-    "식사": ["식사", "점심", "밥", "드셨", "식사보조", "간식"],
-    "목욕": ["목욕", "샤워", "세면", "위생", "머리감", "손발"],
-    "프로그램": ["프로그램", "인지", "체조", "미술", "음악", "작업치료"],
-    "투약": ["투약", "약", "복용", "혈압약", "당뇨약"],
-    "활력징후": ["활력", "혈압", "체온", "맥박", "혈당", "산소포화도"],
-    "등원": ["등원", "도착", "모시고 왔", "차량 승차"],
-    "하원": ["하원", "귀가", "모셔다", "차량 하차"],
+    "화장실": ["화장실", "기저귀", "배설", "소변", "대변", "패드", "배뇨", "배변"],
+    "식사": ["식사", "점심", "밥", "드셨", "간식", "섭취"],
+    "목욕": ["목욕", "샤워", "입욕"],
+    "세면등": ["세면", "양치", "구강", "머리감", "몸단장", "면도", "옷 갈아"],
+    "이동도움": ["이동", "부축", "휠체어", "보행", "산책", "차량", "등원", "하원"],
+    "활력징후": ["활력", "혈압", "체온", "맥박", "열", "재고"],
+    "욕창관리": ["욕창", "짓물", "드레싱", "연고"],
+    "투약관리": ["투약", "약", "복용", "좌약"],
+    "프로그램": ["프로그램", "체조", "회상", "음악", "원예", "종이접기", "나들이"],
+    "인지훈련": ["인지", "기억", "회상훈련", "판단"],
+    "신체기능훈련": ["근력", "관절", "일어나", "균형", "보장구", "일상생활동작"],
+    "물리작업치료": ["물리치료", "작업치료", "온열", "전기치료"],
 }
 STATUS_WORDS = {
     "완료": ["완료", "했습니다", "마쳤", "끝났", "드렸", "했어요", "함"],
@@ -98,37 +130,125 @@ def delete_user(name):
     _save("users", [u for u in users() if u["이름"] != name])
 
 
-# ── 케어 기록 ─────────────────────────────────────────────────────────
+# ── 급여제공기록지 (이용자 1명 × 하루 1장) ────────────────────────────
+# 서식이 '수급자별 일자별 1장'이라 데이터도 그렇게 잡는다.
+# 화면 체크든 음성이든 결국 이 한 장을 채운다.
+#   sheets = {날짜: {이용자: {"필드": {키: 값}, "특이": {구역: 글},
+#                            "작성자": {구역: 이름}, "세션": {...}}}}
+# 값 모양: check → True / bath → {"분":int,"방법":str} / meal → {"종류":,"섭취량":}
+#          count → int / vitals → {"혈압":str,"체온":str} / program → "프로그램명"
+
+
+def _sheets():
+    return _load("sheets", {})
+
+
+def sheet(user, day=None):
+    day = day or today()
+    d = _sheets().get(day, {}).get(user, {})
+    return {"필드": d.get("필드", {}), "특이": d.get("특이", {}),
+            "작성자": d.get("작성자", {}), "세션": d.get("세션", {})}
+
+
+def set_field(user, key, value, by="", day=None, src="화면"):
+    """서식 한 칸 채우기. 값이 None 이면 지운다."""
+    if key not in FIELDS:
+        raise ValueError(f"서식에 없는 항목: {key}")
+    day = day or today()
+    all_ = _sheets()
+    cell = all_.setdefault(day, {}).setdefault(user, {})
+    f = cell.setdefault("필드", {})
+    if value is None:
+        f.pop(key, None)
+    else:
+        f[key] = value
+    sec = FIELDS[key][0]
+    cell.setdefault("작성자", {})[sec] = by          # 서식 유의사항 7 — 구역별 서명
+    _save("sheets", all_)
+    _log(day, user, key, value, by, src)
+
+
+def set_section_note(user, section, text, by="", day=None):
+    """구역별 특이사항. 서식 유의사항 6 — 상태변화와 조치를 적는 칸이다."""
+    day = day or today()
+    all_ = _sheets()
+    cell = all_.setdefault(day, {}).setdefault(user, {})
+    cell.setdefault("특이", {})[section] = (text or "").strip()
+    if by:
+        cell.setdefault("작성자", {})[section] = by
+    _save("sheets", all_)
+
+
+def set_session(user, start="", end="", ride=False, car="", day=None):
+    """급여 시작·종료시각과 이동서비스(차량번호). 서식 앞쪽 머리 부분."""
+    day = day or today()
+    all_ = _sheets()
+    cell = all_.setdefault(day, {}).setdefault(user, {})
+    cell["세션"] = {"시작": start, "종료": end, "이동": bool(ride), "차량": car}
+    _save("sheets", all_)
+
+
+def total_minutes(user, day=None):
+    """총시간 — 시작·종료가 다 있을 때만 계산한다. 없으면 None."""
+    se = sheet(user, day).get("세션", {})
+    a, b = (se.get("시작") or "").strip(), (se.get("종료") or "").strip()
+    try:
+        h1, m1 = map(int, a.split(":"))
+        h2, m2 = map(int, b.split(":"))
+        return max(0, (h2 * 60 + m2) - (h1 * 60 + m1))
+    except Exception:
+        return None
+
+
+def filled(user, day=None):
+    """채워진 항목 키 집합."""
+    return set(sheet(user, day)["필드"].keys())
+
+
+def done_map(day=None):
+    """{항목키: {이용자,...}} — 홈에서 '몇 명 남았나' 세는 데 쓴다."""
+    out = {k: set() for k in FIELD_KEYS}
+    day = day or today()
+    for user, cell in _sheets().get(day, {}).items():
+        for k in cell.get("필드", {}):
+            out.setdefault(k, set()).add(user)
+    return out
+
+
+# ── 입력 기록(감사용) ─────────────────────────────────────────────────
+# 서식 자체는 '최종 상태'만 담는다. 누가 언제 무엇을 어떤 방법으로 넣었는지는
+# 따로 남긴다 — 음성 인식이 틀렸을 때 되짚으려면 이게 있어야 한다.
+def _log(day, user, key, value, by, src):
+    rs = _load("records", [])
+    rs.append({"날짜": day, "시각": now_hm(), "이용자": user, "항목": key,
+               "값": value, "기록자": by, "입력": src})
+    _save("records", rs)
+
+
 def records(day=None):
     day = day or today()
     return [r for r in _load("records", []) if r["날짜"] == day]
 
 
-def add_record(user, item, status="완료", note="", by="", src="화면"):
-    """케어 한 건 기록. src='음성'이면 말로 넣은 것(사후 검증용으로 남긴다)."""
-    if item not in ITEM_KEYS:
-        raise ValueError(f"모르는 항목: {item}")
-    rs = _load("records", [])
-    rs.append({"날짜": today(), "시각": now_hm(), "이용자": user, "항목": item,
-               "상태": status, "특이사항": (note or "").strip(),
-               "기록자": by, "입력": src})
-    _save("records", rs)
-
-
-def delete_record(day, time_hm, user, item):
-    rs = _load("records", [])
-    keep = [r for r in rs
-            if not (r["날짜"] == day and r["시각"] == time_hm
-                    and r["이용자"] == user and r["항목"] == item)]
-    _save("records", keep)
-
-
-def done_map(day=None):
-    """{항목: {이용자, ...}} — 오늘 화면에서 '몇 명 했나'를 세는 데 쓴다."""
-    out = {k: set() for k in ITEM_KEYS}
-    for r in records(day):
-        out.setdefault(r["항목"], set()).add(r["이용자"])
-    return out
+def value_text(key, value):
+    """서식 값 한 칸을 사람이 읽는 문장으로."""
+    typ = FIELDS[key][2]
+    if value is None:
+        return ""
+    if typ == "check":
+        return "제공" if value else ""
+    if typ == "count":
+        return f"{value}회"
+    if typ == "bath":
+        v = value or {}
+        return f"{v.get('분', '')}분 · {v.get('방법', '')}".strip(" ·")
+    if typ == "meal":
+        v = value or {}
+        return f"{v.get('종류', '')} · 섭취량 {v.get('섭취량', '')}".strip(" ·")
+    if typ == "vitals":
+        v = value or {}
+        return f"혈압 {v.get('혈압', '-')} / 체온 {v.get('체온', '-')}"
+    return str(value)
 
 
 # ── 출결 ──────────────────────────────────────────────────────────────
@@ -230,13 +350,13 @@ def delete_handover(day, time_hm, user):
 
 # ── 말 → 기록 초안 ────────────────────────────────────────────────────
 def parse(text, known_users=None):
-    """말한 문장에서 (이용자, 항목, 상태, 특이사항) 초안을 뽑는다.
+    """말한 문장에서 (이용자, 서식 항목, 상태, 숫자, 혈압/체온, 특이사항)을 뽑는다.
 
     **자동 확정하지 않는다.** 화면에서 사람이 고친 뒤 저장한다 — 잘못 들은 것을
     그대로 기록으로 남기면 되돌릴 수 없다.
     """
+    import re
     t = " ".join((text or "").split())
-    low = t.lower()
     known = known_users if known_users is not None else [u["이름"] for u in users()]
 
     user = ""
@@ -252,33 +372,73 @@ def parse(text, known_users=None):
             break
 
     status = "완료"
-    for st, words in STATUS_WORDS.items():
+    for st_, words in STATUS_WORDS.items():
         if any(w in t for w in words):
-            status = st
+            status = st_
             break
 
-    # 특이사항은 **원문을 살린다**. 항목 단어까지 지웠더니 "다 드셨어요"가
-    # "다 어요"로 깨졌다. 이름과 뒤따르는 '님'만 떼고 나머지는 그대로 둔다.
+    # 숫자 — "세 번", "3회", "25분" 처럼 말한다
+    han = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5, "여섯": 6,
+           "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
+    num = None
+    m = re.search(r"(\d+)\s*(회|번|분)", t)
+    if m:
+        num = int(m.group(1))
+    else:
+        for w, v in han.items():
+            if f"{w} 번" in t or f"{w}번" in t:
+                num = v
+                break
+
+    # 혈압 — "130에 80" / "130/80", 체온 — "36.7"
+    bp = ""
+    m = re.search(r"(\d{2,3})\s*(?:/|에)\s*(\d{2,3})", t)
+    if m:
+        bp = f"{m.group(1)}/{m.group(2)}"
+    tp = ""
+    m = re.search(r"(3[5-9]\.\d|4[0-2]\.\d)", t)
+    if m:
+        tp = m.group(1)
+
+    # 특이사항은 원문을 살린다. 이름과 뒤따르는 '님'만 뗀다.
     note = t.replace(f"{user} 님", " ").replace(f"{user}님", " ") if user else t
     if user:
         note = note.replace(user, " ")
     note = " ".join(note.split()).strip(" ,.")
-    return {"이용자": user, "항목": item, "상태": status, "특이사항": note,
-            "원문": t}
+    return {"이용자": user, "항목": item, "상태": status, "숫자": num,
+            "혈압": bp, "체온": tp, "특이사항": note, "원문": t}
 
 
-# ── 일지 ──────────────────────────────────────────────────────────────
+# ── 일지(급여제공기록지 출력) ─────────────────────────────────────────
 def daily_log(user, day=None):
-    """이용자 한 명의 하루 기록을 시간순 텍스트로. 일과 끝 일지 작성을 대신한다."""
+    """이용자 한 명의 하루 기록을 서식 순서대로 글로. 일과 끝 일지 작성을 대신한다."""
     day = day or today()
-    rs = sorted([r for r in records(day) if r["이용자"] == user],
-                key=lambda r: r["시각"])
-    if not rs:
+    sh = sheet(user, day)
+    if not sh["필드"] and not sh["특이"] and not sh["세션"]:
         return ""
-    lines = []
-    for r in rs:
-        s = f"{r['시각']}  {ITEM_LABEL.get(r['항목'], r['항목'])} · {r['상태']}"
-        if r["특이사항"]:
-            s += f" — {r['특이사항']}"
-        lines.append(s)
-    return "\n".join(lines)
+    out = []
+    se = sh["세션"]
+    if se:
+        mins = total_minutes(user, day)
+        head = f"급여시간 {se.get('시작', '')}~{se.get('종료', '')}"
+        if mins is not None:
+            head += f" (총 {mins}분)"
+        if se.get("이동"):
+            head += f" · 이동서비스 {se.get('차량', '')}".rstrip()
+        out.append(head.strip())
+    for sec, items in SECTIONS:
+        lines = []
+        for k, label, _typ in items:
+            if k in sh["필드"]:
+                txt = value_text(k, sh["필드"][k])
+                lines.append(f"  - {label}: {txt}" if txt else f"  - {label}")
+        note = sh["특이"].get(sec, "")
+        who = sh["작성자"].get(sec, "")
+        if lines or note:
+            out.append(f"[{sec}]")
+            out += lines
+            if note:
+                out.append(f"  · 특이사항: {note}")
+            if who:
+                out.append(f"  · 작성자: {who}")
+    return chr(10).join(out)
