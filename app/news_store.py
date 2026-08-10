@@ -52,10 +52,12 @@ NEWS_SECTIONS = [
                   ("open weights model release", EN),
                   ("AI agent framework open source", EN),
                   ("LLM reasoning benchmark", EN))),
-    # AI ② 실전 활용법 — 프롬프트·RAG 등 '어떻게 잘 쓰나'
-    ("LLM 활용법", (("프롬프트 엔지니어링", KO),
-                     ("prompt engineering technique", EN),
-                     ("RAG retrieval technique", EN))),
+    # AI ② 실전 활용법 — '어떻게 잘 쓰나'. LLM에 한정하지 않는다(업무 자동화·도구 포함)
+    ("AI 활용법", (("프롬프트 엔지니어링", KO), ("AI 업무 자동화 사례", KO),
+                  ("AI 도구 활용법", KO),
+                  ("prompt engineering technique", EN),
+                  ("RAG retrieval technique", EN),
+                  ("AI workflow productivity guide", EN))),
     ("로봇·휴머노이드", (("휴머노이드 로봇", KO), ("서비스 로봇", KO),
                        ("humanoid service robot", EN))),
     # ── 아래 4개는 업무 밖 일반 뉴스(세계·한국·경제·축구).
