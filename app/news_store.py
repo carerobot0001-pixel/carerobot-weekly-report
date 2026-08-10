@@ -56,6 +56,16 @@ NEWS_SECTIONS = [
                      ("RAG retrieval technique", EN))),
     ("🦿 로봇·휴머노이드", (("휴머노이드 로봇", KO), ("서비스 로봇", KO),
                        ("humanoid service robot", EN))),
+    # ── 아래 4개는 업무 밖 일반 뉴스(세계·한국·경제·축구).
+    #    매일 받는 뉴스 브리핑 PPT의 섹션 구성을 그대로 가져왔다.
+    #    일반 분야는 키워드 검색보다 **구글뉴스 토픽 피드**가 훨씬 낫다 —
+    #    편집된 헤드라인이 와서 잡음이 적다. `topic:` 접두어로 쓴다.
+    ("🌍 세계", (("topic:WORLD", KO), ("topic:WORLD", EN))),
+    ("🇰🇷 한국", (("topic:NATION", KO),)),
+    ("💹 경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
+                  ("Federal Reserve rate decision", EN))),
+    ("⚽ 축구", (("손흥민", KO), ("K리그", KO), ("해외축구 이적", KO),
+              ("축구 국가대표", KO))),
 ]
 # 전체 합본용(구버전 홈 호환)
 _ALL_SPECS = tuple(s for _, specs in NEWS_SECTIONS for s in specs)
@@ -115,7 +125,13 @@ def _fetch_specs(specs, per_query: int = 3, cap: int = 6) -> list:
     for q, loc in specs:
         got = []
         try:
-            url = f"https://news.google.com/rss/search?q={quote(q)}&{loc}"
+            # `topic:WORLD` 처럼 오면 검색이 아니라 구글뉴스 **토픽 피드**를 쓴다
+            # (세계·한국·경제 같은 넓은 분야는 편집된 헤드라인이 훨씬 깨끗하다)
+            if q.startswith("topic:"):
+                url = ("https://news.google.com/rss/headlines/section/topic/"
+                       f"{quote(q[len('topic:'):])}?{loc}")
+            else:
+                url = f"https://news.google.com/rss/search?q={quote(q)}&{loc}"
             r = requests.get(url, timeout=8, headers=_UA)
             root = ET.fromstring(r.content)
             for item in root.iter("item"):
@@ -164,8 +180,13 @@ def today_key() -> str:
 #    ttl은 이틀 — 자정 직후에도 어제 것이 남아 있지 않게 날짜 키가 먼저 갈린다.
 @st.cache_data(ttl=172800, show_spinner=False)
 def fetch_section(specs: tuple, day: str, cap: int = 8) -> list:
-    """한 섹션의 기사 목록(국내·해외 섞임). 섹션 탭용. day = today_key()."""
-    return _fetch_specs(list(specs), per_query=3, cap=cap)
+    """한 섹션의 기사 목록(국내·해외 섞임). 섹션 탭용. day = today_key().
+
+    키워드가 하나뿐인 섹션(예: 한국=NATION 토픽 하나)은 per_query가 낮으면
+    항목이 몇 개 안 나온다 → 소스 수에 맞춰 자동으로 더 담는다.
+    """
+    n = max(1, len(specs))
+    return _fetch_specs(list(specs), per_query=max(3, -(-cap // n)), cap=cap)
 
 
 @st.cache_data(ttl=172800, show_spinner=False)
