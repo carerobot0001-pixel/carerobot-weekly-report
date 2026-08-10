@@ -1349,7 +1349,7 @@ def home_page():
             # 오른쪽 컬럼과 같은 st.expander. 추가는 ＋ 버튼 하나로.
             # (마감일은 추가할 때 함께 입력 — 목록에서 고치는 '편집 모드'는 없앴다)
             with st.expander(f"🏢 업무 ({len(todo_lines) + len(_mytodos)})",
-                             expanded=True):
+                             expanded=False):
                 if uid and st.button("－" if _todo_open else "＋",
                                      key="todo_add_btn",
                                      help="닫기" if _todo_open
@@ -1449,7 +1449,7 @@ def home_page():
             # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
-                with st.expander(f"🙋 개인 ({len(_myper)})", expanded=True):
+                with st.expander(f"🙋 개인 ({len(_myper)})", expanded=False):
                     if st.button(
                             "－" if st.session_state.get("per_add_open")
                             else "＋", key="per_add_btn",
@@ -1517,7 +1517,7 @@ def home_page():
             except Exception:
                 _reqs = []
             if _reqs:
-                with st.expander(f"📨 받은 요청 ({len(_reqs)})", expanded=True):
+                with st.expander(f"📨 받은 요청 ({len(_reqs)})", expanded=False):
                     for _rq in _reqs:
                         _rc1, _rc2, _rc3 = st.columns([8, 1, 1])
                         _rlk = (_rq.get("링크", "") or "").strip()
