@@ -51,7 +51,8 @@ from calendar_store import (
     calendar_enabled, embed_url, upcoming_events, today_events, month_events,
     add_event, update_event, delete_event, event_view,
 )
-from news_store import fetch_news, fetch_section, NEWS_SECTIONS
+from news_store import (fetch_news, fetch_section, NEWS_SECTIONS,
+                        today_key as news_today)
 from notice_store import (notices, add_notice, delete_notice,
                           is_expired, sweep_expired,
                           readers as notice_readers,
@@ -1834,12 +1835,17 @@ def home_page():
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
     # ── 📰 관련 뉴스 (전체 폭, 달력 아래) ────────────────────────────────
-    st.markdown("**📰 관련 뉴스**")
+    # 하루 1회 수집 · 매일 교체 — 날짜를 캐시 키로 준다(예약 실행 장치 없이).
+    # 같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 함께 본다.
+    _day = news_today()
+    st.markdown(f"**📰 관련 뉴스** "
+                f"<span style='opacity:.55;font-size:.8rem'>{_day} 수집</span>",
+                unsafe_allow_html=True)
     tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
     for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
         with tab:
             try:
-                items = fetch_section(queries)
+                items = fetch_section(queries, _day)
             except Exception:
                 items = []
             if items:

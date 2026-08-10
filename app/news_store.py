@@ -12,6 +12,7 @@
 섹션/키워드가 바뀌면 NEWS_SECTIONS만 수정.
 """
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import requests
@@ -118,13 +119,22 @@ def _with_ko(items):
     return items
 
 
-@st.cache_data(ttl=3600)
-def fetch_section(specs: tuple, cap: int = 8) -> list:
-    """한 섹션의 기사 목록(국내·해외 섞임). 섹션 탭용."""
+def today_key() -> str:
+    """오늘 날짜(KST) — 캐시 키로 쓴다. 날짜가 바뀌면 자동으로 새로 수집된다."""
+    return datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
+
+
+# ⚠️ `day` 는 안 쓰는 인자처럼 보이지만 **캐시 키**다. 날짜가 바뀔 때만 다시 수집하고
+#    같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 모두가 같이 본다.
+#    (예약 실행 장치 없이 '하루 1회 수집 · 매일 교체'를 만드는 방법)
+#    ttl은 이틀 — 자정 직후에도 어제 것이 남아 있지 않게 날짜 키가 먼저 갈린다.
+@st.cache_data(ttl=172800, show_spinner=False)
+def fetch_section(specs: tuple, day: str, cap: int = 8) -> list:
+    """한 섹션의 기사 목록(국내·해외 섞임). 섹션 탭용. day = today_key()."""
     return _fetch_specs(list(specs), per_query=3, cap=cap)
 
 
-@st.cache_data(ttl=3600)
-def fetch_news(per_query: int = 2, cap: int = 9) -> list:
+@st.cache_data(ttl=172800, show_spinner=False)
+def fetch_news(day: str, per_query: int = 2, cap: int = 9) -> list:
     """전체 합본(돌봄 우선). 섹션 탭을 쓰지 않는 곳의 호환용."""
     return _fetch_specs(list(_ALL_SPECS), per_query=per_query, cap=cap)
