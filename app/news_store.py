@@ -24,18 +24,36 @@ EN = "hl=en-US&gl=US&ceid=US:en"
 JA = "hl=ja&gl=JP&ceid=JP:ja"
 
 # (탭 이름, ((키워드, 로케일), ...)) — 탭을 누르면 섹션별로 다른 기사가 나옴
+#
+# 섹션 구성은 **매일 받는 뉴스 브리핑의 편집 지침**을 따라 나눴다(2026-08):
+#   · 돌봄 = '사람 돌봄(정책·인력·제도)' 과 '돌봄로봇·보조기술' 두 축
+#   · AI  = '기술 동향' 과 '실전 활용법(프롬프트·RAG)' 두 축
+# ⚠️ 다만 키워드 검색은 지침의 **판단**까지 못 한다 — "투자 유치 헤드라인 말고 실질",
+#    "정말로 새로운 기법인가", "왜 중요한가"는 사람이나 모델이 읽어야 가려진다.
+#    여기서 맞출 수 있는 건 *어떤 주제를 긁어오는가* 까지다.
+# 각 키워드는 실제 조회해 수확이 좋은 것만 남겼다(2026-08 확인).
 NEWS_SECTIONS = [
-    ("🤖 돌봄로봇", (("돌봄로봇", KO), ("돌봄 로봇 서비스", KO),
-                  ("care robot older adults", EN), ("介護ロボット", JA))),
-    ("🧑‍🦳 돌봄·복지", (("노인 돌봄 로봇", KO), ("보건복지부 돌봄", KO),
-                    ("eldercare technology policy", EN),
-                    ("介護 テクノロジー 導入支援", JA))),
-    # ⚠️ 이 탭은 **기술 동향**이다. 예전에 '생성형 AI 의료'·'AI 돌봄 서비스'로 좁혔더니
-    #    앞의 돌봄 탭들과 겹쳐 지자체 돌봄 소식만 나왔다(모델·인프라 뉴스가 사라짐).
-    ("✨ AI·LLM", (("오픈AI 앤스로픽", KO), ("생성형 AI 모델 출시", KO),
+    # 돌봄 ① 로봇·보조기술 — 일본이 이 분야 중심지라 JA를 두 개 넣었다
+    ("🤖 돌봄로봇", (("돌봄로봇", KO), ("돌봄로봇 실증", KO),
+                  ("assistive robot older adults", EN),
+                  ("companion robot dementia", EN),
+                  ("介護ロボット 導入", JA), ("見守り センサー 介護", JA))),
+    # 돌봄 ② 사람 돌봄 — 제도·인력·치매·재가. 국내를 앞에 둔다
+    ("🧑‍🦳 돌봄·정책", (("장기요양보험 제도", KO), ("요양보호사 처우", KO),
+                    ("치매 돌봄 정책", KO), ("재가 돌봄 서비스", KO),
+                    ("long-term care workforce policy", EN))),
+    # AI ① 기술 동향 — 모델·오픈소스·에이전트·벤치마크
+    # ⚠️ 예전에 '생성형 AI 의료'·'AI 돌봄 서비스'로 좁혔더니 돌봄 탭과 겹쳐
+    #    지자체 돌봄 소식만 나왔다. 이 탭은 기술만 본다.
+    ("✨ AI·LLM", (("오픈소스 LLM 공개", KO), ("오픈AI 앤스로픽", KO),
                   ("AI 반도체 추론", KO),
-                  ("OpenAI Anthropic model release", EN),
-                  ("AI agents enterprise", EN))),
+                  ("open weights model release", EN),
+                  ("AI agent framework open source", EN),
+                  ("LLM reasoning benchmark", EN))),
+    # AI ② 실전 활용법 — 프롬프트·RAG 등 '어떻게 잘 쓰나'
+    ("🧪 LLM 활용법", (("프롬프트 엔지니어링", KO),
+                     ("prompt engineering technique", EN),
+                     ("RAG retrieval technique", EN))),
     ("🦿 로봇·휴머노이드", (("휴머노이드 로봇", KO), ("서비스 로봇", KO),
                        ("humanoid service robot", EN))),
 ]
@@ -70,9 +88,21 @@ def translate(text: str, src: str) -> str:
         r = requests.get(url, timeout=6, headers=_UA)
         if r.status_code != 200:
             return ""
-        return "".join(part[0] for part in r.json()[0]).strip()
+        out = "".join(part[0] for part in r.json()[0]).strip()
+        for wrong, right in _GLOSSARY.items():
+            out = out.replace(wrong, right)
+        return out
     except Exception:
         return ""
+
+
+# 기계번역이 기술 용어를 통째로 잘못 옮기는 것만 바로잡는다.
+# (뜻을 바꾸는 '의역'은 하지 않는다 — 틀린 게 확인된 것만 넣을 것)
+# 'prompt engineering' 의 prompt 를 '신속한'으로 옮기는 게 대표적이다.
+_GLOSSARY = {
+    "신속한 엔지니어링": "프롬프트 엔지니어링",
+    "신속한 주입": "프롬프트 주입",
+}
 
 
 def _fetch_specs(specs, per_query: int = 3, cap: int = 6) -> list:
