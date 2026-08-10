@@ -1845,7 +1845,7 @@ def home_page():
     for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
         with tab:
             try:
-                items = fetch_section(queries, _day)
+                items = fetch_section(queries, _day, 6)   # 8건은 빽빽했다
             except Exception:
                 items = []
             if items:
@@ -1870,12 +1870,13 @@ def home_page():
                            if ko and ko != it["title"] else "")
                     # 메타는 제목 **옆에** 붙인다 — 아래 줄에 두면 다음 기사 제목과
                     # 붙어 보여서 어느 기사의 출처인지 헷갈렸다.
+                    # 줄 간격을 넉넉히 — 다닥다닥 붙으면 어디까지가 한 기사인지 안 보인다
                     st.markdown(
-                        f"<div style='margin:0 0 .45rem;line-height:1.4'>"
+                        f"<div style='margin:0 0 .95rem;line-height:1.5'>"
                         f"<a href='{it['link']}' target='_blank'{tip} "
                         f"style='color:{_tcol};text-decoration:none;"
-                        f"font-size:.95rem'>{html_escape(head)}</a>"
-                        f"<span style='color:{_mcol};font-size:.75rem;"
+                        f"font-size:.96rem'>{html_escape(head)}</a>"
+                        f"<span style='color:{_mcol};font-size:.74rem;"
                         f"white-space:nowrap'>&nbsp;&nbsp;"
                         f"{' · '.join(meta)}</span></div>",
                         unsafe_allow_html=True)
