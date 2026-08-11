@@ -927,3 +927,82 @@ def set_pref(name, key, value):
     ps = _load("prefs", {})
     ps.setdefault(name or "_", {})[key] = value
     _save("prefs", ps)
+
+
+# ── 물품 구매요청 ─────────────────────────────────────────────────────
+BUY_STATES = ["요청", "구매중", "완료", "보류"]
+BUY_KINDS = ["위생·소모품", "식자재", "프로그램 재료", "의료·간호", "사무",
+             "기기·비품", "기타"]
+
+
+def buys():
+    return sorted(_load("buys", []), key=lambda x: x["등록"], reverse=True)
+
+
+def add_buy(item, kind, qty, why, by):
+    item = (item or "").strip()
+    if not item:
+        raise ValueError("품목은 필수입니다.")
+    _push("buys", {"등록": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
+                   "품목": item, "분류": kind, "수량": (qty or "").strip(),
+                   "사유": (why or "").strip(), "요청자": by,
+                   "상태": "요청", "처리": ""})
+
+
+def set_buy(stamp, state, memo=""):
+    xs = _load("buys", [])
+    for x in xs:
+        if x["등록"] == stamp:
+            x["상태"] = state
+            if memo:
+                x["처리"] = memo
+    _save("buys", xs)
+
+
+def delete_buy(stamp):
+    _save("buys", [x for x in _load("buys", []) if x["등록"] != stamp])
+
+
+# ── 보호자 알림장 ─────────────────────────────────────────────────────
+# 케어노트가 하는 '시설 → 보호자' 소통. 우리는 **이미 적은 기록에서 자동으로**
+# 문장을 만든다. 따로 쓰지 않아도 되게 하는 것이 요점이다.
+# ⚠️ 보내는 기능은 없다. 문장을 만들어 주면 사람이 읽어보고 문자·카톡으로 보낸다.
+#    자동 발송은 잘못된 내용이 그대로 나가므로 1단계에서는 안 만든다.
+def guardian_note(user, day=None):
+    day = day or today()
+    sh = sheet(user, day)
+    if not sh["필드"] and not sh["특이"]:
+        return ""
+    att = attendance(day).get(user, "")
+    lines = [f"[{day}] {user} 어르신 하루 안내"]
+    se = sh["세션"]
+    if se.get("시작") or se.get("종료"):
+        lines.append(f"· 이용시간 {se.get('시작', '')}~{se.get('종료', '')}")
+    elif att:
+        lines.append(f"· {att}")
+
+    f = sh["필드"]
+    if "식사" in f:
+        v = f["식사"]
+        lines.append(f"· 식사 {v.get('종류', '')} · 섭취량 {v.get('섭취량', '')}")
+    if "목욕" in f:
+        v = f["목욕"]
+        lines.append(f"· 목욕 {v.get('방법', '')} ({v.get('분', '')}분)")
+    if "화장실" in f:
+        lines.append(f"· 화장실 이용 {f['화장실']}회")
+    if "활력징후" in f:
+        v = f["활력징후"]
+        lines.append(f"· 혈압 {v.get('혈압', '-')} / 체온 {v.get('체온', '-')}")
+    if "프로그램" in f:
+        lines.append(f"· 프로그램 {f['프로그램']}")
+    if "투약관리" in f:
+        lines.append("· 투약 완료")
+
+    notes = [t for t in sh["특이"].values() if str(t).strip()]
+    if notes:
+        lines.append("· 특이사항: " + " / ".join(notes))
+    hs = [h["내용"] for h in handovers(day) if h["이용자"] == user]
+    if hs:
+        lines.append("· 오늘 관찰: " + " / ".join(hs))
+    lines.append("오늘도 편안히 지내셨습니다. 문의사항 있으시면 연락 주세요.")
+    return chr(10).join(lines)

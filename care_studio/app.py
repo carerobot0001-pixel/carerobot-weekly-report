@@ -166,7 +166,8 @@ MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
          ("기록", ["📄 일지", "📝 사정·상담", "📋 급여제공계획서",
                    "📚 대장·점검", "🧑‍🦳 이용자"]),
          ("기기", ["🤖 기기 대장"]),
-         ("운영", ["🗓 근무표", "📌 공지", "💡 건의", "⚙️ 직원·설정"])]
+         ("운영", ["🗓 근무표", "🛒 구매요청", "📌 공지", "💡 건의",
+                   "⚙️ 직원·설정"])]
 ALL = [m for _, ms in MENUS for m in ms]
 
 if "menu" not in st.session_state:
@@ -341,14 +342,17 @@ def page_home():
 
 
 def _appbar():
+    """앱바 — 제목과 정보를 **두 줄**로 나눈다.
+    한 줄에 몰면 좁은 화면에서 제목이 '요양시설 스튜디 / 오' 처럼 끊긴다."""
     duty = store.on_duty()
     st.markdown(
-        "<div style='display:flex;align-items:center;justify-content:space-between;"
-        "border-bottom:2px solid #C7C7C7;padding-bottom:.7rem;margin-bottom:1.1rem'>"
-        "<span class='ig-brand' style='font-size:1.75rem'>요양시설 스튜디오</span>"
-        f"<span class='ig-cap'>{store.today()}"
+        "<div style='border-bottom:2px solid #C7C7C7;padding-bottom:.6rem;"
+        "margin-bottom:1.1rem'>"
+        "<div class='ig-brand' style='font-size:1.7rem;line-height:1.25;"
+        "white-space:nowrap'>요양시설 스튜디오</div>"
+        f"<div class='ig-cap' style='margin-top:.15rem'>{store.today()}"
         + (f" · 근무 {', '.join(duty)}" if duty else " · 근무표 비어 있음")
-        + f" · {me or '이름 선택'}</span></div>", unsafe_allow_html=True)
+        + f" · {me or '이름 선택'}</div></div>", unsafe_allow_html=True)
 
 
 def _stories(here, att):
@@ -753,6 +757,20 @@ def page_log():
                            data=("\n\n".join(whole)).encode("utf-8"),
                            file_name=f"일지_{day}.txt", mime="text/plain")
     st.divider()
+    st.subheader("보호자 알림장")
+    st.caption("오늘 적은 기록에서 문장을 만들어 줍니다. **읽어 보고** 문자·카톡으로 "
+               "보내세요. 앱이 대신 보내지는 않습니다.")
+    gwho = st.selectbox("이용자", names, key="gn_user")
+    gtxt = store.guardian_note(gwho, day)
+    if gtxt:
+        st.text_area("알림장", gtxt, height=200, key="gn_txt")
+        st.download_button("📥 텍스트로 받기", data=gtxt.encode("utf-8"),
+                           file_name=f"알림장_{gwho}_{day}.txt",
+                           mime="text/plain", use_container_width=True)
+    else:
+        st.caption("오늘 기록이 없어 만들 내용이 없습니다.")
+
+    st.divider()
     st.subheader("월간 내보내기")
     st.caption("공단 대응·감사 때 한 달치를 한 번에 뽑습니다. "
                "엑셀에서 바로 열립니다.")
@@ -853,6 +871,60 @@ def page_assess():
                 for k in ("목표달성", "상태변화", "계획반영"):
                     if str(x.get(k, "")).strip():
                         st.markdown(f"- **{k}** {x[k]}")
+
+
+# ── 구매요청 ──────────────────────────────────────────────────────────
+def page_buy():
+    st.header("🛒 구매요청")
+    st.caption("위생용품·프로그램 재료처럼 현장에서 떨어지는 것을 적어 둡니다.")
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([3, 2, 1])
+        it = c1.text_input("품목", key="by_it", placeholder="예: 성인용 기저귀 L")
+        kd = c2.selectbox("분류", store.BUY_KINDS, key="by_kd")
+        qt = c3.text_input("수량", key="by_qt", placeholder="2박스")
+        wy = st.text_input("사유(선택)", key="by_wy",
+                           placeholder="예: 이번 주 소진 예정")
+        if st.button("요청 등록", type="primary", key="by_add",
+                     use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                try:
+                    store.add_buy(it, kd, qt, wy, me)
+                    st.rerun()
+                except ValueError as e:
+                    st.warning(str(e))
+
+    rows = store.buys()
+    wait = [x for x in rows if x["상태"] in ("요청", "구매중")]
+    done = [x for x in rows if x["상태"] not in ("요청", "구매중")]
+    st.subheader(f"처리 대기 — {len(wait)}건")
+    for x in wait:
+        _buy_row(x)
+    if done:
+        st.subheader(f"완료·보류 — {len(done)}건")
+        for x in done[:20]:
+            _buy_row(x)
+
+
+def _buy_row(x):
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([6, 2, 1])
+        c1.markdown(f"**{x['품목']}** {x.get('수량', '')}<br>"
+                    f"<span class='cs-dim'>{x['분류']} · {x['요청자']} · "
+                    f"{x['등록']}" + (f" · {x['사유']}" if x.get("사유") else "")
+                    + "</span>", unsafe_allow_html=True)
+        cur = x.get("상태", "요청")
+        pick = c2.selectbox("상태", store.BUY_STATES,
+                            index=store.BUY_STATES.index(cur)
+                            if cur in store.BUY_STATES else 0,
+                            key=f"bys_{x['등록']}", label_visibility="collapsed")
+        if pick != cur:
+            store.set_buy(x["등록"], pick)
+            st.rerun()
+        if c3.button("✕", key=f"byx_{x['등록']}"):
+            store.delete_buy(x["등록"])
+            st.rerun()
 
 
 # ── 급여제공계획서 ────────────────────────────────────────────────────
@@ -1293,6 +1365,6 @@ def page_staff():
  "📄 일지": page_log, "📝 사정·상담": page_assess,
  "📋 급여제공계획서": page_plan,
  "📚 대장·점검": page_logs, "🧑‍🦳 이용자": page_users,
- "🤖 기기 대장": page_devices, "🗓 근무표": page_shift, "💡 건의": page_suggest,
+ "🤖 기기 대장": page_devices, "🗓 근무표": page_shift, "🛒 구매요청": page_buy, "💡 건의": page_suggest,
  "📌 공지": page_notice,
  "⚙️ 직원·설정": page_staff}[st.session_state["menu"]]()
