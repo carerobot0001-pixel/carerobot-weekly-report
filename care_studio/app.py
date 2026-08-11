@@ -17,73 +17,97 @@ import voice
 
 st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", layout="wide")
 
-# 인스타그램 웹 화면을 따른다.
-#   · 배경은 흰색, 글씨는 거의 검정(#262626), 보조는 회색(#8E8E8E)
-#   · 경계는 **얇은 회색 선**(#DBDBDB) 하나로만. 그림자·색면을 안 쓴다
-#   · 그라디언트는 로고와 활성 표시 같은 **점 하나**에만
-#   · 주요 버튼은 인스타 파랑(#0095F6)
-# 앞서 보라 배경 + 파스텔 글씨로 했더니 안 보였다. 대비를 먼저 잡는다.
+# 인스타그램 웹 화면 + **시력 저하자 배려**.
+#
+# 인스타 원색을 그대로 쓰면 안 된다 — 흰 배경 대비를 계산해보면 셋 다 미달이다:
+#   회색 #8E8E8E 3.28:1 · 파랑 #0095F6 3.17:1 · 빨강 #ED4956 3.69:1  (본문 기준 4.5)
+# 그래서 진한 쪽으로 바꿨다:
+#   본문 #1A1A1A 17.4 · 보조 #595959 7.0 · 파랑 #0B5FCC 6.0 · 경고 #C62828 5.6
+# 인스타 원색은 **면적이 큰 배경**(그라디언트 링·버튼 바탕)에만 남긴다.
+#
+# 그 외 시력 배려: 기본 글씨 18px, 줄높이 1.65, 버튼 높이 48px 이상,
+# 입력칸 글씨 17px. 돌봄스튜디오에서 배운 대로 **여백·정렬 CSS 는 stMain 으로 한정**
+# 한다(전역으로 두면 사이드바 간격이 무너진다).
 st.markdown("""<style>
   :root{
-    --ig-ink:#262626; --ig-sub:#8E8E8E; --ig-line:#DBDBDB;
-    --ig-blue:#0095F6; --ig-blue-d:#1877F2;
+    --ig-ink:#1A1A1A; --ig-sub:#595959; --ig-line:#C7C7C7;
+    --ig-blue:#0B5FCC; --ig-warn:#C62828;
     --ig-grad:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4);
   }
+  html, body, section[data-testid="stMain"]{ font-size:18px; }
   section[data-testid="stMain"]{ background:#FFFFFF; }
   section[data-testid="stMain"] .block-container{
-    padding-top:2.2rem; max-width:960px; }
-  h1,h2,h3,h4{ color:var(--ig-ink) !important; font-weight:700; }
-  h1{ font-size:1.6rem; }
-  h2{ font-size:1.25rem; }
-  h3{ font-size:1.05rem; }
-  a,a:visited{ color:var(--ig-blue-d); text-decoration:none; }
+    padding-top:2rem; max-width:900px; }
+  section[data-testid="stMain"] p,
+  section[data-testid="stMain"] li,
+  section[data-testid="stMain"] label,
+  section[data-testid="stMain"] div[data-testid="stMarkdownContainer"]{
+    font-size:1.02rem; line-height:1.65; color:var(--ig-ink); }
+  h1,h2,h3,h4{ color:var(--ig-ink) !important; font-weight:800;
+               letter-spacing:-.01em; }
+  h1{ font-size:2rem; } h2{ font-size:1.5rem; } h3{ font-size:1.25rem; }
+  a,a:visited{ color:var(--ig-blue); text-decoration:underline; }
 
-  /* 사이드바 — 인스타 웹처럼 흰 바탕에 검정 글씨 */
+  /* 사이드바 — 흰 바탕, 큰 글씨, 넉넉한 높이 */
   section[data-testid="stSidebar"]{
     background:#FFFFFF; border-right:1px solid var(--ig-line); }
   section[data-testid="stSidebar"] *{ color:var(--ig-ink) !important; }
   section[data-testid="stSidebar"] .stButton>button{
     background:transparent; border:none; text-align:left !important;
-    justify-content:flex-start !important; font-size:1rem; font-weight:400;
-    padding:8px 12px; border-radius:10px; margin:1px 0; width:100%; }
-  section[data-testid="stSidebar"] .stButton>button:hover{ background:#FAFAFA; }
+    justify-content:flex-start !important; font-size:1.05rem; font-weight:500;
+    padding:12px 14px; border-radius:10px; margin:2px 0; width:100%;
+    min-height:48px; }
+  section[data-testid="stSidebar"] .stButton>button:hover{ background:#F0F0F0; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:#FAFAFA; font-weight:700; }
+    background:#EFEFEF; font-weight:800;
+    box-shadow:inset 4px 0 0 0 #DD2A7B; }
 
-  /* 버튼 — 인스타 파랑 */
+  /* 버튼 — 손가락으로 누를 크기 */
+  div.stButton>button, div.stFormSubmitButton>button{
+    min-height:48px; font-size:1.02rem; font-weight:700; border-radius:10px; }
   div.stButton>button[kind="primary"], div.stFormSubmitButton>button{
-    background:var(--ig-blue); border:1px solid var(--ig-blue); color:#fff;
-    font-weight:600; border-radius:8px; }
+    background:var(--ig-blue); border:1px solid var(--ig-blue); color:#fff; }
   div.stButton>button[kind="primary"]:hover,
-  div.stFormSubmitButton>button:hover{
-    background:#1877F2; border-color:#1877F2; color:#fff; }
+  div.stFormSubmitButton>button:hover{ background:#0A4EA8; border-color:#0A4EA8; }
   div.stButton>button{
-    border:1px solid var(--ig-line); color:var(--ig-ink);
-    background:#fff; border-radius:8px; font-weight:600; }
-  div.stButton>button:hover{ background:#FAFAFA; color:var(--ig-ink); }
+    border:2px solid var(--ig-line); color:var(--ig-ink); background:#fff; }
+  div.stButton>button:hover{ background:#F5F5F5; border-color:#8E8E8E; }
 
-  /* 카드 — 테두리 한 줄 */
+  /* 입력칸도 크게 */
+  section[data-testid="stMain"] input,
+  section[data-testid="stMain"] textarea,
+  section[data-testid="stMain"] div[data-baseweb="select"] *{
+    font-size:1.02rem !important; color:var(--ig-ink) !important; }
+  section[data-testid="stMain"] input, section[data-testid="stMain"] textarea{
+    min-height:46px; }
+  section[data-testid="stMain"] input::placeholder,
+  section[data-testid="stMain"] textarea::placeholder{
+    color:#6E6E6E !important; opacity:1 !important; }
+
   div[data-testid="stVerticalBlockBorderWrapper"]{
     border:1px solid var(--ig-line) !important; border-radius:12px;
     background:#fff; }
   [data-testid="stMetric"]{ border:none; padding:0; }
   [data-testid="stMetricValue"]{
-    color:var(--ig-ink); font-size:1.35rem; font-weight:700; }
-  [data-testid="stMetricLabel"]{ color:var(--ig-sub); }
+    color:var(--ig-ink); font-size:1.6rem; font-weight:800; }
+  [data-testid="stMetricLabel"] *{ color:var(--ig-sub); font-size:.95rem; }
 
-  /* 알림 상자도 옅게 — 색면이 세면 글씨가 죽는다 */
   [data-testid="stAlert"]{
-    border:1px solid var(--ig-line); border-radius:12px; background:#FAFAFA; }
-  [data-testid="stAlert"] *{ color:var(--ig-ink) !important; }
+    border:2px solid var(--ig-line); border-radius:12px; background:#FAFAFA; }
+  [data-testid="stAlert"] *{ color:var(--ig-ink) !important; font-size:1rem; }
+
+  section[data-testid="stMain"] [data-testid="stRadio"] label,
+  section[data-testid="stMain"] [data-testid="stCheckbox"] label{
+    font-size:1rem; }
+  section[data-testid="stMain"] [data-testid="stTabs"] button p{
+    font-size:1.05rem; font-weight:700; }
 
   .ig-brand{
-    font-weight:800; font-size:1.15rem;
-    background:var(--ig-grad); -webkit-background-clip:text;
+    font-weight:900; background:var(--ig-grad); -webkit-background-clip:text;
     background-clip:text; color:transparent; }
-  .ig-cap{ color:var(--ig-sub); font-size:.82rem; }
-  .cs-warn{ color:#ED4956; font-weight:700; }
-  .cs-dim{ color:var(--ig-sub); font-size:.82rem; }
-  .ig-row{ border-bottom:1px solid var(--ig-line); padding:.55rem 0; }
+  .ig-cap{ color:var(--ig-sub); font-size:.92rem; }
+  .cs-warn{ color:var(--ig-warn); font-weight:800; }
+  .cs-dim{ color:var(--ig-sub); font-size:.92rem; }
 </style>""", unsafe_allow_html=True)
 
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
@@ -258,8 +282,8 @@ def _appbar():
     duty = store.on_duty()
     st.markdown(
         "<div style='display:flex;align-items:center;justify-content:space-between;"
-        "border-bottom:1px solid #DBDBDB;padding-bottom:.6rem;margin-bottom:1rem'>"
-        "<span class='ig-brand' style='font-size:1.5rem'>요양시설 스튜디오</span>"
+        "border-bottom:2px solid #C7C7C7;padding-bottom:.7rem;margin-bottom:1.1rem'>"
+        "<span class='ig-brand' style='font-size:1.75rem'>요양시설 스튜디오</span>"
         f"<span class='ig-cap'>{store.today()}"
         + (f" · 근무 {', '.join(duty)}" if duty else " · 근무표 비어 있음")
         + f" · {me or '이름 선택'}</span></div>", unsafe_allow_html=True)
@@ -277,24 +301,24 @@ def _stories(here, att):
     cells = []
     for n in here:
         left = sum(1 for k in store.FIELD_KEYS if n not in done.get(k, set()))
-        ring = ("linear-gradient(45deg,#ED4956,#F58529)" if n in warn
+        ring = ("linear-gradient(45deg,#C62828,#F58529)" if n in warn
                 else "linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4)"
-                if left else "#DBDBDB")
+                if left else "#C7C7C7")
         cells.append(
-            "<div style='text-align:center;width:76px'>"
-            f"<div style='width:64px;height:64px;border-radius:50%;padding:3px;"
+            "<div style='text-align:center;width:96px;flex:none'>"
+            f"<div style='width:82px;height:82px;border-radius:50%;padding:4px;"
             f"margin:0 auto;background:{ring}'>"
             "<div style='width:100%;height:100%;border-radius:50%;background:#fff;"
             "display:flex;align-items:center;justify-content:center;"
-            "font-size:1.1rem;font-weight:700;color:#262626'>"
+            "font-size:1.35rem;font-weight:800;color:#1A1A1A'>"
             f"{html_escape(n[:2])}</div></div>"
-            f"<div style='font-size:.72rem;margin-top:4px;color:#262626'>"
+            f"<div style='font-size:.95rem;margin-top:6px;font-weight:600;color:#1A1A1A'>"
             f"{html_escape(n)}</div>"
-            f"<div style='font-size:.68rem;color:#8E8E8E'>"
+            f"<div style='font-size:.88rem;color:#595959'>"
             + (f"{left}칸" if left else "완료") + "</div></div>")
     st.markdown(
-        "<div style='display:flex;gap:6px;overflow-x:auto;padding:.2rem 0 1rem;"
-        "border-bottom:1px solid #DBDBDB;margin-bottom:1rem'>"
+        "<div style='display:flex;gap:10px;overflow-x:auto;padding:.4rem 0 1.1rem;"
+        "border-bottom:1px solid #C7C7C7;margin-bottom:1rem'>"
         + "".join(cells) + "</div>", unsafe_allow_html=True)
 
 
@@ -307,11 +331,11 @@ def _stats(here, att, done):
              (str(sum(1 for v in att.values() if v == "미확인")), "미확인"),
              (str(left), "빈 칸")]
     st.markdown(
-        "<div style='display:flex;gap:2.4rem;padding:.2rem 0 1rem'>"
+        "<div style='display:flex;gap:2.6rem;padding:.3rem 0 1.2rem;border-bottom:1px solid #C7C7C7;margin-bottom:1rem'>"
         + "".join(
             f"<div style='text-align:center'>"
-            f"<div style='font-size:1.25rem;font-weight:700;color:#262626'>{v}</div>"
-            f"<div style='font-size:.78rem;color:#8E8E8E'>{k}</div></div>"
+            f"<div style='font-size:1.9rem;font-weight:800;color:#1A1A1A;line-height:1.1'>{v}</div>"
+            f"<div style='font-size:1rem;color:#595959;margin-top:2px'>{k}</div></div>"
             for v, k in items)
         + "</div>", unsafe_allow_html=True)
 
@@ -321,27 +345,27 @@ def _card(title, body, foot="", warn=False, icon="●"):
 
     머리(동그란 아바타 + 제목 + 작은 회색 부제) / 본문 / 아래 회색 한 줄.
     """
-    ring = ("linear-gradient(45deg,#ED4956,#F58529)" if warn
+    ring = ("linear-gradient(45deg,#C62828,#F58529)" if warn
             else "linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4)")
-    color = "#ED4956" if warn else "#262626"
+    color = "#C62828" if warn else "#1A1A1A"
     st.markdown(
-        "<div style='border:1px solid #DBDBDB;border-radius:12px;"
-        "margin-bottom:.9rem;background:#fff;overflow:hidden'>"
+        "<div style='border:1px solid #C7C7C7;border-radius:14px;"
+        "margin-bottom:1rem;background:#fff;overflow:hidden'>"
         # 머리
         "<div style='display:flex;align-items:center;gap:.6rem;"
-        "padding:.7rem .9rem;border-bottom:1px solid #EFEFEF'>"
-        f"<div style='width:34px;height:34px;border-radius:50%;padding:2px;"
+        "padding:.85rem 1.1rem;border-bottom:1px solid #E4E4E4'>"
+        f"<div style='width:42px;height:42px;border-radius:50%;padding:3px;"
         f"background:{ring};flex:none'>"
         "<div style='width:100%;height:100%;border-radius:50%;background:#fff;"
-        "display:flex;align-items:center;justify-content:center;font-size:.8rem'>"
+        "display:flex;align-items:center;justify-content:center;font-size:1.05rem'>"
         f"{icon}</div></div>"
-        f"<div><div style='font-weight:700;color:{color};line-height:1.2'>"
+        f"<div><div style='font-weight:800;font-size:1.12rem;color:{color};line-height:1.25'>"
         f"{html_escape(title)}</div>"
-        + (f"<div style='font-size:.75rem;color:#8E8E8E'>{html_escape(foot)}</div>"
+        + (f"<div style='font-size:.92rem;color:#595959'>{html_escape(foot)}</div>"
            if foot else "")
         + "</div></div>"
         # 본문
-        f"<div style='padding:.8rem .9rem;color:#262626;line-height:1.55'>"
+        f"<div style='padding:.95rem 1.1rem;color:#1A1A1A;font-size:1.05rem;line-height:1.65'>"
         f"{html_escape(body)}</div></div>", unsafe_allow_html=True)
 
 
