@@ -8,6 +8,8 @@ Dolbom Studio(우리 팀 업무 공간)와 **같은 구조**로 만든다 — �
 
 **저장은 항상 사람이 누른 뒤에만** 일어난다. 자동 확정 없음.
 """
+from html import escape as html_escape
+
 import streamlit as st
 
 import store
@@ -15,47 +17,73 @@ import voice
 
 st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", layout="wide")
 
-# 색: 인스타그램 계열 그라디언트(주황-핑크-보라-파랑).
-#   #F58529 → #DD2A7B → #8134AF → #515BD4
-# ⚠️ 그라디언트는 배경으로만 쓴다. **글씨는 진하게** 둔다 —
-#    파스텔 위에 파스텔 글씨를 얹으면 현장에서 안 읽힌다.
+# 인스타그램 웹 화면을 따른다.
+#   · 배경은 흰색, 글씨는 거의 검정(#262626), 보조는 회색(#8E8E8E)
+#   · 경계는 **얇은 회색 선**(#DBDBDB) 하나로만. 그림자·색면을 안 쓴다
+#   · 그라디언트는 로고와 활성 표시 같은 **점 하나**에만
+#   · 주요 버튼은 인스타 파랑(#0095F6)
+# 앞서 보라 배경 + 파스텔 글씨로 했더니 안 보였다. 대비를 먼저 잡는다.
 st.markdown("""<style>
   :root{
-    --ig-orange:#F58529; --ig-pink:#DD2A7B; --ig-purple:#8134AF;
-    --ig-blue:#515BD4; --ig-ink:#2B1B33; --ig-dark:#241B2F;
-    --ig-grad:linear-gradient(90deg,#F58529 0%,#DD2A7B 40%,#8134AF 72%,#515BD4 100%);
+    --ig-ink:#262626; --ig-sub:#8E8E8E; --ig-line:#DBDBDB;
+    --ig-blue:#0095F6; --ig-blue-d:#1877F2;
+    --ig-grad:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4);
   }
-  section[data-testid="stMain"] .block-container{ padding-top:2.6rem; }
-  h1{
-    background:var(--ig-grad); -webkit-background-clip:text;
-    background-clip:text; color:transparent; font-weight:800; }
-  h2,h3{ color:var(--ig-purple); }
-  h4{ color:var(--ig-pink); }
-  a,a:visited{ color:var(--ig-purple); }
+  section[data-testid="stMain"]{ background:#FFFFFF; }
+  section[data-testid="stMain"] .block-container{
+    padding-top:2.2rem; max-width:960px; }
+  h1,h2,h3,h4{ color:var(--ig-ink) !important; font-weight:700; }
+  h1{ font-size:1.6rem; }
+  h2{ font-size:1.25rem; }
+  h3{ font-size:1.05rem; }
+  a,a:visited{ color:var(--ig-blue-d); text-decoration:none; }
+
+  /* 사이드바 — 인스타 웹처럼 흰 바탕에 검정 글씨 */
   section[data-testid="stSidebar"]{
-    background:var(--ig-dark);
-    border-right:3px solid transparent;
-    border-image:var(--ig-grad) 1; }
-  section[data-testid="stSidebar"] *{ color:#F3EAF7 !important; }
+    background:#FFFFFF; border-right:1px solid var(--ig-line); }
+  section[data-testid="stSidebar"] *{ color:var(--ig-ink) !important; }
   section[data-testid="stSidebar"] .stButton>button{
     background:transparent; border:none; text-align:left !important;
-    justify-content:flex-start !important; font-size:1.02rem; font-weight:600;
-    padding:6px 12px; border-radius:10px; margin:1px 0; width:100%; }
-  section[data-testid="stSidebar"] .stButton>button:hover{ background:#3A2A48; }
+    justify-content:flex-start !important; font-size:1rem; font-weight:400;
+    padding:8px 12px; border-radius:10px; margin:1px 0; width:100%; }
+  section[data-testid="stSidebar"] .stButton>button:hover{ background:#FAFAFA; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:var(--ig-grad); color:#fff !important; font-weight:700; }
-  div.stButton>button{ border-color:#E7CDE4; color:var(--ig-purple); }
-  div.stButton>button:hover{ border-color:var(--ig-pink); color:var(--ig-pink); }
-  div.stButton>button[kind="primary"],
-  div.stFormSubmitButton>button{
-    background:var(--ig-grad); border:none; color:#fff; font-weight:700; }
+    background:#FAFAFA; font-weight:700; }
+
+  /* 버튼 — 인스타 파랑 */
+  div.stButton>button[kind="primary"], div.stFormSubmitButton>button{
+    background:var(--ig-blue); border:1px solid var(--ig-blue); color:#fff;
+    font-weight:600; border-radius:8px; }
   div.stButton>button[kind="primary"]:hover,
-  div.stFormSubmitButton>button:hover{ filter:brightness(.93); color:#fff; }
-  [data-testid="stMetricValue"]{ color:var(--ig-purple); }
-  [data-testid="stMetric"]{
-    border:1px solid #EFDCEC; border-radius:12px; padding:.5rem .8rem; }
-  .cs-warn{ color:#D62976; font-weight:700; }
-  .cs-dim{ opacity:.55; font-size:.8rem; }
+  div.stFormSubmitButton>button:hover{
+    background:#1877F2; border-color:#1877F2; color:#fff; }
+  div.stButton>button{
+    border:1px solid var(--ig-line); color:var(--ig-ink);
+    background:#fff; border-radius:8px; font-weight:600; }
+  div.stButton>button:hover{ background:#FAFAFA; color:var(--ig-ink); }
+
+  /* 카드 — 테두리 한 줄 */
+  div[data-testid="stVerticalBlockBorderWrapper"]{
+    border:1px solid var(--ig-line) !important; border-radius:12px;
+    background:#fff; }
+  [data-testid="stMetric"]{ border:none; padding:0; }
+  [data-testid="stMetricValue"]{
+    color:var(--ig-ink); font-size:1.35rem; font-weight:700; }
+  [data-testid="stMetricLabel"]{ color:var(--ig-sub); }
+
+  /* 알림 상자도 옅게 — 색면이 세면 글씨가 죽는다 */
+  [data-testid="stAlert"]{
+    border:1px solid var(--ig-line); border-radius:12px; background:#FAFAFA; }
+  [data-testid="stAlert"] *{ color:var(--ig-ink) !important; }
+
+  .ig-brand{
+    font-weight:800; font-size:1.15rem;
+    background:var(--ig-grad); -webkit-background-clip:text;
+    background-clip:text; color:transparent; }
+  .ig-cap{ color:var(--ig-sub); font-size:.82rem; }
+  .cs-warn{ color:#ED4956; font-weight:700; }
+  .cs-dim{ color:var(--ig-sub); font-size:.82rem; }
+  .ig-row{ border-bottom:1px solid var(--ig-line); padding:.55rem 0; }
 </style>""", unsafe_allow_html=True)
 
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
@@ -154,126 +182,175 @@ def _need_users():
     return False
 
 
-# ── 홈 ────────────────────────────────────────────────────────────────
+# ── 홈 (인스타그램식) ─────────────────────────────────────────────────
+# 인스타 앱 화면을 따른다:
+#   상단 앱바(로고) → 스토리 줄(원형·그라디언트 링) → 피드 카드
+# 스토리 자리에는 **오늘 등원한 이용자**를 놓는다. 주의사항이 있으면 링이 빨갛다.
 def page_home():
-    st.header("🏠 홈")
-    st.caption(f"{store.today()} · {me or '이름을 먼저 고르세요'}")
-
-    # 오늘 근무 — 누가 있는지가 하루의 출발점이다
-    duty = store.on_duty()
-    if duty:
-        st.markdown("**오늘 근무** — " + " · ".join(
-            f"{n}({store.shifts().get(n, '')})" for n in duty))
-    else:
-        st.caption("오늘 근무표가 비어 있습니다. 🗓 근무표에서 지정하세요.")
-
-    ns = store.notices()
-    for n in ns[:3]:
-        st.info(f"{n['내용']}" + chr(10) + chr(10)
-                + f"*{n['작성자']} · {n['등록']}*", icon="📌")
-
+    _appbar()
     if _need_users():
         return
-
     att = store.attendance()
     here = [u for u, s in att.items() if s == "등원"]
-    absent = [u for u, s in att.items() if s == "결석"]
     unknown = [u for u, s in att.items() if s == "미확인"]
     done = store.done_map()
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("등원", f"{len(here)} / {len(users)}")
-    c2.metric("결석", len(absent))
-    c3.metric("출결 미확인", len(unknown))
-    _left = sum(1 for k in store.FIELD_KEYS for u in here
-                if u not in done.get(k, set()))
-    c4.metric("서식 빈 칸", _left)
-
+    _stories(here, att)
+    _stats(here, att, done)
     _shortcuts()
 
-    if unknown:
-        st.warning("출결 미확인 — " + ", ".join(unknown[:10])
-                   + ("…" if len(unknown) > 10 else ""))
+    # 피드 — 중요한 것부터 카드로
+    for n in store.notices()[:2]:
+        _card("공지", n["내용"], f"{n['작성자']} · {n['등록']}", icon="📌")
 
-    # 평가지표는 주기가 정해져 있다. 넘긴 것을 홈에서 먼저 보여준다.
+    if unknown:
+        _card("출결 미확인", ", ".join(unknown[:12]),
+              "케어 기록에서 등원·결석을 찍어 주세요", warn=True, icon="🙋")
+
     od = store.overdue_logs()
     if od:
-        st.error("기한이 지난 기록 — " + " · ".join(
-            f"{stt['이름']}({stt['주기']})" for _k, stt in od[:6])
-            + (f" 외 {len(od) - 6}건" if len(od) > 6 else ""))
+        _card("기한이 지난 기록",
+              " · ".join(f"{stt['이름']}({stt['주기']})" for _k, stt in od[:6]),
+              f"모두 {len(od)}건 — 대장·점검에서 처리", warn=True, icon="⏰")
 
     cd = store.care_due()
     if cd:
-        st.warning("수급자별 기한 지남 — " + " · ".join(
-            f"{n} {lab}" for n, lab, _g in cd[:6])
-            + (f" 외 {len(cd) - 6}건" if len(cd) > 6 else ""))
+        _card("수급자별 기한",
+              " · ".join(f"{n} {lab}" for n, lab, _g in cd[:6]),
+              f"모두 {len(cd)}건 — 사정·상담에서 처리", warn=True, icon="🗓")
 
     bad = store.broken_devices()
     if bad:
-        st.warning("손봐야 할 기기 — " + " · ".join(
-            f"{d['기기명']}({d['상태']})" for d in bad))
+        _card("손봐야 할 기기",
+              " · ".join(f"{d['기기명']}({d['상태']})" for d in bad),
+              "기기 대장에서 상태를 관리합니다", warn=True, icon="🤖")
 
-    left, right = st.columns([1.5, 1])
-    with left:
-        _cautions(here)
-        st.subheader("아직 안 채운 칸")
-        if not here:
-            st.caption("등원한 이용자가 없습니다. **✅ 케어 기록**에서 출결을 먼저 찍으세요.")
-        else:
-            rows = []
-            for key in store.FIELD_KEYS:
-                miss = [u for u in here if u not in done.get(key, set())]
-                if miss:
-                    rows.append((store.FIELDS[key][0], store.FIELDS[key][1], miss))
-            if not rows:
-                st.success("서식이 모두 채워졌습니다.")
-            for sec, label, miss in rows:
-                st.markdown(f"**{label}** <span class='cs-dim'>{sec}</span> — "
-                            f"{len(miss)}명 남음<br>"
-                            f"<span class='cs-dim'>{', '.join(miss)}</span>",
-                            unsafe_allow_html=True)
-    with right:
-        st.subheader("오늘 프로그램")
-        pr = store.today_programs()
-        if not pr:
-            st.caption("아직 기록이 없습니다. 신체·인지기능은 **주 3회 이상**이 기준입니다.")
-        for r in pr:
-            v = r["값"]
-            st.markdown(f"• **{v.get('프로그램명', '')}** "
-                        f"<span class='cs-dim'>{v.get('유형', '')} · "
-                        f"{v.get('참여인원', '')}명 · {v.get('진행자', '')}</span>",
-                        unsafe_allow_html=True)
+    warn = [u for u in users if u["이름"] in here and (u.get("주의사항") or "").strip()]
+    if warn:
+        _card("오늘 주의",
+              "  ·  ".join(f"{u['이름']} {u['주의사항']}" for u in warn), "", icon="⚠")
 
-        st.subheader("오늘 인계")
-        hs = store.handovers()
-        if not hs:
-            st.caption("인계 내용이 없습니다.")
-        for h in hs[:6]:
-            mark = "✔" if h["확인"] else "•"
-            st.markdown(f"{mark} **{h['이용자']}** ({h['종류']}) {h['내용']}<br>"
-                        f"<span class='cs-dim'>{h['시각']} {h['작성자']}</span>",
-                        unsafe_allow_html=True)
+    rows = []
+    for key in store.FIELD_KEYS:
+        miss = [u for u in here if u not in done.get(key, set())]
+        if miss:
+            rows.append(f"{store.FIELDS[key][1]} — {len(miss)}명")
+    if here:
+        _card("아직 안 채운 칸",
+              " · ".join(rows[:8]) if rows else "서식이 모두 채워졌습니다.",
+              f"모두 {len(rows)}개 항목" if rows else "", icon="✅")
+
+    pr = store.today_programs()
+    _card("오늘 프로그램",
+          " · ".join(f"{r['값'].get('프로그램명', '')}"
+                     f"({r['값'].get('유형', '')})" for r in pr) if pr
+          else "아직 기록이 없습니다.",
+          "신체·인지기능은 주 3회 이상이 기준입니다.", icon="🎵")
+
+    hs = store.handovers()
+    if hs:
+        _card("오늘 인계",
+              "  ·  ".join(f"{h['이용자']} {h['내용']}" for h in hs[:4]),
+              f"모두 {len(hs)}건", icon="🔄")
+
+
+def _appbar():
+    duty = store.on_duty()
+    st.markdown(
+        "<div style='display:flex;align-items:center;justify-content:space-between;"
+        "border-bottom:1px solid #DBDBDB;padding-bottom:.6rem;margin-bottom:1rem'>"
+        "<span class='ig-brand' style='font-size:1.5rem'>요양시설 스튜디오</span>"
+        f"<span class='ig-cap'>{store.today()}"
+        + (f" · 근무 {', '.join(duty)}" if duty else " · 근무표 비어 있음")
+        + f" · {me or '이름 선택'}</span></div>", unsafe_allow_html=True)
+
+
+def _stories(here, att):
+    """스토리 줄 — 등원한 이용자를 동그라미로. 주의사항이 있으면 링이 빨갛다."""
+    if not here:
+        st.markdown("<div class='ig-cap' style='margin:.2rem 0 1rem'>"
+                    "등원한 이용자가 없습니다. 케어 기록에서 출결을 찍으세요."
+                    "</div>", unsafe_allow_html=True)
+        return
+    warn = {u["이름"] for u in users if (u.get("주의사항") or "").strip()}
+    done = store.done_map()
+    cells = []
+    for n in here:
+        left = sum(1 for k in store.FIELD_KEYS if n not in done.get(k, set()))
+        ring = ("linear-gradient(45deg,#ED4956,#F58529)" if n in warn
+                else "linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4)"
+                if left else "#DBDBDB")
+        cells.append(
+            "<div style='text-align:center;width:76px'>"
+            f"<div style='width:64px;height:64px;border-radius:50%;padding:3px;"
+            f"margin:0 auto;background:{ring}'>"
+            "<div style='width:100%;height:100%;border-radius:50%;background:#fff;"
+            "display:flex;align-items:center;justify-content:center;"
+            "font-size:1.1rem;font-weight:700;color:#262626'>"
+            f"{html_escape(n[:2])}</div></div>"
+            f"<div style='font-size:.72rem;margin-top:4px;color:#262626'>"
+            f"{html_escape(n)}</div>"
+            f"<div style='font-size:.68rem;color:#8E8E8E'>"
+            + (f"{left}칸" if left else "완료") + "</div></div>")
+    st.markdown(
+        "<div style='display:flex;gap:6px;overflow-x:auto;padding:.2rem 0 1rem;"
+        "border-bottom:1px solid #DBDBDB;margin-bottom:1rem'>"
+        + "".join(cells) + "</div>", unsafe_allow_html=True)
+
+
+def _stats(here, att, done):
+    """인스타 프로필식 숫자 줄 — 박스 없이 숫자 위, 라벨 아래."""
+    absent = sum(1 for v in att.values() if v == "결석")
+    left = sum(1 for k in store.FIELD_KEYS for u in here
+               if u not in done.get(k, set()))
+    items = [(f"{len(here)}/{len(users)}", "등원"), (str(absent), "결석"),
+             (str(sum(1 for v in att.values() if v == "미확인")), "미확인"),
+             (str(left), "빈 칸")]
+    st.markdown(
+        "<div style='display:flex;gap:2.4rem;padding:.2rem 0 1rem'>"
+        + "".join(
+            f"<div style='text-align:center'>"
+            f"<div style='font-size:1.25rem;font-weight:700;color:#262626'>{v}</div>"
+            f"<div style='font-size:.78rem;color:#8E8E8E'>{k}</div></div>"
+            for v, k in items)
+        + "</div>", unsafe_allow_html=True)
+
+
+def _card(title, body, foot="", warn=False, icon="●"):
+    """피드 카드 — 인스타 게시물 모양.
+
+    머리(동그란 아바타 + 제목 + 작은 회색 부제) / 본문 / 아래 회색 한 줄.
+    """
+    ring = ("linear-gradient(45deg,#ED4956,#F58529)" if warn
+            else "linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4)")
+    color = "#ED4956" if warn else "#262626"
+    st.markdown(
+        "<div style='border:1px solid #DBDBDB;border-radius:12px;"
+        "margin-bottom:.9rem;background:#fff;overflow:hidden'>"
+        # 머리
+        "<div style='display:flex;align-items:center;gap:.6rem;"
+        "padding:.7rem .9rem;border-bottom:1px solid #EFEFEF'>"
+        f"<div style='width:34px;height:34px;border-radius:50%;padding:2px;"
+        f"background:{ring};flex:none'>"
+        "<div style='width:100%;height:100%;border-radius:50%;background:#fff;"
+        "display:flex;align-items:center;justify-content:center;font-size:.8rem'>"
+        f"{icon}</div></div>"
+        f"<div><div style='font-weight:700;color:{color};line-height:1.2'>"
+        f"{html_escape(title)}</div>"
+        + (f"<div style='font-size:.75rem;color:#8E8E8E'>{html_escape(foot)}</div>"
+           if foot else "")
+        + "</div></div>"
+        # 본문
+        f"<div style='padding:.8rem .9rem;color:#262626;line-height:1.55'>"
+        f"{html_escape(body)}</div></div>", unsafe_allow_html=True)
 
 
 def _shortcuts():
-    """자주 가는 화면 바로가기. 현장에서 메뉴를 뒤지지 않게."""
-    tiles = ["✅ 케어 기록", "🔄 인계", "📚 대장·점검", "📄 일지"]
+    tiles = ["✅ 케어 기록", "🔄 인계", "📝 사정·상담", "📚 대장·점검"]
     cols = st.columns(len(tiles))
     for c, t in zip(cols, tiles):
         if c.button(t, key=f"sc_{t}", use_container_width=True):
             _go(t)
-
-
-def _cautions(here):
-    """등원한 이용자의 주의사항 — 낙상·삼킴처럼 놓치면 사고가 되는 것."""
-    rows = [u for u in users
-            if u["이름"] in here and (u.get("주의사항") or "").strip()]
-    if not rows:
-        return
-    st.subheader("주의")
-    for u in rows:
-        st.markdown(f"<span class='cs-warn'>⚠ {u['이름']}</span> "
-                    f"{u['주의사항']}", unsafe_allow_html=True)
 
 
 # ── 케어 기록(급여제공기록지) ─────────────────────────────────────────
