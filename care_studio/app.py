@@ -48,8 +48,12 @@ st.markdown("""<style>
     padding-top:2rem; max-width:900px; margin-left:auto; margin-right:auto; }
   /* 사이드바 항목 — 폭·들여쓰기를 하나로 맞춘다(들쭉날쭉해 보이던 것) */
   section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{
-    gap:.15rem; }
-  section[data-testid="stSidebar"] .stButton{ width:100%; }
+    gap:.2rem; }
+  /* 버튼 칸을 전체 폭으로 — 안 그러면 현재 메뉴(색 채운 것)만 좁게 보인다 */
+  section[data-testid="stSidebar"] [data-testid="stElementContainer"],
+  section[data-testid="stSidebar"] .stButton{
+    width:100% !important; display:block !important; }
+  section[data-testid="stSidebar"] .stButton>button{ width:100% !important; }
   section[data-testid="stMain"] p,
   section[data-testid="stMain"] li,
   section[data-testid="stMain"] label,
@@ -84,9 +88,12 @@ st.markdown("""<style>
   section[data-testid="stSidebar"] .st-key-theme_btn button p{
     text-align:center !important; }
   /* 카테고리 소제목 */
+  /* 카테고리 소제목 — 자기 줄을 확실히 차지하게 한다.
+     margin 만 주면 버튼과 겹쳐 보였다(간격 CSS 를 좁혀둔 탓). */
   section[data-testid="stSidebar"] .navcat{
-    color:#C0A8D6 !important; font-size:.78rem; font-weight:800;
-    letter-spacing:2px; margin:16px 0 4px; text-align:center; }
+    display:block; color:#C0A8D6 !important; font-size:.78rem;
+    font-weight:800; letter-spacing:2px; text-align:center;
+    line-height:1.2; padding:14px 0 6px; margin:0; }
   /* 입력칸(이름 고르기)도 어두운 바탕에 맞춘다 */
   section[data-testid="stSidebar"] [data-baseweb="select"] > div,
   section[data-testid="stSidebar"] input{
