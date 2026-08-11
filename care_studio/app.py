@@ -122,9 +122,10 @@ st.markdown("""<style>
   section[data-testid="stMain"] [data-testid="stTabs"] button p{
     font-size:1.05rem; font-weight:700; }
 
-  .ig-brand{
-    font-weight:900; background:var(--ig-grad); -webkit-background-clip:text;
-    background-clip:text; color:transparent; }
+  /* ⚠️ 그라디언트 글씨(background-clip:text)는 글자 위아래가 잘렸다.
+     제목은 **단색**(#6B2A91, 대비 8.9:1)으로 두고 그라디언트는 밑줄로 옮긴다. */
+  .ig-brand{ font-weight:900; color:#6B2A91; line-height:1.35;
+             display:inline-block; }
   .ig-cap{ color:var(--ig-sub); font-size:.92rem; }
   .cs-warn{ color:var(--ig-warn); font-weight:800; }
   .cs-dim{ color:var(--ig-sub); font-size:.92rem; }
@@ -352,9 +353,10 @@ def _appbar():
     한 줄에 몰면 좁은 화면에서 제목이 '요양시설 스튜디 / 오' 처럼 끊긴다."""
     duty = store.on_duty()
     st.markdown(
-        "<div style='border-bottom:2px solid #C7C7C7;padding-bottom:.6rem;"
-        "margin-bottom:1.1rem'>"
-        "<div class='ig-brand' style='font-size:1.7rem;line-height:1.25;"
+        "<div style='padding-bottom:.55rem;margin-bottom:1.1rem;"
+        "border-bottom:3px solid transparent;"
+        "border-image:linear-gradient(90deg,#F58529,#DD2A7B,#8134AF,#515BD4) 1'>"
+        "<div class='ig-brand' style='font-size:1.7rem;"
         "white-space:nowrap'>요양시설 스튜디오</div>"
         f"<div class='ig-cap' style='margin-top:.15rem'>{store.today()}"
         + (f" · 근무 {', '.join(duty)}" if duty else " · 근무표 비어 있음")
