@@ -20,9 +20,12 @@ st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", lay
 # 다크 모드 — 계정별로 기억한다.
 # ⚠️ 다크에서 **순백 글씨(18.7:1)는 눈부시다**(돌봄스튜디오에서 세 번 헤맴).
 #    그렇다고 낮추면 시력 저하자가 못 읽는다 → 본문 #DAD7D2 (13:1) 로 잡았다.
+# ⚠️ 테마는 사이드바(이름 선택)보다 **먼저** 정해야 해서, 첫 실행에는 아직
+#    누가 쓰는지 모른다. 그래서 공용 키("_")에도 함께 저장하고 그것을 기본으로 읽는다.
 _who = st.session_state.get("who") or st.session_state.get("me") or "_"
 if "dark" not in st.session_state:
-    st.session_state["dark"] = store.get_pref(_who, "dark", "") == "Y"
+    _v = store.get_pref(_who, "dark", "") or store.get_pref("_", "dark", "")
+    st.session_state["dark"] = _v == "Y"
 DARK = st.session_state["dark"]
 
 # 인스타그램 웹 화면 + **시력 저하자 배려**.
@@ -124,8 +127,10 @@ st.markdown("""<style>
 
   /* ⚠️ 그라디언트 글씨(background-clip:text)는 글자 위아래가 잘렸다.
      제목은 **단색**(#6B2A91, 대비 8.9:1)으로 두고 그라디언트는 밑줄로 옮긴다. */
-  .ig-brand{ font-weight:900; color:#6B2A91; line-height:1.35;
-             display:inline-block; }
+  /* ⚠️ 제목이 위아래로 잘려 보였다. 큰 글씨는 줄높이를 넉넉히 주고
+     위아래 여백을 따로 둔다(글꼴 높이가 줄상자를 넘친다). */
+  .ig-brand{ font-weight:900; color:#6B2A91; line-height:1.6;
+             display:block; padding:2px 0 4px; }
   .ig-cap{ color:var(--ig-sub); font-size:.92rem; }
   .cs-warn{ color:var(--ig-warn); font-weight:800; }
   .cs-dim{ color:var(--ig-sub); font-size:.92rem; }
@@ -167,6 +172,9 @@ if DARK:
       /* 드롭다운·달력은 body 포털이라 앱 밖에 그려진다 — 따로 덮는다 */
       div[data-baseweb="popover"] *, div[data-baseweb="menu"] *{
         background:#1B1B1A !important; color:#DAD7D2 !important; }
+      section[data-testid="stMain"] .ig-brand,
+      section[data-testid="stSidebar"] .ig-brand{
+        color:#E4B7F5 !important; }
       .ig-cap, .cs-dim{ color:#A8A49E !important; }
       .cs-warn{ color:#FF7A70 !important; }
     </style>""", unsafe_allow_html=True)
@@ -233,7 +241,9 @@ with st.sidebar:
     if st.button("🌙 어두운 화면으로" if not DARK else "☀️ 밝은 화면으로",
                  key="theme_btn", use_container_width=True):
         st.session_state["dark"] = not DARK
-        store.set_pref(_who, "dark", "" if DARK else "Y")
+        _v = "" if DARK else "Y"
+        store.set_pref(_who, "dark", _v)
+        store.set_pref("_", "dark", _v)      # 다음 접속 첫 화면부터 적용되게
         st.rerun()
     _names = [s["이름"] for s in store.staff()]
     if st.session_state.get("who"):
