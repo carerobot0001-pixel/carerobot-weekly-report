@@ -32,7 +32,7 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
-         ("기록", ["📄 일지", "📚 대장·점검", "🧑‍🦳 이용자"]),
+         ("기록", ["📄 일지", "📋 급여제공계획서", "📚 대장·점검", "🧑‍🦳 이용자"]),
          ("기기", ["🤖 기기 대장"]),
          ("운영", ["🗓 근무표", "📌 공지", "💡 건의", "⚙️ 직원·설정"])]
 ALL = [m for _, ms in MENUS for m in ms]
@@ -46,18 +46,60 @@ def _go(m):
     st.rerun()
 
 
+def _login_gate():
+    """PIN 로그인. 아무도 PIN 을 안 걸었으면 잠그지 않는다(첫 설치 편의).
+
+    ⚠️ 시설 안에서 쓰는 **최소 잠금**이다. 인터넷에 공개할 거면 부족하다.
+    """
+    if st.session_state.get("who"):
+        return True
+    if not store.any_pin():
+        return True                      # 아직 PIN 을 아무도 설정하지 않음
+    st.markdown("### 🏥 요양시설 스튜디오")
+    st.caption("이용자 정보가 있어 로그인이 필요합니다.")
+    ss = [x["이름"] for x in store.staff()]
+    with st.form("login"):
+        who = st.selectbox("이름", ss)
+        pin = st.text_input("PIN", type="password", max_chars=8)
+        if st.form_submit_button("들어가기", type="primary",
+                                 use_container_width=True):
+            if not store.has_pin(who):
+                st.warning(f"{who} 님은 PIN 이 설정돼 있지 않습니다. "
+                           "PIN 을 설정한 다른 직원으로 들어와 "
+                           "⚙️ 직원·설정에서 발급하세요.")
+            elif store.check_pin(who, pin):
+                st.session_state["who"] = who
+                st.session_state["me"] = who
+                st.rerun()
+            else:
+                st.error("PIN 이 맞지 않습니다.")
+    st.caption("PIN 을 잊었으면 센터장(또는 PIN 을 아는 직원)이 "
+               "⚙️ 직원·설정에서 다시 발급할 수 있습니다.")
+    return False
+
+
+if not _login_gate():
+    st.stop()
+
 with st.sidebar:
     st.markdown("### 🏥 요양시설 스튜디오")
     st.caption("주간보호센터 · 소형 요양원")
     _names = [s["이름"] for s in store.staff()]
-    if _names:
+    if st.session_state.get("who"):
+        st.markdown(f"**{st.session_state['who']}** 님")
+        st.session_state["me"] = st.session_state["who"]
+        if st.button("나가기", key="logout"):
+            for k in ("who", "me"):
+                st.session_state.pop(k, None)
+            st.rerun()
+    elif _names:
         st.session_state["me"] = st.selectbox(
             "나", _names,
             index=_names.index(st.session_state["me"])
             if st.session_state.get("me") in _names else 0)
     else:
-        st.session_state["me"] = st.text_input("나(이름)",
-                                               value=st.session_state.get("me", ""))
+        st.session_state["me"] = st.text_input(
+            "나(이름)", value=st.session_state.get("me", ""))
         st.caption("⚙️ 직원·설정에서 직원을 등록하면 목록에서 고를 수 있습니다.")
     st.divider()
     for cat, ms in MENUS:
@@ -68,6 +110,8 @@ with st.sidebar:
                          type="primary" if st.session_state["menu"] == m else "secondary"):
                 _go(m)
     st.divider()
+    if not store.any_pin():
+        st.caption("🔓 잠금 없음 — ⚙️ 직원·설정에서 PIN 을 걸면 로그인 화면이 생깁니다.")
     st.caption("⚠️ 시연·시험 단계. 이용자는 **가명·코드**로 등록하세요.")
 
 me = st.session_state.get("me", "")
@@ -87,12 +131,19 @@ def page_home():
     st.header("🏠 홈")
     st.caption(f"{store.today()} · {me or '이름을 먼저 고르세요'}")
 
+    # 오늘 근무 — 누가 있는지가 하루의 출발점이다
+    duty = store.on_duty()
+    if duty:
+        st.markdown("**오늘 근무** — " + " · ".join(
+            f"{n}({store.shifts().get(n, '')})" for n in duty))
+    else:
+        st.caption("오늘 근무표가 비어 있습니다. 🗓 근무표에서 지정하세요.")
+
     ns = store.notices()
-    if ns:
-        st.markdown("**📌 공지**")
-        for n in ns[:3]:
-            # st.info 는 HTML 을 그리지 않는다 — 태그가 글자로 보였다. 마크다운만.
-            st.info(f"{n['내용']}  \n*{n['작성자']} · {n['등록']}*", icon="📌")
+    for n in ns[:3]:
+        st.info(f"{n['내용']}" + chr(10) + chr(10)
+                + f"*{n['작성자']} · {n['등록']}*", icon="📌")
+
     if _need_users():
         return
 
@@ -108,7 +159,9 @@ def page_home():
     c3.metric("출결 미확인", len(unknown))
     _left = sum(1 for k in store.FIELD_KEYS for u in here
                 if u not in done.get(k, set()))
-    c4.metric("빈 칸", _left)
+    c4.metric("서식 빈 칸", _left)
+
+    _shortcuts()
 
     if unknown:
         st.warning("출결 미확인 — " + ", ".join(unknown[:10])
@@ -121,8 +174,14 @@ def page_home():
             f"{stt['이름']}({stt['주기']})" for _k, stt in od[:6])
             + (f" 외 {len(od) - 6}건" if len(od) > 6 else ""))
 
+    bad = store.broken_devices()
+    if bad:
+        st.warning("손봐야 할 기기 — " + " · ".join(
+            f"{d['기기명']}({d['상태']})" for d in bad))
+
     left, right = st.columns([1.5, 1])
     with left:
+        _cautions(here)
         st.subheader("아직 안 채운 칸")
         if not here:
             st.caption("등원한 이용자가 없습니다. **✅ 케어 기록**에서 출결을 먼저 찍으세요.")
@@ -136,19 +195,51 @@ def page_home():
                 st.success("서식이 모두 채워졌습니다.")
             for sec, label, miss in rows:
                 st.markdown(f"**{label}** <span class='cs-dim'>{sec}</span> — "
-                            f"{len(miss)}명 남음  \n"
+                            f"{len(miss)}명 남음<br>"
                             f"<span class='cs-dim'>{', '.join(miss)}</span>",
                             unsafe_allow_html=True)
     with right:
-        st.subheader("🔄 오늘 인계")
+        st.subheader("오늘 프로그램")
+        pr = store.today_programs()
+        if not pr:
+            st.caption("아직 기록이 없습니다. 신체·인지기능은 **주 3회 이상**이 기준입니다.")
+        for r in pr:
+            v = r["값"]
+            st.markdown(f"• **{v.get('프로그램명', '')}** "
+                        f"<span class='cs-dim'>{v.get('유형', '')} · "
+                        f"{v.get('참여인원', '')}명 · {v.get('진행자', '')}</span>",
+                        unsafe_allow_html=True)
+
+        st.subheader("오늘 인계")
         hs = store.handovers()
         if not hs:
             st.caption("인계 내용이 없습니다.")
         for h in hs[:6]:
             mark = "✔" if h["확인"] else "•"
-            st.markdown(f"{mark} **{h['이용자']}** ({h['종류']}) {h['내용']}  \n"
+            st.markdown(f"{mark} **{h['이용자']}** ({h['종류']}) {h['내용']}<br>"
                         f"<span class='cs-dim'>{h['시각']} {h['작성자']}</span>",
                         unsafe_allow_html=True)
+
+
+def _shortcuts():
+    """자주 가는 화면 바로가기. 현장에서 메뉴를 뒤지지 않게."""
+    tiles = ["✅ 케어 기록", "🔄 인계", "📚 대장·점검", "📄 일지"]
+    cols = st.columns(len(tiles))
+    for c, t in zip(cols, tiles):
+        if c.button(t, key=f"sc_{t}", use_container_width=True):
+            _go(t)
+
+
+def _cautions(here):
+    """등원한 이용자의 주의사항 — 낙상·삼킴처럼 놓치면 사고가 되는 것."""
+    rows = [u for u in users
+            if u["이름"] in here and (u.get("주의사항") or "").strip()]
+    if not rows:
+        return
+    st.subheader("주의")
+    for u in rows:
+        st.markdown(f"<span class='cs-warn'>⚠ {u['이름']}</span> "
+                    f"{u['주의사항']}", unsafe_allow_html=True)
 
 
 # ── 케어 기록(급여제공기록지) ─────────────────────────────────────────
@@ -479,6 +570,97 @@ def page_log():
         st.caption(f"{ym} 에 기록이 없습니다.")
 
 
+# ── 급여제공계획서 ────────────────────────────────────────────────────
+def page_plan():
+    st.header("📋 급여제공계획서")
+    st.caption("노인장기요양보험법 시행규칙 **별지 제11호의4서식** "
+               "(시설급여·주야간보호·단기보호). 개정 2021. 6. 30.")
+    st.info("서식 작성방법: 개인별장기요양이용계획서의 급여종류 범위 안에서 "
+            "기능상태·욕구를 고려해 **급여 개시 전에** 작성하고, 수급자 또는 "
+            "가족에게 충분히 설명한 뒤 **동의를 받아** 공단에 통보합니다.")
+    if _need_users():
+        return
+
+    miss = store.plan_missing()
+    if miss:
+        st.warning("계획서가 없는 이용자 — " + ", ".join(miss)
+                   + "  (평가지표 22: 연 1회 이상 수립)")
+
+    who = st.selectbox("수급자", names, key="pl_user")
+    last = store.latest_plan(who)
+    if last:
+        with st.container(border=True):
+            st.markdown(f"**최근 계획서** {last['작성']} · 작성자 "
+                        f"{last.get('작성자', '')}")
+            st.markdown(f"목표 — {last.get('목표', '')}")
+            for r in last.get("내용", []):
+                line = " · ".join(f"{k} {r.get(k, '')}" for k in store.PLAN_ROW
+                                  if str(r.get(k, "")).strip())
+                if line:
+                    st.markdown(f"- {line}")
+            ag = last.get("동의자", {})
+            if ag.get("성명"):
+                st.caption(f"동의자 {ag['성명']}({ag.get('관계', '')}) · "
+                           f"동의일 {ag.get('동의일', '')}")
+            else:
+                st.markdown("<span class='cs-warn'>동의 정보 없음 — 서식상 "
+                            "동의 없이 공단 통보를 할 수 없습니다.</span>",
+                            unsafe_allow_html=True)
+            if st.button("이 계획서 삭제", key=f"plx_{last['작성']}"):
+                store.delete_plan(who, last["작성"])
+                st.rerun()
+    else:
+        st.caption("등록된 계획서가 없습니다.")
+
+    st.divider()
+    st.subheader("새 계획서 작성")
+    head = {}
+    cols = st.columns(3)
+    for i, k in enumerate(store.PLAN_HEAD):
+        with cols[i % 3]:
+            head[k] = st.text_input(k, key=f"plh_{k}")
+    goal = st.text_area("목표 (급여 제공으로 얻고자 하는 종합적 효과)",
+                        key="pl_goal", height=70)
+
+    st.markdown("**급여제공계획 내용**")
+    st.caption("한 줄이 '무엇을 얼마나 자주' 하나입니다. "
+               "예: 세부 제공내용 = 옷 갈아입기 도움 → 옷 준비와 상의 단추 채우기 도움")
+    nrow = st.number_input("줄 수", 1, 10, 3, key="pl_n")
+    rows = []
+    for i in range(int(nrow)):
+        c = st.columns(6)
+        row = {}
+        for j, k in enumerate(store.PLAN_ROW):
+            row[k] = c[j].text_input(f"{k} {i + 1}", key=f"plr_{i}_{k}",
+                                     label_visibility="collapsed"
+                                     if i else "visible")
+        rows.append(row)
+
+    opinion = st.text_area("종합의견", key="pl_op", height=70,
+                           placeholder="서비스 제공자·가족과 공유할 사항, "
+                                       "이용계획서와 다르게 제공하는 경우 그 사유")
+    c1, c2 = st.columns(2)
+    writer = c1.text_input("작성자 (직종·성명)", value=me, key="pl_w")
+    manager = c2.text_input("총괄 확인자 (직종·성명)", key="pl_m")
+    st.markdown("**동의자**")
+    a1, a2, a3 = st.columns(3)
+    an = a1.text_input("성명", key="pl_an")
+    ar = a2.text_input("수급자와의 관계", key="pl_ar")
+    ad = a3.text_input("동의일", key="pl_ad", placeholder="2026-08-11")
+
+    if st.button("계획서 저장", type="primary", key="pl_save",
+                 use_container_width=True):
+        if not me:
+            st.warning("왼쪽에서 이름을 먼저 고르세요.")
+        else:
+            store.save_plan(who, head, goal,
+                            [r for r in rows if any(str(v).strip()
+                                                    for v in r.values())],
+                            opinion, writer, manager, an, ar, ad)
+            st.success("저장했습니다.")
+            st.rerun()
+
+
 # ── 대장·점검 ─────────────────────────────────────────────────────────
 def page_logs():
     st.header("📚 대장·점검")
@@ -786,6 +968,27 @@ def page_staff():
             store.delete_staff(s["이름"])
             st.rerun()
     st.divider()
+    st.subheader("PIN (로그인)")
+    st.caption("PIN 을 하나라도 걸면 로그인 화면이 생깁니다. 숫자 4~8자리. "
+               "저장은 해시로만 되어 사람이 되읽을 수 없습니다(재발급만 가능).")
+    for s_ in store.staff():
+        c1, c2, c3, c4 = st.columns([2, 2, 1, 1])
+        c1.markdown(f"**{s_['이름']}**")
+        c2.markdown("설정됨" if store.has_pin(s_["이름"]) else
+                    "<span class='cs-dim'>없음</span>", unsafe_allow_html=True)
+        newpin = c3.text_input("PIN", key=f"pin_{s_['이름']}", type="password",
+                               max_chars=8, label_visibility="collapsed",
+                               placeholder="숫자 4~8")
+        if c4.button("발급", key=f"pinb_{s_['이름']}",
+                     use_container_width=True):
+            try:
+                store.set_pin(s_["이름"], newpin)
+                st.success(f"{s_['이름']} PIN 설정됨")
+                st.rerun()
+            except ValueError as e:
+                st.warning(str(e))
+
+    st.divider()
     st.subheader("케어 항목")
     st.caption("지금 항목은 논문(주간보호센터 워크숍)의 하루 일과 기준입니다. "
                "급여제공기록지 서식 확인 후 `store.CARE_ITEMS` 를 그것에 맞춥니다.")
@@ -802,7 +1005,8 @@ def page_staff():
 
 
 {"🏠 홈": page_home, "✅ 케어 기록": page_care, "🔄 인계": page_handover,
- "📄 일지": page_log, "📚 대장·점검": page_logs, "🧑‍🦳 이용자": page_users,
+ "📄 일지": page_log, "📋 급여제공계획서": page_plan,
+ "📚 대장·점검": page_logs, "🧑‍🦳 이용자": page_users,
  "🤖 기기 대장": page_devices, "🗓 근무표": page_shift, "💡 건의": page_suggest,
  "📌 공지": page_notice,
  "⚙️ 직원·설정": page_staff}[st.session_state["menu"]]()

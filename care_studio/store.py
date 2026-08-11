@@ -709,3 +709,115 @@ def backup_zip():
                 z.write(os.path.join(DATA, fn), fn)
     return buf.getvalue()
 
+# ── 로그인 ────────────────────────────────────────────────────────────
+# 이용자 건강정보를 다루므로 아무나 열려 있으면 안 된다.
+# 직원별 **PIN(4~8자리 숫자)** 을 pbkdf2-sha256 으로 해시해 저장한다.
+#
+# ⚠️ 한계를 분명히 해둔다: 이건 *시설 안에서 쓰는 최소 잠금*이다.
+#    PIN 은 비밀번호보다 약하고, 브라우저 세션 단위로만 유지된다.
+#    인터넷에 공개할 거면 이 방식으로는 부족하다(계정·2단계 인증 필요).
+_PIN_ITER = 120000
+
+
+def _hash_pin(pin, salt):
+    import hashlib
+    return hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt),
+                               _PIN_ITER).hex()
+
+
+def has_pin(name):
+    return bool(_load("pins", {}).get(name))
+
+
+def any_pin():
+    """PIN 이 하나라도 설정돼 있으면 로그인 화면을 띄운다."""
+    return bool(_load("pins", {}))
+
+
+def set_pin(name, pin):
+    import os as _os
+    pin = (pin or "").strip()
+    if not (pin.isdigit() and 4 <= len(pin) <= 8):
+        raise ValueError("PIN 은 숫자 4~8자리여야 합니다.")
+    salt = _os.urandom(16).hex()
+    ps = _load("pins", {})
+    ps[name] = {"salt": salt, "hash": _hash_pin(pin, salt),
+                "설정일": today()}
+    _save("pins", ps)
+
+
+def clear_pin(name):
+    ps = _load("pins", {})
+    ps.pop(name, None)
+    _save("pins", ps)
+
+
+def check_pin(name, pin):
+    rec = _load("pins", {}).get(name)
+    if not rec:
+        return False
+    import hmac
+    return hmac.compare_digest(rec["hash"],
+                               _hash_pin((pin or "").strip(), rec["salt"]))
+
+
+def today_programs():
+    """오늘 진행한 프로그램(대장에서). 홈에 띄운다."""
+    return [r for r in logs("프로그램") if r["날짜"] == today()]
+
+
+def broken_devices():
+    """손봐야 할 기기 — 고장·점검중."""
+    return [d for d in devices() if d.get("상태") in ("고장", "점검중")]
+
+# ── 급여제공계획서 (별지 제11호의4서식) ────────────────────────────────
+# 노인장기요양보험법 시행규칙 [별지 제11호의4서식] <개정 2021. 6. 30.>
+# 장기요양급여제공계획서(시설급여, 주·야간보호, 단기보호). 원문에서 옮긴 항목.
+#
+# 작성방법(뒤쪽)에 명시된 것:
+#   · 개인별장기요양이용계획서의 급여종류 범위 안에서, 기능상태·욕구를 고려해
+#     **급여 개시 전에** 작성한다.
+#   · 수급자 또는 가족에게 충분히 설명한 뒤 **동의를 받아** 공단에 통보한다.
+#   · 급여종류별 또는 기관별로 각각 작성한다.
+# 평가지표 22 — 연 1회 이상 수립, 확인서명, 급여제공 시작일까지 공단 통보.
+PLAN_HEAD = ["장기요양등급", "장기요양인정번호", "인정유효기간",
+             "개인별장기요양이용계획서 번호", "급여종류", "급여계약일",
+             "계약기간", "적용기간", "작성일", "통보일"]
+# 급여제공계획 내용 — 한 줄이 '무엇을 얼마나 자주' 하나를 나타낸다
+PLAN_ROW = ["장기요양 필요영역", "장기요양 세부목표", "장기요양 필요내용",
+            "세부 제공내용", "횟수", "시간"]
+
+
+def plans(user=None):
+    ps = _load("plans", [])
+    return [p for p in ps if user is None or p["수급자"] == user]
+
+
+def latest_plan(user):
+    ps = sorted(plans(user), key=lambda p: p.get("작성", ""), reverse=True)
+    return ps[0] if ps else None
+
+
+def save_plan(user, head, goal, rows, opinion, writer, manager,
+              agree_name="", agree_rel="", agree_date=""):
+    """계획서 한 장 저장. 동의 정보가 비어 있어도 저장은 되지만 화면에서 경고한다
+    (서식상 동의 없이 공단 통보를 할 수 없다)."""
+    ps = _load("plans", [])
+    ps.append({"수급자": user, "머리": head, "목표": (goal or "").strip(),
+               "내용": rows, "종합의견": (opinion or "").strip(),
+               "작성자": writer, "총괄확인자": manager,
+               "동의자": {"성명": agree_name, "관계": agree_rel,
+                        "동의일": agree_date},
+               "작성": datetime.now(KST).strftime("%Y-%m-%d %H:%M")})
+    _save("plans", ps)
+
+
+def delete_plan(user, stamp):
+    _save("plans", [p for p in _load("plans", [])
+                    if not (p["수급자"] == user and p.get("작성") == stamp)])
+
+
+def plan_missing():
+    """계획서가 없는 이용자 — 평가지표 22는 '연 1회 이상 수립'을 요구한다."""
+    return [u["이름"] for u in users() if not latest_plan(u["이름"])]
+
