@@ -33,7 +33,8 @@ st.markdown("""<style>
 
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
          ("기록", ["📄 일지", "📚 대장·점검", "🧑‍🦳 이용자"]),
-         ("운영", ["📌 공지", "⚙️ 직원·설정"])]
+         ("기기", ["🤖 기기 대장"]),
+         ("운영", ["🗓 근무표", "📌 공지", "💡 건의", "⚙️ 직원·설정"])]
 ALL = [m for _, ms in MENUS for m in ms]
 
 if "menu" not in st.session_state:
@@ -463,8 +464,19 @@ def page_log():
         st.download_button("📥 전체 일지 내려받기 (txt)",
                            data=("\n\n".join(whole)).encode("utf-8"),
                            file_name=f"일지_{day}.txt", mime="text/plain")
-    st.caption("※ 급여제공기록지 서식(복지부 고시)은 아직 확인하지 못했습니다. "
-               "확인 후 항목명과 이 양식을 그 서식에 맞춥니다.")
+    st.divider()
+    st.subheader("월간 내보내기")
+    st.caption("공단 대응·감사 때 한 달치를 한 번에 뽑습니다. "
+               "엑셀에서 바로 열립니다.")
+    ym = st.text_input("월(YYYY-MM)", value=store.today()[:7], key="ex_ym")
+    nday = len(store.month_days(ym))
+    if nday:
+        st.download_button(f"📥 급여제공기록지 {ym} 내려받기 (CSV, {nday}일치)",
+                           data=store.export_month_csv(ym),
+                           file_name=f"급여제공기록지_{ym}.csv",
+                           mime="text/csv", use_container_width=True)
+    else:
+        st.caption(f"{ym} 에 기록이 없습니다.")
 
 
 # ── 대장·점검 ─────────────────────────────────────────────────────────
@@ -543,6 +555,151 @@ def _log_field(key, fname, ftype):
     if isinstance(ftype, list):
         return st.selectbox(fname, ftype, key=wk)
     return st.text_input(fname, key=wk)
+
+
+# ── 기기 대장 ─────────────────────────────────────────────────────────
+def page_devices():
+    st.header("🤖 기기 대장")
+    st.caption("시설에 들어온 돌봄로봇·센서와 그 **매뉴얼·문의처**. "
+               "조사한 요양 SW 6종에는 없는 칸입니다.")
+    ds = store.devices()
+
+    with st.expander("➕ 기기 등록", expanded=not ds):
+        c1, c2, c3 = st.columns(3)
+        nm = c1.text_input("기기명", key="dv_nm", placeholder="예: 효돌")
+        mk = c2.text_input("제조사", key="dv_mk")
+        md = c3.text_input("모델", key="dv_md")
+        c4, c5 = st.columns(2)
+        pl = c4.text_input("위치", key="dv_pl", placeholder="예: 프로그램실")
+        sc = c5.text_input("도입일", key="dv_sc", placeholder="2026-03-02")
+        nt = st.text_input("비고", key="dv_nt")
+        if st.button("등록", type="primary", key="dv_add"):
+            try:
+                store.add_device(nm, mk, md, pl, "사용중", sc, nt)
+                st.rerun()
+            except ValueError as e:
+                st.warning(str(e))
+
+    if not ds:
+        st.caption("등록된 기기가 없습니다.")
+    for d in ds:
+        with st.container(border=True):
+            c1, c2, c3 = st.columns([6, 2, 1])
+            head = f"### {d['기기명']}"
+            sub = " · ".join(x for x in (d.get("제조사"), d.get("모델"),
+                                         d.get("위치")) if x)
+            c1.markdown(head + (f"<br><span class='cs-dim'>{sub}</span>"
+                                if sub else ""), unsafe_allow_html=True)
+            cur = d.get("상태", "사용중")
+            pick = c2.selectbox("상태", store.DEVICE_STATES,
+                                index=store.DEVICE_STATES.index(cur)
+                                if cur in store.DEVICE_STATES else 0,
+                                key=f"dvs_{d['기기명']}",
+                                label_visibility="collapsed")
+            if pick != cur:
+                store.set_device_state(d["기기명"], pick)
+                st.rerun()
+            if c3.button("✕", key=f"dvx_{d['기기명']}"):
+                store.delete_device(d["기기명"])
+                st.rerun()
+            docs = store.device_docs(d["기기명"])
+            if docs:
+                for doc in docs:
+                    line = f"- {doc['종류']} — [{doc['제목']}]({doc['링크']})"
+                    if doc.get("문의처"):
+                        line += f"  <span class='cs-dim'>문의 {doc['문의처']}</span>"
+                    st.markdown(line, unsafe_allow_html=True)
+            else:
+                st.caption("등록된 자료가 없습니다. 아래에서 매뉴얼 링크를 넣으세요.")
+
+    st.divider()
+    st.subheader("기기 자료 등록")
+    st.caption("**파일이 아니라 링크**를 받습니다. 제조사가 매뉴얼을 개정하면 "
+               "링크는 저절로 최신본이 됩니다.")
+    c1, c2 = st.columns(2)
+    dn = c1.text_input("기기명", key="dc_nm",
+                       placeholder="대장의 기기명과 같게")
+    dk = c2.selectbox("종류", store.DOC_KINDS, key="dc_kd")
+    ti = st.text_input("제목", key="dc_ti", placeholder="예: 효돌 사용설명서 v2")
+    lk = st.text_input("링크", key="dc_lk", placeholder="https://...")
+    ct = st.text_input("문의처(선택)", key="dc_ct", placeholder="전화·이메일")
+    if st.button("자료 등록", type="primary", key="dc_add"):
+        try:
+            store.add_device_doc(dn, dk, ti, lk, ct)
+            st.rerun()
+        except ValueError as e:
+            st.warning(str(e))
+    for doc in store.device_docs():
+        c1, c2 = st.columns([9, 1])
+        c1.markdown(f"**{doc['기기명']}** · {doc['종류']} — "
+                    f"[{doc['제목']}]({doc['링크']})", unsafe_allow_html=True)
+        if c2.button("✕", key=f"dcx_{doc['제목']}_{doc['링크'][:20]}"):
+            store.delete_device_doc(doc["제목"], doc["링크"])
+            st.rerun()
+
+
+# ── 근무표 ────────────────────────────────────────────────────────────
+def page_shift():
+    st.header("🗓 근무표")
+    st.caption("인력 배치는 평가지표 3(인력기준)·4(추가배치)에 걸립니다. "
+               "누가 언제 근무했는지 기록으로 남깁니다.")
+    ss = store.staff()
+    if not ss:
+        st.info("먼저 **⚙️ 직원·설정** 에서 직원을 등록하세요.")
+        return
+    day = st.text_input("날짜", value=store.today(), key="sh_day")
+    cur = store.shifts(day)
+    opts = [""] + store.SHIFTS
+    for s_ in ss:
+        c1, c2 = st.columns([2, 6])
+        c1.markdown(f"**{s_['이름']}** <span class='cs-dim'>{s_['직무']}</span>",
+                    unsafe_allow_html=True)
+        now = cur.get(s_["이름"], "")
+        pick = c2.radio(s_["이름"], opts,
+                        index=opts.index(now) if now in opts else 0,
+                        key=f"sh_{day}_{s_['이름']}", horizontal=True,
+                        label_visibility="collapsed")
+        if pick != now:
+            store.set_shift(s_["이름"], pick, day)
+            st.rerun()
+    duty = store.on_duty(day)
+    st.success(f"근무 {len(duty)}명 — {', '.join(duty)}" if duty
+               else "근무로 표시된 직원이 없습니다.")
+
+
+# ── 건의 ──────────────────────────────────────────────────────────────
+def page_suggest():
+    st.header("💡 건의")
+    st.caption("현장에서 불편한 것·고쳤으면 하는 것을 남깁니다.")
+    c1, c2 = st.columns([1, 4])
+    kind = c1.selectbox("분류", ["개선", "오류", "문의", "기기 이상"],
+                        key="sg_kind")
+    txt = c2.text_input("내용", key="sg_text")
+    if st.button("등록", type="primary", key="sg_add"):
+        if not me:
+            st.warning("왼쪽에서 이름을 먼저 고르세요.")
+        elif txt.strip():
+            store.add_suggestion(txt, me, kind)
+            st.rerun()
+    for x in store.suggestions():
+        with st.container(border=True):
+            c1, c2, c3 = st.columns([6, 2, 1])
+            c1.markdown(f"[{x['분류']}] {x['내용']}<br>"
+                        f"<span class='cs-dim'>{x['작성자']} · {x['등록']}"
+                        + (f" · {x['처리']}" if x.get("처리") else "")
+                        + "</span>", unsafe_allow_html=True)
+            nowst = x.get("상태", "접수")
+            pick = c2.selectbox("상태", store.SUG_STATES,
+                                index=store.SUG_STATES.index(nowst)
+                                if nowst in store.SUG_STATES else 0,
+                                key=f"sgs_{x['등록']}",
+                                label_visibility="collapsed")
+            if pick != nowst:
+                store.set_suggestion(x["등록"], pick, x.get("처리", ""))
+                st.rerun()
+            if c3.button("✕", key=f"sgx_{x['등록']}"):
+                store.delete_suggestion(x["등록"])
+                st.rerun()
 
 
 # ── 이용자 ────────────────────────────────────────────────────────────
@@ -636,10 +793,16 @@ def page_staff():
         st.markdown(f"- {hhmm}  **{label}**  <span class='cs-dim'>{k}</span>",
                     unsafe_allow_html=True)
     st.divider()
-    st.caption("데이터는 이 PC의 `care_studio/data/` 에만 저장됩니다.")
+    st.subheader("백업")
+    st.caption("데이터는 이 PC의 `care_studio/data/` 에만 있습니다. "
+               "**날리면 복구가 안 됩니다.** 주기적으로 내려받아 두세요.")
+    st.download_button("🗄 전체 데이터 백업 (zip)", data=store.backup_zip(),
+                       file_name=f"요양시설스튜디오_백업_{store.today()}.zip",
+                       mime="application/zip", use_container_width=True)
 
 
 {"🏠 홈": page_home, "✅ 케어 기록": page_care, "🔄 인계": page_handover,
  "📄 일지": page_log, "📚 대장·점검": page_logs, "🧑‍🦳 이용자": page_users,
+ "🤖 기기 대장": page_devices, "🗓 근무표": page_shift, "💡 건의": page_suggest,
  "📌 공지": page_notice,
  "⚙️ 직원·설정": page_staff}[st.session_state["menu"]]()

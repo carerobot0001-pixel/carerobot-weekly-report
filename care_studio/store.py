@@ -538,3 +538,174 @@ def overdue_logs():
             out.append((k, stt))
     return out
 
+# ── 기기 대장 · 기기 자료 ──────────────────────────────────────────────
+# **우리 차별점.** 조사한 요양 SW 6종(이지케어·케어포·이스마트케어·요양시스·
+# 엔젤시스템·메디로) 어디에도 돌봄로봇·센서를 다루는 칸이 없다.
+# 시설에 들어온 기기를 대장에 올리고, 매뉴얼·문의처를 붙여 현장에서 바로 찾게 한다.
+DEVICE_STATES = ["사용중", "점검중", "고장", "보관", "반납"]
+
+
+def devices():
+    return _load("devices", [])
+
+
+def add_device(name, maker="", model="", place="", state="사용중",
+               since="", note=""):
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("기기명은 필수입니다.")
+    ds = devices()
+    ds.append({"기기명": name, "제조사": maker.strip(), "모델": model.strip(),
+               "위치": place.strip(), "상태": state, "도입일": since.strip(),
+               "비고": note.strip(), "등록일": today()})
+    _save("devices", ds)
+
+
+def set_device_state(name, state):
+    if state not in DEVICE_STATES:
+        return
+    ds = devices()
+    for d in ds:
+        if d["기기명"] == name:
+            d["상태"] = state
+    _save("devices", ds)
+
+
+def delete_device(name):
+    _save("devices", [d for d in devices() if d["기기명"] != name])
+
+
+DOC_KINDS = ["사용설명서", "설치·설정", "문제해결(FAQ)", "교육 영상", "A/S·문의처"]
+
+
+def device_docs(name=None):
+    ds = _load("device_docs", [])
+    if name is None:
+        return ds
+    n = (name or "").strip().lower()
+    return [d for d in ds
+            if d["기기명"].strip().lower() in n or n in d["기기명"].strip().lower()]
+
+
+def add_device_doc(name, kind, title, link, contact=""):
+    name, title, link = name.strip(), title.strip(), link.strip()
+    if not (name and title and link):
+        raise ValueError("기기명·제목·링크는 필수입니다.")
+    if not link.lower().startswith(("http://", "https://")):
+        raise ValueError("링크는 http:// 또는 https:// 로 시작해야 합니다.")
+    ds = _load("device_docs", [])
+    ds.append({"기기명": name, "종류": kind, "제목": title, "링크": link,
+               "문의처": contact.strip(), "등록일": today()})
+    _save("device_docs", ds)
+
+
+def delete_device_doc(title, link):
+    _save("device_docs", [d for d in _load("device_docs", [])
+                          if not (d["제목"] == title and d["링크"] == link)])
+
+
+# ── 근무표 ────────────────────────────────────────────────────────────
+# 인력 배치는 평가지표 3(인력기준)·4(추가배치)에 걸린다. 누가 언제 근무했는지가
+# 기록으로 남아야 한다.
+SHIFTS = ["주간", "오전", "오후", "야간", "휴무", "연차", "교육"]
+
+
+def shifts(day=None):
+    day = day or today()
+    saved = _load("shifts", {}).get(day, {})
+    return {s["이름"]: saved.get(s["이름"], "") for s in staff()}
+
+
+def set_shift(name, kind, day=None):
+    day = day or today()
+    all_ = _load("shifts", {})
+    if kind:
+        all_.setdefault(day, {})[name] = kind
+    else:
+        all_.get(day, {}).pop(name, None)
+    _save("shifts", all_)
+
+
+def on_duty(day=None):
+    """오늘 근무 중인 직원(휴무·연차 제외)."""
+    return [n for n, k in shifts(day).items() if k and k not in ("휴무", "연차")]
+
+
+# ── 건의·개선 요청 ────────────────────────────────────────────────────
+SUG_STATES = ["접수", "진행중", "완료", "보류"]
+
+
+def suggestions():
+    return sorted(_load("suggest", []), key=lambda x: x["등록"], reverse=True)
+
+
+def add_suggestion(text, by="", kind="개선"):
+    text = (text or "").strip()
+    if not text:
+        return
+    ss = _load("suggest", [])
+    ss.append({"등록": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
+               "작성자": by, "분류": kind, "내용": text, "상태": "접수",
+               "처리": ""})
+    _save("suggest", ss)
+
+
+def set_suggestion(stamp, state, memo=""):
+    ss = _load("suggest", [])
+    for x in ss:
+        if x["등록"] == stamp:
+            x["상태"] = state
+            x["처리"] = memo
+    _save("suggest", ss)
+
+
+def delete_suggestion(stamp):
+    _save("suggest", [x for x in _load("suggest", []) if x["등록"] != stamp])
+
+
+# ── 월간 내보내기 ─────────────────────────────────────────────────────
+def month_days(ym):
+    """그 달에 기록이 있는 날짜들."""
+    return sorted(d for d in _sheets() if d.startswith(ym))
+
+
+def export_month_csv(ym):
+    """급여제공기록지 한 달치를 CSV 로. 공단 대응·감사 때 뽑는 용도.
+
+    엑셀에서 한글이 안 깨지게 BOM 을 붙인다.
+    """
+    head = ["날짜", "수급자", "시작", "종료", "총시간(분)", "이동서비스", "차량번호"]
+    head += [FIELDS[k][1] for k in FIELD_KEYS]
+    head += [f"특이사항({sec})" for sec in SECTION_NAMES]
+    head += [f"작성자({sec})" for sec in SECTION_NAMES]
+    rows = [head]
+    for day in month_days(ym):
+        for user in sorted(_sheets().get(day, {})):
+            sh = sheet(user, day)
+            se = sh["세션"]
+            mins = total_minutes(user, day)
+            row = [day, user, se.get("시작", ""), se.get("종료", ""),
+                   "" if mins is None else str(mins),
+                   "Y" if se.get("이동") else "", se.get("차량", "")]
+            row += [value_text(k, sh["필드"].get(k)) if k in sh["필드"] else ""
+                    for k in FIELD_KEYS]
+            row += [sh["특이"].get(sec, "") for sec in SECTION_NAMES]
+            row += [sh["작성자"].get(sec, "") for sec in SECTION_NAMES]
+            rows.append(row)
+    out = []
+    for r in rows:
+        out.append(",".join('"' + str(c).replace('"', '""') + '"' for c in r))
+    return ("﻿" + chr(10).join(out)).encode("utf-8")
+
+
+def backup_zip():
+    """데이터 전부를 zip 으로. 로컬 파일뿐이라 날리면 복구가 안 된다."""
+    import io as _io
+    import zipfile
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for fn in sorted(os.listdir(DATA)):
+            if fn.endswith(".json"):
+                z.write(os.path.join(DATA, fn), fn)
+    return buf.getvalue()
+
