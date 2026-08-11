@@ -15,24 +15,42 @@ import voice
 
 st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", layout="wide")
 
+# 색: Dolbom Studio 는 주황(#C4622D)이다. 이쪽은 **딥 틸·세이지** 계열로 나눈다.
+#   - 같은 회사 제품이지만 다른 물건임이 한눈에 보이게
+#   - 돌봄·의료 현장에서 오래 봐도 덜 피로한 저채도 녹청
 st.markdown("""<style>
+  :root{
+    --cs-main:#2E7D6F; --cs-deep:#1F5D53; --cs-dark:#17302C;
+    --cs-ink:#EAF2F0; --cs-warn:#C0563F;
+  }
   section[data-testid="stMain"] .block-container{ padding-top:2.6rem; }
-  h1,h2,h3{ color:#8A3F12; }
-  section[data-testid="stSidebar"]{ background:#2B2018; }
-  section[data-testid="stSidebar"] *{ color:#EFE5D8 !important; }
+  h1,h2,h3{ color:var(--cs-deep); }
+  a,a:visited{ color:var(--cs-main); }
+  section[data-testid="stSidebar"]{ background:var(--cs-dark); }
+  section[data-testid="stSidebar"] *{ color:var(--cs-ink) !important; }
   section[data-testid="stSidebar"] .stButton>button{
     background:transparent; border:none; text-align:left !important;
     justify-content:flex-start !important; font-size:1.02rem; font-weight:600;
     padding:6px 12px; border-radius:8px; margin:1px 0; width:100%; }
-  section[data-testid="stSidebar"] .stButton>button:hover{ background:#3c2d22; }
+  section[data-testid="stSidebar"] .stButton>button:hover{ background:#22443F; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:#C4622D; color:#fff !important; }
-  .cs-warn{ color:#C4622D; font-weight:700; }
+    background:var(--cs-main); color:#fff !important; }
+  div.stButton>button{ border-color:#BBD6D0; color:var(--cs-deep); }
+  div.stButton>button:hover{ border-color:var(--cs-main); color:var(--cs-main); }
+  div.stButton>button[kind="primary"],
+  div.stFormSubmitButton>button{
+    background:var(--cs-main); border-color:var(--cs-main); color:#fff; }
+  div.stButton>button[kind="primary"]:hover,
+  div.stFormSubmitButton>button:hover{
+    background:var(--cs-deep); border-color:var(--cs-deep); color:#fff; }
+  [data-testid="stMetricValue"]{ color:var(--cs-deep); }
+  .cs-warn{ color:var(--cs-warn); font-weight:700; }
   .cs-dim{ opacity:.55; font-size:.8rem; }
 </style>""", unsafe_allow_html=True)
 
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
-         ("기록", ["📄 일지", "📋 급여제공계획서", "📚 대장·점검", "🧑‍🦳 이용자"]),
+         ("기록", ["📄 일지", "📝 사정·상담", "📋 급여제공계획서",
+                   "📚 대장·점검", "🧑‍🦳 이용자"]),
          ("기기", ["🤖 기기 대장"]),
          ("운영", ["🗓 근무표", "📌 공지", "💡 건의", "⚙️ 직원·설정"])]
 ALL = [m for _, ms in MENUS for m in ms]
@@ -173,6 +191,12 @@ def page_home():
         st.error("기한이 지난 기록 — " + " · ".join(
             f"{stt['이름']}({stt['주기']})" for _k, stt in od[:6])
             + (f" 외 {len(od) - 6}건" if len(od) > 6 else ""))
+
+    cd = store.care_due()
+    if cd:
+        st.warning("수급자별 기한 지남 — " + " · ".join(
+            f"{n} {lab}" for n, lab, _g in cd[:6])
+            + (f" 외 {len(cd) - 6}건" if len(cd) > 6 else ""))
 
     bad = store.broken_devices()
     if bad:
@@ -568,6 +592,94 @@ def page_log():
                            mime="text/csv", use_container_width=True)
     else:
         st.caption(f"{ym} 에 기록이 없습니다.")
+
+
+# ── 사정·상담·결과평가 ────────────────────────────────────────────────
+def page_assess():
+    st.header("📝 사정·상담")
+    st.caption("평가지표 30(욕구사정 연 1회) · 25(상담 분기 1회) · "
+               "44(결과평가 반기, 30일 이내 계획 재작성)")
+    if _need_users():
+        return
+    due = store.care_due()
+    if due:
+        st.error("기한 지남 — " + " · ".join(
+            f"{n} {lab}" + (f"({g}일)" if g else "(없음)")
+            for n, lab, g in due[:8])
+            + (f" 외 {len(due) - 8}건" if len(due) > 8 else ""))
+
+    who = st.selectbox("수급자", names, key="as_user")
+    t1, t2, t3 = st.tabs(["욕구사정", "상담", "결과평가"])
+
+    with t1:
+        st.info("**단순 체크는 인정되지 않습니다.** 항목마다 판단 근거를 "
+                "서술하세요. 예: 옷 벗고 입기 '부분도움' 만 체크 → 불인정 / "
+                "\"왼쪽 편마비로 옷 갈아입을 때 일부 도움 필요\" → 인정")
+        vals = {}
+        for k, hint in store.ASSESS_ITEMS:
+            vals[k] = st.text_input(f"{k}  ({hint})", key=f"as_{k}")
+        summ = st.text_area("총평 (종합소견, 서술형)", key="as_sum", height=90)
+        if st.button("욕구사정 저장", type="primary", key="as_save",
+                     use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.save_assessment(who, vals, summ, me)
+                st.rerun()
+        for x in store.assessments(who)[:3]:
+            with st.container(border=True):
+                st.markdown(f"**{x['작성']}** · {x['작성자']}")
+                for k, v in x["항목"].items():
+                    if str(v).strip():
+                        st.markdown(f"- **{k}** {v}")
+                if x.get("총평"):
+                    st.markdown(f"총평 — {x['총평']}")
+
+    with t2:
+        st.caption("필수 기재: 상담일자 · 수급자명 · 상담직원명 · "
+                   "상담대상자명(관계) · 상담내용. 내방·방문·전화 모두 인정됩니다"
+                   "(일방향 소통은 제외).")
+        c1, c2, c3 = st.columns(3)
+        cdate = c1.text_input("상담일자", value=store.today(), key="cs_d")
+        ctgt = c2.text_input("상담대상자", key="cs_t", placeholder="예: 김AA")
+        crel = c3.text_input("관계", key="cs_r", placeholder="예: 자녀 / 본인")
+        cbody = st.text_area("상담내용 (상태·욕구·건의사항)", key="cs_b",
+                             height=90)
+        if st.button("상담 저장", type="primary", key="cs_save",
+                     use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.save_counsel(who, cdate, ctgt, crel, cbody, me)
+                st.rerun()
+        for x in store.counsels(who)[:5]:
+            st.markdown(f"**{x['상담일자']}** {x.get('상담대상자', '')}"
+                        f"({x.get('관계', '')}) — {x['상담내용']}<br>"
+                        f"<span class='cs-dim'>상담직원 {x['상담직원']}</span>",
+                        unsafe_allow_html=True)
+
+    with t3:
+        st.caption("결과평가는 **반기별**입니다. 결과를 반영해 급여제공계획서를 "
+                   "**30일 이내에 재작성**해야 합니다.")
+        per = st.text_input("평가기간", key="rs_p",
+                            placeholder="2026-01-01 ~ 2026-06-30")
+        ach = st.text_area("목표 달성 정도", key="rs_a", height=70)
+        chg = st.text_area("수급자 상태 변화", key="rs_c", height=70)
+        nxt = st.text_area("계획 반영 사항", key="rs_n", height=70)
+        if st.button("결과평가 저장", type="primary", key="rs_save",
+                     use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.save_result(who, per, ach, chg, nxt, me)
+                st.rerun()
+        for x in store.results(who)[:3]:
+            with st.container(border=True):
+                st.markdown(f"**{x['작성']}** · {x.get('평가기간', '')} · "
+                            f"{x['작성자']}")
+                for k in ("목표달성", "상태변화", "계획반영"):
+                    if str(x.get(k, "")).strip():
+                        st.markdown(f"- **{k}** {x[k]}")
 
 
 # ── 급여제공계획서 ────────────────────────────────────────────────────
@@ -1005,7 +1117,8 @@ def page_staff():
 
 
 {"🏠 홈": page_home, "✅ 케어 기록": page_care, "🔄 인계": page_handover,
- "📄 일지": page_log, "📋 급여제공계획서": page_plan,
+ "📄 일지": page_log, "📝 사정·상담": page_assess,
+ "📋 급여제공계획서": page_plan,
  "📚 대장·점검": page_logs, "🧑‍🦳 이용자": page_users,
  "🤖 기기 대장": page_devices, "🗓 근무표": page_shift, "💡 건의": page_suggest,
  "📌 공지": page_notice,

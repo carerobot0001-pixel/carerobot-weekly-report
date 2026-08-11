@@ -821,3 +821,98 @@ def plan_missing():
     """계획서가 없는 이용자 — 평가지표 22는 '연 1회 이상 수립'을 요구한다."""
     return [u["이름"] for u in users() if not latest_plan(u["이름"])]
 
+# ── 욕구사정 · 상담 · 결과평가 ─────────────────────────────────────────
+# 근거: 2026년 재가급여(주야간보호) 평가매뉴얼
+#   · 지표 30 욕구사정 — 모든 수급자 **연 1회 이상**, 대면 원칙, 해당급여직원이 작성
+#     매뉴얼 114쪽의 '욕구사정 세부내용' 을 그대로 옮겼다.
+#     ⚠️ 매뉴얼은 "세부내용 9개 항목"이라고 하면서 번호는 1~8까지만 열거한다.
+#        본문 다른 곳에 '구강상태' 항목이 언급돼 9번으로 넣었다.
+#        [[확인필요: 9번 항목이 구강상태가 맞는지]]
+#   · 지표 25 상담관리 — 모든 수급자(보호자)와 **분기별 1회 이상**
+#     필수사항: 상담일자, 수급자명, 상담직원명, 상담대상자명(관계), 상담내용
+#   · 지표 44 결과평가 — **반기별**, 결과를 반영해 급여제공계획을 **30일 이내 재작성**
+#
+# ⚠️ 매뉴얼이 못박은 것: 단순 체크만 하면 인정 안 된다. **판단 근거를 서술**해야 한다.
+#    (예: 옷 벗고 입기 '부분도움' 체크만 → 불인정 /
+#         "왼쪽 편마비로 옷 갈아입을 때 일부 도움 필요" 로 근거 서술 → 인정)
+ASSESS_ITEMS = [
+    ("신체상태", "일상생활동작 수행능력 등"),
+    ("질병상태", "과거병력, 현 진단명 등"),
+    ("인지상태", "인지기능 등"),
+    ("의사소통", "청취능력, 발음능력 등"),
+    ("영양상태", "음식섭취 패턴, 치아상태, 배설 양상 등"),
+    ("가족 및 환경상태", "가족상황, 거주환경, 수발부담 등"),
+    ("주관적 욕구", "수급자 또는 보호자가 호소하는 개별 욕구"),
+    ("자원이용", "의료기관, 사회복지기관, 그 외 서비스 기관 등"),
+    ("구강상태", "치아·틀니·기피식품 파악 등"),
+]
+
+
+def assessments(user=None):
+    xs = sorted(_load("assess", []), key=lambda x: x["작성"], reverse=True)
+    return [x for x in xs if user is None or x["수급자"] == user]
+
+
+def save_assessment(user, items, summary, by):
+    _push("assess", {"수급자": user, "항목": items, "총평": (summary or "").strip(),
+                     "작성자": by, "작성": today()})
+
+
+def counsels(user=None):
+    xs = sorted(_load("counsel", []), key=lambda x: x["상담일자"], reverse=True)
+    return [x for x in xs if user is None or x["수급자"] == user]
+
+
+def save_counsel(user, date, target, rel, content, by):
+    """상담 기록. 매뉴얼이 요구하는 5개 필수사항을 그대로 칸으로 둔다."""
+    _push("counsel", {"수급자": user, "상담일자": date or today(),
+                      "상담대상자": target, "관계": rel,
+                      "상담내용": (content or "").strip(), "상담직원": by})
+
+
+def results(user=None):
+    xs = sorted(_load("result", []), key=lambda x: x["작성"], reverse=True)
+    return [x for x in xs if user is None or x["수급자"] == user]
+
+
+def save_result(user, period, achieved, change, next_plan, by):
+    _push("result", {"수급자": user, "평가기간": period,
+                     "목표달성": achieved, "상태변화": change,
+                     "계획반영": next_plan, "작성자": by, "작성": today()})
+
+
+def _push(name, row):
+    xs = _load(name, [])
+    xs.append(row)
+    _save(name, xs)
+
+
+def _days_since(datestr):
+    try:
+        d0 = datetime.strptime(datestr[:10], "%Y-%m-%d").date()
+        return (datetime.now(KST).date() - d0).days
+    except Exception:
+        return None
+
+
+def care_due():
+    """수급자별로 기한이 지난 것을 모아 준다.
+
+    욕구사정 연1회(366일) · 상담 분기(92일) · 결과평가 반기(183일) · 계획서 연1회.
+    """
+    out = []
+    for u in users():
+        n = u["이름"]
+        for label, rows, span, keyf in (
+                ("욕구사정", assessments(n), 366, lambda r: r["작성"]),
+                ("상담", counsels(n), 92, lambda r: r["상담일자"]),
+                ("결과평가", results(n), 183, lambda r: r["작성"]),
+                ("급여제공계획서", plans(n), 366, lambda r: r.get("작성", ""))):
+            if not rows:
+                out.append((n, label, None))
+                continue
+            gap = _days_since(keyf(rows[0]))
+            if gap is not None and gap > span:
+                out.append((n, label, gap))
+    return out
+
