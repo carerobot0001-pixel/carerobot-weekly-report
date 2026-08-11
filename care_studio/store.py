@@ -916,3 +916,14 @@ def care_due():
                 out.append((n, label, gap))
     return out
 
+
+
+# ── 화면 설정(테마) ───────────────────────────────────────────────────
+def get_pref(name, key, default=""):
+    return _load("prefs", {}).get(name, {}).get(key, default)
+
+
+def set_pref(name, key, value):
+    ps = _load("prefs", {})
+    ps.setdefault(name or "_", {})[key] = value
+    _save("prefs", ps)

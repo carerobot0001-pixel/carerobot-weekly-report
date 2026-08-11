@@ -17,6 +17,14 @@ import voice
 
 st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", layout="wide")
 
+# 다크 모드 — 계정별로 기억한다.
+# ⚠️ 다크에서 **순백 글씨(18.7:1)는 눈부시다**(돌봄스튜디오에서 세 번 헤맴).
+#    그렇다고 낮추면 시력 저하자가 못 읽는다 → 본문 #DAD7D2 (13:1) 로 잡았다.
+_who = st.session_state.get("who") or st.session_state.get("me") or "_"
+if "dark" not in st.session_state:
+    st.session_state["dark"] = store.get_pref(_who, "dark", "") == "Y"
+DARK = st.session_state["dark"]
+
 # 인스타그램 웹 화면 + **시력 저하자 배려**.
 #
 # 인스타 원색을 그대로 쓰면 안 된다 — 흰 배경 대비를 계산해보면 셋 다 미달이다:
@@ -37,7 +45,11 @@ st.markdown("""<style>
   html, body, section[data-testid="stMain"]{ font-size:18px; }
   section[data-testid="stMain"]{ background:#FFFFFF; }
   section[data-testid="stMain"] .block-container{
-    padding-top:2rem; max-width:900px; }
+    padding-top:2rem; max-width:900px; margin-left:auto; margin-right:auto; }
+  /* 사이드바 항목 — 폭·들여쓰기를 하나로 맞춘다(들쭉날쭉해 보이던 것) */
+  section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{
+    gap:.15rem; }
+  section[data-testid="stSidebar"] .stButton{ width:100%; }
   section[data-testid="stMain"] p,
   section[data-testid="stMain"] li,
   section[data-testid="stMain"] label,
@@ -110,6 +122,46 @@ st.markdown("""<style>
   .cs-dim{ color:var(--ig-sub); font-size:.92rem; }
 </style>""", unsafe_allow_html=True)
 
+if DARK:
+    # 색면을 바꾸는 규칙만 전역, 여백·정렬은 건드리지 않는다.
+    st.markdown("""<style>
+      :root{
+        --ig-ink:#DAD7D2; --ig-sub:#A8A49E; --ig-line:#3A3A38;
+        --ig-blue:#6BAAF5; --ig-warn:#FF7A70; }
+      html, body, section[data-testid="stMain"],
+      [data-testid="stAppViewContainer"]{ background:#121212 !important; }
+      section[data-testid="stMain"] *, section[data-testid="stSidebar"] *{
+        color:#DAD7D2 !important; }
+      h1,h2,h3,h4{ color:#E8E5E1 !important; }
+      section[data-testid="stSidebar"]{
+        background:#0D0D0D !important; border-right:1px solid #3A3A38; }
+      section[data-testid="stSidebar"] .stButton>button:hover{
+        background:#242422 !important; }
+      section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+        background:#242422 !important; box-shadow:inset 4px 0 0 0 #DD2A7B; }
+      div[data-testid="stVerticalBlockBorderWrapper"],
+      [data-testid="stAlert"]{
+        background:#1B1B1A !important; border-color:#3A3A38 !important; }
+      div.stButton>button{
+        background:#1B1B1A !important; border-color:#4A4A47 !important; }
+      div.stButton>button:hover{ background:#242422 !important; }
+      div.stButton>button[kind="primary"], div.stFormSubmitButton>button{
+        background:#2F6FD0 !important; border-color:#2F6FD0 !important;
+        color:#FFFFFF !important; }
+      section[data-testid="stMain"] input,
+      section[data-testid="stMain"] textarea,
+      section[data-testid="stMain"] [data-baseweb="select"] > div{
+        background:#1B1B1A !important; border-color:#4A4A47 !important; }
+      section[data-testid="stMain"] input::placeholder,
+      section[data-testid="stMain"] textarea::placeholder{
+        color:#8E8B86 !important; opacity:1 !important; }
+      /* 드롭다운·달력은 body 포털이라 앱 밖에 그려진다 — 따로 덮는다 */
+      div[data-baseweb="popover"] *, div[data-baseweb="menu"] *{
+        background:#1B1B1A !important; color:#DAD7D2 !important; }
+      .ig-cap, .cs-dim{ color:#A8A49E !important; }
+      .cs-warn{ color:#FF7A70 !important; }
+    </style>""", unsafe_allow_html=True)
+
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
          ("기록", ["📄 일지", "📝 사정·상담", "📋 급여제공계획서",
                    "📚 대장·점검", "🧑‍🦳 이용자"]),
@@ -162,8 +214,17 @@ if not _login_gate():
     st.stop()
 
 with st.sidebar:
-    st.markdown("### 🏥 요양시설 스튜디오")
-    st.caption("주간보호센터 · 소형 요양원")
+    st.markdown("<div style='text-align:center;padding:.2rem 0 .1rem'>"
+                "<span class='ig-brand' style='font-size:1.3rem'>"
+                "요양시설 스튜디오</span></div>"
+                "<div class='ig-cap' style='text-align:center;"
+                "margin-bottom:.6rem'>주간보호센터 · 소형 요양원</div>",
+                unsafe_allow_html=True)
+    if st.button("🌙 어두운 화면으로" if not DARK else "☀️ 밝은 화면으로",
+                 key="theme_btn", use_container_width=True):
+        st.session_state["dark"] = not DARK
+        store.set_pref(_who, "dark", "" if DARK else "Y")
+        st.rerun()
     _names = [s["이름"] for s in store.staff()]
     if st.session_state.get("who"):
         st.markdown(f"**{st.session_state['who']}** 님")
@@ -183,8 +244,9 @@ with st.sidebar:
         st.caption("⚙️ 직원·설정에서 직원을 등록하면 목록에서 고를 수 있습니다.")
     st.divider()
     for cat, ms in MENUS:
-        st.markdown(f"<div class='cs-dim' style='margin:10px 6px 2px;"
-                    f"letter-spacing:1px'>{cat}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cs-dim' style='margin:14px 0 4px;"
+                    f"padding-left:14px;letter-spacing:2px;font-weight:700'>"
+                    f"{cat}</div>", unsafe_allow_html=True)
         for m in ms:
             if st.button(m, key=f"nav_{m}",
                          type="primary" if st.session_state["menu"] == m else "secondary"):
