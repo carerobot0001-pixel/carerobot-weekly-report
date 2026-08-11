@@ -15,36 +15,46 @@ import voice
 
 st.set_page_config(page_title="요양시설 스튜디오", page_icon="🏥", layout="wide")
 
-# 색: Dolbom Studio 는 주황(#C4622D)이다. 이쪽은 **딥 틸·세이지** 계열로 나눈다.
-#   - 같은 회사 제품이지만 다른 물건임이 한눈에 보이게
-#   - 돌봄·의료 현장에서 오래 봐도 덜 피로한 저채도 녹청
+# 색: 인스타그램 계열 그라디언트(주황-핑크-보라-파랑).
+#   #F58529 → #DD2A7B → #8134AF → #515BD4
+# ⚠️ 그라디언트는 배경으로만 쓴다. **글씨는 진하게** 둔다 —
+#    파스텔 위에 파스텔 글씨를 얹으면 현장에서 안 읽힌다.
 st.markdown("""<style>
   :root{
-    --cs-main:#2E7D6F; --cs-deep:#1F5D53; --cs-dark:#17302C;
-    --cs-ink:#EAF2F0; --cs-warn:#C0563F;
+    --ig-orange:#F58529; --ig-pink:#DD2A7B; --ig-purple:#8134AF;
+    --ig-blue:#515BD4; --ig-ink:#2B1B33; --ig-dark:#241B2F;
+    --ig-grad:linear-gradient(90deg,#F58529 0%,#DD2A7B 40%,#8134AF 72%,#515BD4 100%);
   }
   section[data-testid="stMain"] .block-container{ padding-top:2.6rem; }
-  h1,h2,h3{ color:var(--cs-deep); }
-  a,a:visited{ color:var(--cs-main); }
-  section[data-testid="stSidebar"]{ background:var(--cs-dark); }
-  section[data-testid="stSidebar"] *{ color:var(--cs-ink) !important; }
+  h1{
+    background:var(--ig-grad); -webkit-background-clip:text;
+    background-clip:text; color:transparent; font-weight:800; }
+  h2,h3{ color:var(--ig-purple); }
+  h4{ color:var(--ig-pink); }
+  a,a:visited{ color:var(--ig-purple); }
+  section[data-testid="stSidebar"]{
+    background:var(--ig-dark);
+    border-right:3px solid transparent;
+    border-image:var(--ig-grad) 1; }
+  section[data-testid="stSidebar"] *{ color:#F3EAF7 !important; }
   section[data-testid="stSidebar"] .stButton>button{
     background:transparent; border:none; text-align:left !important;
     justify-content:flex-start !important; font-size:1.02rem; font-weight:600;
-    padding:6px 12px; border-radius:8px; margin:1px 0; width:100%; }
-  section[data-testid="stSidebar"] .stButton>button:hover{ background:#22443F; }
+    padding:6px 12px; border-radius:10px; margin:1px 0; width:100%; }
+  section[data-testid="stSidebar"] .stButton>button:hover{ background:#3A2A48; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:var(--cs-main); color:#fff !important; }
-  div.stButton>button{ border-color:#BBD6D0; color:var(--cs-deep); }
-  div.stButton>button:hover{ border-color:var(--cs-main); color:var(--cs-main); }
+    background:var(--ig-grad); color:#fff !important; font-weight:700; }
+  div.stButton>button{ border-color:#E7CDE4; color:var(--ig-purple); }
+  div.stButton>button:hover{ border-color:var(--ig-pink); color:var(--ig-pink); }
   div.stButton>button[kind="primary"],
   div.stFormSubmitButton>button{
-    background:var(--cs-main); border-color:var(--cs-main); color:#fff; }
+    background:var(--ig-grad); border:none; color:#fff; font-weight:700; }
   div.stButton>button[kind="primary"]:hover,
-  div.stFormSubmitButton>button:hover{
-    background:var(--cs-deep); border-color:var(--cs-deep); color:#fff; }
-  [data-testid="stMetricValue"]{ color:var(--cs-deep); }
-  .cs-warn{ color:var(--cs-warn); font-weight:700; }
+  div.stFormSubmitButton>button:hover{ filter:brightness(.93); color:#fff; }
+  [data-testid="stMetricValue"]{ color:var(--ig-purple); }
+  [data-testid="stMetric"]{
+    border:1px solid #EFDCEC; border-radius:12px; padding:.5rem .8rem; }
+  .cs-warn{ color:#D62976; font-weight:700; }
   .cs-dim{ opacity:.55; font-size:.8rem; }
 </style>""", unsafe_allow_html=True)
 
