@@ -1559,6 +1559,14 @@ def home_page():
                             with st.expander("끌어서 옮기기", expanded=False):
                                 _drag_sort_personal(uid, _myper)
                         _myper = []          # 정렬 화면일 땐 목록을 겹쳐 안 보이게
+                    for _i, _p in enumerate(_myper):
+                        _pc1, _pc3 = st.columns([10, 1])
+                        _pc1.markdown(f"{_i + 1}. {_p.get('t', '')}")
+                        if _pc3.button("✓", key=f"per_done_{_i}",
+                                       help="완료(삭제) — 기록에 남지 않음"):
+                            save_personal(uid, [q for j, q in enumerate(_myper)
+                                                if j != _i])
+                            st.rerun()
             # 옛 개인 할 일이 팀 시트에 남아 있으면 내 기기로 옮길 수 있게 안내.
             # (자동으로 지우지 않는다 — 삭제는 되돌릴 수 없으므로 직접 누르게)
             if _old_per:
