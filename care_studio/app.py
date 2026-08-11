@@ -64,15 +64,19 @@ st.markdown("""<style>
   section[data-testid="stSidebar"]{
     background:#FFFFFF; border-right:1px solid var(--ig-line); }
   section[data-testid="stSidebar"] *{ color:var(--ig-ink) !important; }
+  /* 사이드바 항목 — 가운데 정렬. 이름 길이가 제각각이라 왼쪽 정렬이
+     들쭉날쭉해 보였다. 가운데로 모으면 한 줄로 읽힌다. */
   section[data-testid="stSidebar"] .stButton>button{
-    background:transparent; border:none; text-align:left !important;
-    justify-content:flex-start !important; font-size:1.05rem; font-weight:500;
-    padding:12px 14px; border-radius:10px; margin:2px 0; width:100%;
+    background:transparent; border:none; text-align:center !important;
+    justify-content:center !important; font-size:1.05rem; font-weight:500;
+    padding:12px 10px; border-radius:10px; margin:2px 0; width:100%;
     min-height:48px; }
+  section[data-testid="stSidebar"] .stButton>button p{
+    text-align:center !important; width:100%; margin:0; }
   section[data-testid="stSidebar"] .stButton>button:hover{ background:#F0F0F0; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:#EFEFEF; font-weight:800;
-    box-shadow:inset 4px 0 0 0 #DD2A7B; }
+    background:#F2F2F2; font-weight:800;
+    box-shadow:inset 0 -3px 0 0 #DD2A7B; }
 
   /* 버튼 — 손가락으로 누를 크기 */
   div.stButton>button, div.stFormSubmitButton>button{
@@ -246,7 +250,7 @@ with st.sidebar:
     st.divider()
     for cat, ms in MENUS:
         st.markdown(f"<div class='cs-dim' style='margin:14px 0 4px;"
-                    f"padding-left:14px;letter-spacing:2px;font-weight:700'>"
+                    f"text-align:center;letter-spacing:3px;font-weight:700'>"
                     f"{cat}</div>", unsafe_allow_html=True)
         for m in ms:
             if st.button(m, key=f"nav_{m}",
@@ -329,10 +333,9 @@ def page_home():
 
     pr = store.today_programs()
     _card("오늘 프로그램",
-          " · ".join(f"{r['값'].get('프로그램명', '')}"
-                     f"({r['값'].get('유형', '')})" for r in pr) if pr
-          else "아직 기록이 없습니다.",
-          "신체·인지기능은 주 3회 이상이 기준입니다.", icon="🎵")
+          " · ".join(f"{r['값'].get('프로그램명', '')}({r.get('유형', '')})"
+                     for r in pr) if pr else "아직 기록이 없습니다.",
+          "신체·인지기능 주 3회 이상 · 사회적응 월 1회 이상", icon="🎵")
 
     hs = store.handovers()
     if hs:
@@ -808,7 +811,10 @@ def page_assess():
                 "\"왼쪽 편마비로 옷 갈아입을 때 일부 도움 필요\" → 인정")
         vals = {}
         for k, hint in store.ASSESS_ITEMS:
-            vals[k] = st.text_input(f"{k}  ({hint})", key=f"as_{k}")
+            # ⚠️ 매뉴얼은 "9개 항목"이라면서 1~8만 열거한다. 9번은 추정이다.
+            _lab = f"{k}  ({hint})" + (
+                "   ※ 9번 항목은 확인 필요" if k == "구강상태" else "")
+            vals[k] = st.text_input(_lab, key=f"as_{k}")
         summ = st.text_area("총평 (종합소견, 서술형)", key="as_sum", height=90)
         if st.button("욕구사정 저장", type="primary", key="as_save",
                      use_container_width=True):
