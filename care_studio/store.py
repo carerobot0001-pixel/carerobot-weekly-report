@@ -442,3 +442,99 @@ def daily_log(user, day=None):
             if who:
                 out.append(f"  · 작성자: {who}")
     return chr(10).join(out)
+
+# ── 대장·점검표 (평가지표 대응) ────────────────────────────────────────
+# 근거: 2026년 장기요양기관 재가급여(주야간보호) 평가매뉴얼의 평가지표.
+# 지표마다 **주기가 정해져 있다** — 앱이 그 주기를 세어 주면 평가 대응이 된다.
+# (지표 번호·주기는 매뉴얼에서 확인해 옮긴 것이다. 배점·세부 평가기준은 안 담는다)
+#
+# 주기: 매일 / 주3회 / 매월 / 분기 / 반기 / 매년
+LOGBOOKS = [
+    ("프로그램", "프로그램 운영일지", "주3회", "지표 24·25 신체·인지기능 프로그램 주 3회 이상",
+     [("프로그램명", "text"), ("유형", ["신체기능", "인지기능", "사회적응", "기타"]),
+      ("참여인원", "num"), ("진행자", "staff"), ("내용·특이사항", "text")]),
+    ("차량", "차량운행일지", "매일", "지표 28 이동서비스 — 차량운행표 제공",
+     [("차량번호", "text"), ("운행구간", "text"), ("운전원", "staff"),
+      ("탑승인원", "num"), ("출발", "text"), ("도착", "text"), ("특이사항", "text")]),
+    ("환기", "실내환기 일일 점검표", "매일", "지표 9-② 환기수칙에 따라 환기, 일일 점검표 비치",
+     [("점검시간", "text"), ("환기방법", ["창문 개방", "환기장치", "둘 다"]),
+      ("점검자", "staff"), ("특이사항", "text")]),
+    ("소독", "소독·감염관리 점검", "분기", "지표 16-② 분기별 1회 이상 실내·외 전문소독",
+     [("범위", "text"), ("업체·담당", "text"), ("점검자", "staff"), ("결과", "text")]),
+    ("교육", "종사자 교육기록", "매년", "지표 6 운영규정·급여제공지침 교육 연 1회 이상",
+     [("교육명", "text"),
+      ("종류", ["운영규정", "급여제공지침", "인권보호", "감염관리", "안전·재난", "기타"]),
+      ("강사", "text"), ("참석자", "text"), ("시간(분)", "num")]),
+    ("소방", "소방설비 점검", "매월", "지표 13-① 소화설비·경보설비 매월 점검",
+     [("점검항목", "text"), ("점검자", "staff"), ("결과", "text")]),
+    ("재난훈련", "재난대응 훈련", "반기", "지표 11 재난상황 대응훈련 반기별 1회 이상",
+     [("훈련내용", "text"), ("참석자", "text"), ("진행자", "staff")]),
+    ("건강검진", "직원 건강검진", "매년", "지표 15 결핵검진 포함 건강검진 매년",
+     [("대상자", "text"), ("검진기관", "text"), ("결과", "text")]),
+    ("사례관리", "사례관리 회의", "반기", "지표 29 사례관리 회의 반기별 1회 이상",
+     [("대상 수급자", "text"), ("참석자", "text"), ("논의·결정", "text")]),
+    ("위험도평가", "낙상·욕창·인지 위험도 평가", "반기",
+     "지표 20·21 낙상·욕창 위험도, 인지기능 평가 반기별 1회 이상",
+     [("수급자", "user"), ("종류", ["낙상", "욕창", "인지기능"]),
+      ("결과", "text"), ("평가자", "staff")]),
+]
+LOG_KEYS = [k for k, _, _, _, _ in LOGBOOKS]
+LOG_SPEC = {k: (name, cycle, basis, fields)
+            for k, name, cycle, basis, fields in LOGBOOKS}
+CYCLE_DAYS = {"매일": 1, "주3회": 3, "매월": 31, "분기": 92, "반기": 183, "매년": 366}
+
+
+def logs(key, limit=None):
+    """대장 항목(최신순)."""
+    rs = [r for r in _load("logs", []) if r["대장"] == key]
+    rs.sort(key=lambda r: (r["날짜"], r.get("등록", "")), reverse=True)
+    return rs[:limit] if limit else rs
+
+
+def add_log(key, values, by="", day=None):
+    if key not in LOG_SPEC:
+        raise ValueError(f"모르는 대장: {key}")
+    rs = _load("logs", [])
+    rs.append({"대장": key, "날짜": day or today(), "값": values,
+               "작성자": by, "등록": now_hm()})
+    _save("logs", rs)
+
+
+def delete_log(key, day, stamp):
+    keep = [r for r in _load("logs", [])
+            if not (r["대장"] == key and r["날짜"] == day
+                    and r.get("등록") == stamp)]
+    _save("logs", keep)
+
+
+def log_status(key):
+    """마지막 기록일과 경과일. 주기를 넘겼으면 늦음으로 표시한다.
+
+    반환 {마지막, 경과, 늦음, 남음}. 기록이 없으면 마지막=None.
+    """
+    rs = logs(key, 1)
+    name, cycle, basis, _ = LOG_SPEC[key]
+    span = CYCLE_DAYS[cycle]
+    if not rs:
+        return {"마지막": None, "경과": None, "늦음": True, "남음": None,
+                "이름": name, "주기": cycle, "근거": basis}
+    last = rs[0]["날짜"]
+    try:
+        d0 = datetime.strptime(last, "%Y-%m-%d").date()
+        gap = (datetime.now(KST).date() - d0).days
+    except Exception:
+        return {"마지막": last, "경과": None, "늦음": False, "남음": None,
+                "이름": name, "주기": cycle, "근거": basis}
+    return {"마지막": last, "경과": gap, "늦음": gap > span,
+            "남음": span - gap, "이름": name, "주기": cycle, "근거": basis}
+
+
+def overdue_logs():
+    """주기를 넘긴 대장 목록 — 홈에 띄운다."""
+    out = []
+    for k in LOG_KEYS:
+        stt = log_status(k)
+        if stt["늦음"]:
+            out.append((k, stt))
+    return out
+

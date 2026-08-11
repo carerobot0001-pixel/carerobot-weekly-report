@@ -32,7 +32,7 @@ st.markdown("""<style>
 </style>""", unsafe_allow_html=True)
 
 MENUS = [("현장", ["🏠 홈", "✅ 케어 기록", "🔄 인계"]),
-         ("기록", ["📄 일지", "🧑‍🦳 이용자"]),
+         ("기록", ["📄 일지", "📚 대장·점검", "🧑‍🦳 이용자"]),
          ("운영", ["📌 공지", "⚙️ 직원·설정"])]
 ALL = [m for _, ms in MENUS for m in ms]
 
@@ -112,6 +112,13 @@ def page_home():
     if unknown:
         st.warning("출결 미확인 — " + ", ".join(unknown[:10])
                    + ("…" if len(unknown) > 10 else ""))
+
+    # 평가지표는 주기가 정해져 있다. 넘긴 것을 홈에서 먼저 보여준다.
+    od = store.overdue_logs()
+    if od:
+        st.error("기한이 지난 기록 — " + " · ".join(
+            f"{stt['이름']}({stt['주기']})" for _k, stt in od[:6])
+            + (f" 외 {len(od) - 6}건" if len(od) > 6 else ""))
 
     left, right = st.columns([1.5, 1])
     with left:
@@ -460,6 +467,84 @@ def page_log():
                "확인 후 항목명과 이 양식을 그 서식에 맞춥니다.")
 
 
+# ── 대장·점검 ─────────────────────────────────────────────────────────
+def page_logs():
+    st.header("📚 대장·점검")
+    st.caption("2026년 장기요양기관 재가급여(주야간보호) **평가지표**가 요구하는 "
+               "주기별 기록입니다. 마지막 기록일로부터 며칠 지났는지 세어 줍니다.")
+
+    st.subheader("주기 현황")
+    for k in store.LOG_KEYS:
+        stt = store.log_status(k)
+        c1, c2, c3 = st.columns([3, 2, 5])
+        c1.markdown(f"**{stt['이름']}**")
+        c2.markdown(f"<span class='cs-dim'>{stt['주기']}</span>",
+                    unsafe_allow_html=True)
+        if stt["마지막"] is None:
+            c3.markdown("<span class='cs-warn'>기록 없음</span>",
+                        unsafe_allow_html=True)
+        elif stt["늦음"]:
+            c3.markdown(f"<span class='cs-warn'>기한 지남 — 마지막 "
+                        f"{stt['마지막']} ({stt['경과']}일 전)</span>",
+                        unsafe_allow_html=True)
+        else:
+            c3.markdown(f"마지막 {stt['마지막']} "
+                        f"<span class='cs-dim'>({stt['경과']}일 전)</span>",
+                        unsafe_allow_html=True)
+
+    st.divider()
+    key = st.selectbox("대장 고르기", store.LOG_KEYS,
+                       format_func=lambda k: store.LOG_SPEC[k][0], key="lg_pick")
+    name, cycle, basis, fields = store.LOG_SPEC[key]
+    st.markdown(f"### {name}")
+    st.caption(f"주기 {cycle} · 근거: {basis}")
+
+    with st.container(border=True):
+        day = st.text_input("날짜", value=store.today(), key=f"lgd_{key}")
+        vals = {}
+        cols = st.columns(2)
+        for i, (fname, ftype) in enumerate(fields):
+            with cols[i % 2]:
+                vals[fname] = _log_field(key, fname, ftype)
+        if st.button("기록 추가", type="primary", key=f"lga_{key}",
+                     use_container_width=True):
+            if not me:
+                st.warning("왼쪽에서 이름을 먼저 고르세요.")
+            else:
+                store.add_log(key, vals, me, day)
+                st.rerun()
+
+    rs = store.logs(key, 30)
+    st.subheader(f"기록 — {len(rs)}건")
+    if not rs:
+        st.caption("아직 기록이 없습니다.")
+    for r in rs:
+        c1, c2 = st.columns([9, 1])
+        body = " · ".join(f"{k} {v}" for k, v in r["값"].items()
+                          if str(v).strip())
+        c1.markdown(f"**{r['날짜']}** {body}<br>"
+                    f"<span class='cs-dim'>{r['작성자']} {r.get('등록', '')}</span>",
+                    unsafe_allow_html=True)
+        if c2.button("✕", key=f"lgx_{key}_{r['날짜']}_{r.get('등록', '')}"):
+            store.delete_log(key, r["날짜"], r.get("등록", ""))
+            st.rerun()
+
+
+def _log_field(key, fname, ftype):
+    """대장 항목 한 칸. staff/user 는 등록된 명단에서 고른다."""
+    wk = f"lg_{key}_{fname}"
+    if ftype == "num":
+        return int(st.number_input(fname, 0, 999, 0, key=wk))
+    if ftype == "staff":
+        opts = [s["이름"] for s in store.staff()] or [me or "-"]
+        return st.selectbox(fname, opts, key=wk)
+    if ftype == "user":
+        return st.selectbox(fname, names or ["-"], key=wk)
+    if isinstance(ftype, list):
+        return st.selectbox(fname, ftype, key=wk)
+    return st.text_input(fname, key=wk)
+
+
 # ── 이용자 ────────────────────────────────────────────────────────────
 def page_users():
     st.header("🧑‍🦳 이용자")
@@ -555,5 +640,6 @@ def page_staff():
 
 
 {"🏠 홈": page_home, "✅ 케어 기록": page_care, "🔄 인계": page_handover,
- "📄 일지": page_log, "🧑‍🦳 이용자": page_users, "📌 공지": page_notice,
+ "📄 일지": page_log, "📚 대장·점검": page_logs, "🧑‍🦳 이용자": page_users,
+ "📌 공지": page_notice,
  "⚙️ 직원·설정": page_staff}[st.session_state["menu"]]()
