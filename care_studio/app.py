@@ -66,12 +66,12 @@ st.markdown("""<style>
     background:#241B2F; border-right:none; }
   section[data-testid="stSidebar"] *{ color:#F3EAF7 !important; }
   section[data-testid="stSidebar"] .stButton>button{
-    background:transparent; border:none; text-align:left !important;
-    justify-content:flex-start !important; font-size:1.05rem; font-weight:600;
-    padding:10px 14px; border-radius:10px; margin:2px 0; width:100%;
+    background:transparent; border:none; text-align:center !important;
+    justify-content:center !important; font-size:1.05rem; font-weight:600;
+    padding:10px 12px; border-radius:10px; margin:2px 0; width:100%;
     min-height:46px; }
   section[data-testid="stSidebar"] .stButton>button p{
-    text-align:left !important; width:100%; margin:0; }
+    text-align:center !important; width:100%; margin:0; }
   section[data-testid="stSidebar"] .stButton>button:hover{ background:#362A45; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
     background:linear-gradient(90deg,#DD2A7B,#8134AF);
@@ -86,7 +86,7 @@ st.markdown("""<style>
   /* 카테고리 소제목 */
   section[data-testid="stSidebar"] .navcat{
     color:#C0A8D6 !important; font-size:.78rem; font-weight:800;
-    letter-spacing:2px; margin:16px 6px 4px; }
+    letter-spacing:2px; margin:16px 0 4px; text-align:center; }
   /* 입력칸(이름 고르기)도 어두운 바탕에 맞춘다 */
   section[data-testid="stSidebar"] [data-baseweb="select"] > div,
   section[data-testid="stSidebar"] input{
@@ -233,10 +233,10 @@ if not _login_gate():
     st.stop()
 
 with st.sidebar:
-    st.markdown("<div style='padding:.2rem 6px .1rem'>"
+    st.markdown("<div style='text-align:center;padding:.2rem 0 .1rem'>"
                 "<span class='ig-brand' style='font-size:1.25rem'>"
                 "요양시설 스튜디오</span></div>"
-                "<div class='ig-cap' style='padding:0 6px;"
+                "<div class='ig-cap' style='text-align:center;"
                 "margin-bottom:.7rem'>주간보호센터 · 소형 요양원</div>",
                 unsafe_allow_html=True)
     if st.button("🌙 어두운 화면으로" if not DARK else "☀️ 밝은 화면으로",
