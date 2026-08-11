@@ -47,8 +47,12 @@ st.markdown("""<style>
   }
   html, body, section[data-testid="stMain"]{ font-size:18px; }
   section[data-testid="stMain"]{ background:#FFFFFF; }
+  /* ⚠️ 상단 여백이 좁으면 Streamlit 기본 상단바(≫ · ⋮)가 제목 위에 겹쳐
+     글자가 잘려 보인다. 돌봄스튜디오와 같은 값(3.6rem)보다 조금 더 준다. */
   section[data-testid="stMain"] .block-container{
-    padding-top:2rem; max-width:900px; margin-left:auto; margin-right:auto; }
+    padding-top:4.2rem; max-width:900px; margin-left:auto; margin-right:auto; }
+  /* 상단바는 배경을 비워 본문과 겹쳐 보이지 않게 */
+  [data-testid="stHeader"]{ background:transparent; }
   /* 사이드바 항목 — 폭·들여쓰기를 하나로 맞춘다(들쭉날쭉해 보이던 것) */
 
   section[data-testid="stMain"] p,
@@ -156,9 +160,23 @@ if DARK:
       div[data-testid="stVerticalBlockBorderWrapper"],
       [data-testid="stAlert"]{
         background:#1B1B1A !important; border-color:#3A3A38 !important; }
-      div.stButton>button{
+      /* ⚠️ 본문 버튼 규칙이 사이드바까지 먹어서 메뉴가 전부 테두리 상자로 보였다.
+         본문만 한정하고, 사이드바는 따로 준다. */
+      section[data-testid="stMain"] div.stButton>button{
         background:#1B1B1A !important; border-color:#4A4A47 !important; }
-      div.stButton>button:hover{ background:#242422 !important; }
+      section[data-testid="stMain"] div.stButton>button:hover{
+        background:#242422 !important; }
+      section[data-testid="stSidebar"]{ background:#0D0D0D !important; }
+      section[data-testid="stSidebar"] .stButton>button{
+        background:transparent !important; border:none !important; }
+      section[data-testid="stSidebar"] .stButton>button:hover{
+        background:#1F1F1E !important; }
+      section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+        background:#2A2333 !important; color:#F3EAF7 !important;
+        box-shadow:inset 0 -3px 0 0 #DD2A7B !important; }
+      section[data-testid="stSidebar"] .st-key-theme_btn button{
+        background:#1F1F1E !important; border:1px solid #4A4A47 !important; }
+      section[data-testid="stSidebar"] .navcat{ color:#9B93A8 !important; }
       div.stButton>button[kind="primary"], div.stFormSubmitButton>button{
         background:#2F6FD0 !important; border-color:#2F6FD0 !important;
         color:#FFFFFF !important; }
