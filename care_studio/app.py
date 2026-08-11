@@ -58,11 +58,12 @@ st.markdown("""<style>
   h1{ font-size:2rem; } h2{ font-size:1.5rem; } h3{ font-size:1.25rem; }
   a,a:visited{ color:var(--ig-blue); text-decoration:underline; }
 
-  /* 사이드바 — 돌봄스튜디오와 같은 최소 규칙만 둔다.
-     ⚠️ width/display 를 강제로 덮었더니 flex 배치가 깨져 카테고리 라벨이
-        버튼 위에 겹쳤다. 색과 정렬만 바꾸고 배치는 Streamlit 에 맡긴다. */
-  section[data-testid="stSidebar"]{ background:#241B2F; border-right:none; }
-  section[data-testid="stSidebar"] *{ color:#F3EAF7 !important; }
+  /* 사이드바 — 밝은 바탕(인스타 웹처럼). 어두운 자주는 너무 진했다.
+     ⚠️ width/display 를 CSS 로 강제하면 배치가 깨진다(라벨이 버튼에 겹침).
+        폭은 use_container_width 로 주고, 여기선 색·정렬만 손댄다. */
+  section[data-testid="stSidebar"]{
+    background:#FFFFFF; border-right:1px solid var(--ig-line); }
+  section[data-testid="stSidebar"] *{ color:var(--ig-ink) !important; }
   section[data-testid="stSidebar"] .stButton>button{
     background:transparent; border:none;
     text-align:center !important; justify-content:center !important;
@@ -70,19 +71,16 @@ st.markdown("""<style>
     border-radius:10px; margin:1px 0; }
   section[data-testid="stSidebar"] .stButton>button p{
     text-align:center !important; margin:0; }
-  section[data-testid="stSidebar"] .stButton>button:hover{ background:#362A45; }
+  section[data-testid="stSidebar"] .stButton>button:hover{ background:#F2F2F2; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:linear-gradient(90deg,#DD2A7B,#8134AF);
-    color:#FFFFFF !important; font-weight:800; }
+    background:#F4EAF3; color:var(--ig-ink) !important; font-weight:800;
+    box-shadow:inset 0 -3px 0 0 #DD2A7B; }
   section[data-testid="stSidebar"] .st-key-theme_btn button{
-    background:#33263F !important; border:1px solid #5B4A6B !important;
+    background:#FFFFFF !important; border:1px solid var(--ig-line) !important;
     font-size:.95rem !important; font-weight:700; }
   section[data-testid="stSidebar"] .navcat{
-    color:#C0A8D6 !important; font-size:.78rem; font-weight:800;
+    color:#7A7A7A !important; font-size:.78rem; font-weight:800;
     letter-spacing:2px; text-align:center; margin:14px 0 2px; }
-  section[data-testid="stSidebar"] [data-baseweb="select"] > div,
-  section[data-testid="stSidebar"] input{
-    background:#33263F !important; border-color:#5B4A6B !important; }
 
   /* 버튼 — 손가락으로 누를 크기 */
   div.stButton>button, div.stFormSubmitButton>button{
