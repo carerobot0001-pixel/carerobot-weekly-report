@@ -14,7 +14,11 @@ TODO_WS = "개인할일"
 # '구분'은 맨 뒤에 둠 — 옛 3열 행(구분 없음)은 기본 '할일'로 처리(데이터 안 밀림).
 # '중요'·'마감일'도 맨 뒤 — 옛 4열 행이 밀리지 않게.
 TODO_HEADER = ["아이디", "내용", "등록일시", "구분", "중요", "마감일",
-               "영역", "순서", "진행일", "진행"]
+               "영역", "순서", "진행일", "진행", "묶음"]
+# '묶음' = 여러 할 일이 이어지는 **하나의 프로젝트 이름**.
+# 큰 일 하나가 작은 일로 계속 갈라지는데, ✓(완료)를 누르면 그 갈래가 사라져
+# 무엇의 일부였는지 안 남는다. 묶음을 적어두면 완료 기록에도 함께 남아
+# 주간보고에서 "○○ 프로젝트 — 이번 주 완료분"으로 묶어 볼 수 있다.
 # '진행' = 지금 어디까지 왔는지 본인이 직접 적는 한 줄("메일 회신 기다리는 중" 등).
 # '진행일' = 그 메모를 적은 날짜 — 며칠째 그 상태인지 세기 위해.
 # 완료(✓)로 넘기면 실적 기록이 되어버리는데 아직 끝난 게 아니고, 그냥 두면
@@ -26,6 +30,7 @@ _COL_AREA = TODO_HEADER.index("영역") + 1
 _COL_ORDER = TODO_HEADER.index("순서") + 1
 _COL_NOTED = TODO_HEADER.index("진행일") + 1
 _COL_NOTE = TODO_HEADER.index("진행") + 1
+_COL_GROUP = TODO_HEADER.index("묶음") + 1
 KIND_TODO, KIND_CARE = "할일", "챙길것"      # 할일=업무, 챙길것=오늘 챙길 것
 KIND_PERSONAL = "개인"                        # 개인 할 일(업무와 분리해서 표시)
 KIND_DONE = "완료"                            # 완료 처리된 업무 할 일(업무보고 실적 반영용)
@@ -63,7 +68,7 @@ def set_sync(uid, key, value):
             _rows.clear()
             return
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    ws.append_row([uid, f"{key}={value}", now, KIND_SYNC, "", "", "", "", "", ""],
+    ws.append_row([uid, f"{key}={value}", now, KIND_SYNC, "", "", "", "", "", "", ""],
                   value_input_option="RAW")
     _rows.clear()
 
@@ -129,7 +134,7 @@ def list_todos(uid, kind=KIND_TODO):
 
 
 def add_todo(uid, text, kind=KIND_TODO, due="", area=AREA_WORK,
-             star=False):
+             star=False, group=""):
     uid = (uid or "").strip()
     text = (text or "").strip()
     if not uid or not text:
@@ -138,7 +143,7 @@ def add_todo(uid, text, kind=KIND_TODO, due="", area=AREA_WORK,
     ws = _ws()
     _ensure_cols(ws)
     ws.append_row([uid, text, now, kind, "Y" if star else "",
-                      (due or "").strip(), (area or AREA_WORK), "", "", ""],
+                      (due or "").strip(), (area or AREA_WORK), "", "", "", (group or "").strip()],
                      value_input_option="RAW")
     _rows.clear()
 
@@ -177,7 +182,9 @@ def complete_todo(uid, row, text):
     now = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
     _area = (r[TODO_HEADER.index("영역")].strip()
              if len(r) > TODO_HEADER.index("영역") else "") or AREA_WORK
-    ws.append_row([uid, text, now, KIND_DONE, "", "", _area, "", "", ""],
+    _gi = TODO_HEADER.index("묶음")
+    _group = r[_gi].strip() if len(r) > _gi else ""
+    ws.append_row([uid, text, now, KIND_DONE, "", "", _area, "", "", "", _group],
                   value_input_option="RAW")   # 끝에 기록(영역 보존)
     ws.delete_rows(row)                                                   # 활성 행 제거
     _rows.clear()
@@ -287,4 +294,22 @@ def completed_todos(uid, since=None):
             if ts and ts < since:
                 continue
         out.append(d)
+    return out
+
+
+def set_group(uid, row, text, group):
+    """묶음(프로젝트) 이름 지정. 빈 문자열이면 해제."""
+    _update(uid, row, text, _COL_GROUP, (group or "").strip())
+
+
+def groups(uid):
+    """내가 쓰고 있는 묶음 이름들(활성 + 완료 기록에서)."""
+    uid = (uid or "").strip()
+    out = []
+    for d in _rows():
+        if d["아이디"].strip() != uid:
+            continue
+        g = (d.get("묶음", "") or "").strip()
+        if g and g not in out:
+            out.append(g)
     return out

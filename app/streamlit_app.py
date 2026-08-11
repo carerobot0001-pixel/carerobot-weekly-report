@@ -798,7 +798,11 @@ def _todo_row(p, uid, today, no=None, show_del=False):
     # 내용 앞에 출처 아이콘(📄 보고 · 📧 메일 · 📅 일정)이 이미 있으면
     # 기본 아이콘(📝)을 덧붙이지 않는다 — 두 개가 겹쳐 보인다.
     _txt = re.sub(r"^(📄|📧|📅)\s*", "", p["내용"].lstrip())
-    c1.markdown(f"{_head} " + _txt
+    _grp = (p.get("묶음", "") or "").strip()
+    _gtag = (f" <span style='background:#EFE3D8;color:#8A4A1E;border-radius:9px;"
+             f"padding:1px 7px;font-size:.74rem;white-space:nowrap'>"
+             f"{html_escape(_grp)}</span>" if _grp else "")
+    c1.markdown(f"{_head} " + _txt + _gtag
                 + _todo_badges(p, today) + _todo_note_line(p, today),
                 unsafe_allow_html=True)
     # ⋯ 진행 메모 — 지금 어디까지 왔는지 본인 말로 적는다("메일 회신 기다리는 중").
@@ -814,11 +818,25 @@ def _todo_row(p, uid, today, no=None, show_del=False):
             "진행 상황", value=note, key=f"todo_note_{p['_row']}",
             placeholder="예: 메일 보내고 회신 기다리는 중",
             label_visibility="collapsed")
+        # 묶음 — 큰 일 하나가 작은 일로 계속 갈라질 때 이름을 붙여 둔다.
+        _gopts = [""] + [g for g in todo_store.groups(uid)]
+        if _grp and _grp not in _gopts:
+            _gopts.append(_grp)
+        _gc1, _gc2 = st.columns([2, 3])
+        _gsel = _gc1.selectbox("묶음", _gopts,
+                               index=_gopts.index(_grp) if _grp in _gopts else 0,
+                               key=f"todo_gsel_{p['_row']}",
+                               format_func=lambda x: x or "(없음)")
+        _gnew = _gc2.text_input("새 묶음 이름", key=f"todo_gnew_{p['_row']}",
+                                placeholder="예: 챗봇 서버 이관")
         _n1, _n2 = st.columns(2)
         if _n1.button("저장", key=f"todo_note_save_{p['_row']}",
                       use_container_width=True):
             try:
                 todo_store.set_note(uid, p["_row"], p["내용"], _nv)
+                _g = (_gnew or _gsel).strip()
+                if _g != _grp:
+                    todo_store.set_group(uid, p["_row"], p["내용"], _g)
                 st.session_state[_nkey] = False
             except Exception as e:
                 st.error(f"저장 실패: {e}")
@@ -835,6 +853,10 @@ def _todo_row(p, uid, today, no=None, show_del=False):
                  help="완료 — 주간보고 실적에 넣을 수 있게 기록됨"):
         try:
             todo_store.complete_todo(uid, p["_row"], p["내용"])
+            # 큰 일은 완료해도 뒤가 이어진다 → 다음 할 일을 바로 적게 물어본다.
+            st.session_state["after_done"] = {
+                "묶음": _grp or p["내용"][:20], "영역": p.get("영역", ""),
+                "원래": p["내용"]}
         except Exception as e:
             st.error(f"완료 처리 실패: {e}")
         st.rerun()
@@ -1378,6 +1400,37 @@ def home_page():
                     st.rerun()
                 if _mp_open and uid:
                     _mail_panel(uid, _mytodos, today)
+                # 완료 직후 — "그 일에서 이어지는 다음 할 일"을 바로 적게 한다.
+                # 큰 일 하나가 작은 일로 계속 갈라지는데, ✓만 누르면 그 갈래가
+                # 사라져 무엇의 일부였는지 안 남는다.
+                _ad = st.session_state.get("after_done")
+                if _ad and uid:
+                    with st.container(border=True):
+                        st.markdown(f"✅ **{_ad['원래'][:36]}** 완료했습니다.")
+                        st.caption("이어지는 다음 할 일이 있으면 여기에 적으세요. "
+                                   "같은 **묶음**으로 이어집니다.")
+                        _n1, _n2 = st.columns([3, 2])
+                        _nx = _n1.text_input("다음 할 일", key="after_done_text",
+                                             label_visibility="collapsed",
+                                             placeholder="예: 이관 결과 정리해 보고")
+                        _ng = _n2.text_input("묶음", value=_ad["묶음"],
+                                             key="after_done_group",
+                                             label_visibility="collapsed")
+                        _b1, _b2 = st.columns(2)
+                        if _b1.button("이어서 추가", type="primary",
+                                      key="after_done_add",
+                                      use_container_width=True):
+                            if _nx.strip():
+                                todo_store.add_todo(
+                                    uid, _nx.strip(),
+                                    area=_ad.get("영역") or todo_store.AREA_WORK,
+                                    group=_ng.strip())
+                            st.session_state.pop("after_done", None)
+                            st.rerun()
+                        if _b2.button("없음", key="after_done_no",
+                                      use_container_width=True):
+                            st.session_state.pop("after_done", None)
+                            st.rerun()
                 if _todo_open:
                     with st.form("todo_add_form", clear_on_submit=True):
                         _tt = st.text_input("할 일 (나만 보임)", key="todo_text",
@@ -1480,18 +1533,32 @@ def home_page():
                         st.rerun()
                     st.caption("🔒 이 목록은 **내 기기(브라우저)에만** 저장됩니다 — "
                                "팀 시트로 나가지 않습니다. (기기마다 따로 저장)")
-                    if _myper and _drag_available() and st.session_state.get(
-                            "per_sort_mode"):
-                        _drag_sort_personal(uid, _myper)
-                        _myper = []          # 정렬 화면일 땐 목록을 겹쳐 보이지 않게
-                    for _i, _p in enumerate(_myper):
-                        _pc1, _pc3 = st.columns([10, 1])
-                        _pc1.markdown(f"{_i + 1}. {_p.get('t', '')}")
-                        if _pc3.button("✓", key=f"per_done_{_i}",
-                                       help="완료(삭제) — 기록에 남지 않음"):
-                            save_personal(uid, [q for j, q in enumerate(_myper)
-                                                if j != _i])
-                            st.rerun()
+                    if _myper and st.session_state.get("per_sort_mode"):
+                        # ⚠️ 드래그 컴포넌트가 안 뜨는 경우가 있었다(목록이 통째로
+                        #    안 보임). 그래서 **▲▼ 버튼을 기본**으로 두고,
+                        #    드래그는 되면 아래에 함께 보여준다.
+                        st.caption("▲▼ 로 한 칸씩 옮깁니다. 바로 저장됩니다.")
+                        for _i, _p in enumerate(_myper):
+                            _u1, _u2, _u3 = st.columns([8, 1, 1])
+                            _u1.markdown(f"{_i + 1}. {_p.get('t', '')}")
+                            if _u2.button("▲", key=f"per_up_{_i}",
+                                          disabled=_i == 0,
+                                          use_container_width=True):
+                                _l = list(_myper)
+                                _l[_i - 1], _l[_i] = _l[_i], _l[_i - 1]
+                                save_personal(uid, _l)
+                                st.rerun()
+                            if _u3.button("▼", key=f"per_dn_{_i}",
+                                          disabled=_i == len(_myper) - 1,
+                                          use_container_width=True):
+                                _l = list(_myper)
+                                _l[_i + 1], _l[_i] = _l[_i], _l[_i + 1]
+                                save_personal(uid, _l)
+                                st.rerun()
+                        if _drag_available():
+                            with st.expander("끌어서 옮기기", expanded=False):
+                                _drag_sort_personal(uid, _myper)
+                        _myper = []          # 정렬 화면일 땐 목록을 겹쳐 안 보이게
             # 옛 개인 할 일이 팀 시트에 남아 있으면 내 기기로 옮길 수 있게 안내.
             # (자동으로 지우지 않는다 — 삭제는 되돌릴 수 없으므로 직접 누르게)
             if _old_per:
@@ -2001,9 +2068,11 @@ def _report_write():
                     for _t in _done:
                         _a = (_t.get("영역", "") or "").strip()
                         _a = _a if _a in _dsel else todo_store.AREA_WORK
-                        if st.checkbox(f"[{_a}] {_t['내용']}",
-                                       key=f"done_{_t['_row']}"):
-                            _dsel[_a].append(_t["내용"])
+                        _g = (_t.get("묶음", "") or "").strip()
+                        _lab = f"[{_a}] " + (f"({_g}) " if _g else "") + _t["내용"]
+                        if st.checkbox(_lab, key=f"done_{_t['_row']}"):
+                            # 묶음이 있으면 실적 문장 앞에 붙여 무엇의 일부인지 남긴다
+                            _dsel[_a].append((f"[{_g}] " if _g else "") + _t["내용"])
                     for _t in _prog:
                         _a = (_t.get("영역", "") or "").strip()
                         _a = _a if _a in _dsel else todo_store.AREA_WORK
