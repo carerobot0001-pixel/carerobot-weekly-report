@@ -60,23 +60,37 @@ st.markdown("""<style>
   h1{ font-size:2rem; } h2{ font-size:1.5rem; } h3{ font-size:1.25rem; }
   a,a:visited{ color:var(--ig-blue); text-decoration:underline; }
 
-  /* 사이드바 — 흰 바탕, 큰 글씨, 넉넉한 높이 */
+  /* 사이드바 — 돌봄스튜디오와 같은 짜임: 어두운 바탕 · 밝은 글씨 ·
+     왼쪽 정렬 · 현재 메뉴는 색을 채워 표시. 색만 인스타 계열로 바꿨다. */
   section[data-testid="stSidebar"]{
-    background:#FFFFFF; border-right:1px solid var(--ig-line); }
-  section[data-testid="stSidebar"] *{ color:var(--ig-ink) !important; }
-  /* 사이드바 항목 — 가운데 정렬. 이름 길이가 제각각이라 왼쪽 정렬이
-     들쭉날쭉해 보였다. 가운데로 모으면 한 줄로 읽힌다. */
+    background:#241B2F; border-right:none; }
+  section[data-testid="stSidebar"] *{ color:#F3EAF7 !important; }
   section[data-testid="stSidebar"] .stButton>button{
-    background:transparent; border:none; text-align:center !important;
-    justify-content:center !important; font-size:1.05rem; font-weight:500;
-    padding:12px 10px; border-radius:10px; margin:2px 0; width:100%;
-    min-height:48px; }
+    background:transparent; border:none; text-align:left !important;
+    justify-content:flex-start !important; font-size:1.05rem; font-weight:600;
+    padding:10px 14px; border-radius:10px; margin:2px 0; width:100%;
+    min-height:46px; }
   section[data-testid="stSidebar"] .stButton>button p{
-    text-align:center !important; width:100%; margin:0; }
-  section[data-testid="stSidebar"] .stButton>button:hover{ background:#F0F0F0; }
+    text-align:left !important; width:100%; margin:0; }
+  section[data-testid="stSidebar"] .stButton>button:hover{ background:#362A45; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:#F2F2F2; font-weight:800;
-    box-shadow:inset 0 -3px 0 0 #DD2A7B; }
+    background:linear-gradient(90deg,#DD2A7B,#8134AF);
+    color:#FFFFFF !important; font-weight:800; box-shadow:none; }
+  /* 테마 전환 버튼은 메뉴와 구분되게 테두리 있는 칩으로 */
+  section[data-testid="stSidebar"] .st-key-theme_btn button{
+    background:#33263F !important; border:1px solid #5B4A6B !important;
+    text-align:center !important; justify-content:center !important;
+    font-size:.95rem !important; font-weight:700; min-height:42px; }
+  section[data-testid="stSidebar"] .st-key-theme_btn button p{
+    text-align:center !important; }
+  /* 카테고리 소제목 */
+  section[data-testid="stSidebar"] .navcat{
+    color:#C0A8D6 !important; font-size:.78rem; font-weight:800;
+    letter-spacing:2px; margin:16px 6px 4px; }
+  /* 입력칸(이름 고르기)도 어두운 바탕에 맞춘다 */
+  section[data-testid="stSidebar"] [data-baseweb="select"] > div,
+  section[data-testid="stSidebar"] input{
+    background:#33263F !important; border-color:#5B4A6B !important; }
 
   /* 버튼 — 손가락으로 누를 크기 */
   div.stButton>button, div.stFormSubmitButton>button{
@@ -219,11 +233,11 @@ if not _login_gate():
     st.stop()
 
 with st.sidebar:
-    st.markdown("<div style='text-align:center;padding:.2rem 0 .1rem'>"
-                "<span class='ig-brand' style='font-size:1.3rem'>"
+    st.markdown("<div style='padding:.2rem 6px .1rem'>"
+                "<span class='ig-brand' style='font-size:1.25rem'>"
                 "요양시설 스튜디오</span></div>"
-                "<div class='ig-cap' style='text-align:center;"
-                "margin-bottom:.6rem'>주간보호센터 · 소형 요양원</div>",
+                "<div class='ig-cap' style='padding:0 6px;"
+                "margin-bottom:.7rem'>주간보호센터 · 소형 요양원</div>",
                 unsafe_allow_html=True)
     if st.button("🌙 어두운 화면으로" if not DARK else "☀️ 밝은 화면으로",
                  key="theme_btn", use_container_width=True):
@@ -249,9 +263,8 @@ with st.sidebar:
         st.caption("⚙️ 직원·설정에서 직원을 등록하면 목록에서 고를 수 있습니다.")
     st.divider()
     for cat, ms in MENUS:
-        st.markdown(f"<div class='cs-dim' style='margin:14px 0 4px;"
-                    f"text-align:center;letter-spacing:3px;font-weight:700'>"
-                    f"{cat}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='navcat'>{cat}</div>",
+                    unsafe_allow_html=True)
         for m in ms:
             if st.button(m, key=f"nav_{m}",
                          type="primary" if st.session_state["menu"] == m else "secondary"):
