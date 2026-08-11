@@ -47,13 +47,7 @@ st.markdown("""<style>
   section[data-testid="stMain"] .block-container{
     padding-top:2rem; max-width:900px; margin-left:auto; margin-right:auto; }
   /* 사이드바 항목 — 폭·들여쓰기를 하나로 맞춘다(들쭉날쭉해 보이던 것) */
-  section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{
-    gap:.2rem; }
-  /* 버튼 칸을 전체 폭으로 — 안 그러면 현재 메뉴(색 채운 것)만 좁게 보인다 */
-  section[data-testid="stSidebar"] [data-testid="stElementContainer"],
-  section[data-testid="stSidebar"] .stButton{
-    width:100% !important; display:block !important; }
-  section[data-testid="stSidebar"] .stButton>button{ width:100% !important; }
+
   section[data-testid="stMain"] p,
   section[data-testid="stMain"] li,
   section[data-testid="stMain"] label,
@@ -64,37 +58,28 @@ st.markdown("""<style>
   h1{ font-size:2rem; } h2{ font-size:1.5rem; } h3{ font-size:1.25rem; }
   a,a:visited{ color:var(--ig-blue); text-decoration:underline; }
 
-  /* 사이드바 — 돌봄스튜디오와 같은 짜임: 어두운 바탕 · 밝은 글씨 ·
-     왼쪽 정렬 · 현재 메뉴는 색을 채워 표시. 색만 인스타 계열로 바꿨다. */
-  section[data-testid="stSidebar"]{
-    background:#241B2F; border-right:none; }
+  /* 사이드바 — 돌봄스튜디오와 같은 최소 규칙만 둔다.
+     ⚠️ width/display 를 강제로 덮었더니 flex 배치가 깨져 카테고리 라벨이
+        버튼 위에 겹쳤다. 색과 정렬만 바꾸고 배치는 Streamlit 에 맡긴다. */
+  section[data-testid="stSidebar"]{ background:#241B2F; border-right:none; }
   section[data-testid="stSidebar"] *{ color:#F3EAF7 !important; }
   section[data-testid="stSidebar"] .stButton>button{
-    background:transparent; border:none; text-align:center !important;
-    justify-content:center !important; font-size:1.05rem; font-weight:600;
-    padding:10px 12px; border-radius:10px; margin:2px 0; width:100%;
-    min-height:46px; }
+    background:transparent; border:none;
+    text-align:center !important; justify-content:center !important;
+    font-size:1.05rem; font-weight:600; padding:9px 12px;
+    border-radius:10px; margin:1px 0; }
   section[data-testid="stSidebar"] .stButton>button p{
-    text-align:center !important; width:100%; margin:0; }
+    text-align:center !important; margin:0; }
   section[data-testid="stSidebar"] .stButton>button:hover{ background:#362A45; }
   section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
     background:linear-gradient(90deg,#DD2A7B,#8134AF);
-    color:#FFFFFF !important; font-weight:800; box-shadow:none; }
-  /* 테마 전환 버튼은 메뉴와 구분되게 테두리 있는 칩으로 */
+    color:#FFFFFF !important; font-weight:800; }
   section[data-testid="stSidebar"] .st-key-theme_btn button{
     background:#33263F !important; border:1px solid #5B4A6B !important;
-    text-align:center !important; justify-content:center !important;
-    font-size:.95rem !important; font-weight:700; min-height:42px; }
-  section[data-testid="stSidebar"] .st-key-theme_btn button p{
-    text-align:center !important; }
-  /* 카테고리 소제목 */
-  /* 카테고리 소제목 — 자기 줄을 확실히 차지하게 한다.
-     margin 만 주면 버튼과 겹쳐 보였다(간격 CSS 를 좁혀둔 탓). */
+    font-size:.95rem !important; font-weight:700; }
   section[data-testid="stSidebar"] .navcat{
-    display:block; color:#C0A8D6 !important; font-size:.78rem;
-    font-weight:800; letter-spacing:2px; text-align:center;
-    line-height:1.2; padding:14px 0 6px; margin:0; }
-  /* 입력칸(이름 고르기)도 어두운 바탕에 맞춘다 */
+    color:#C0A8D6 !important; font-size:.78rem; font-weight:800;
+    letter-spacing:2px; text-align:center; margin:14px 0 2px; }
   section[data-testid="stSidebar"] [data-baseweb="select"] > div,
   section[data-testid="stSidebar"] input{
     background:#33263F !important; border-color:#5B4A6B !important; }
@@ -273,7 +258,7 @@ with st.sidebar:
         st.markdown(f"<div class='navcat'>{cat}</div>",
                     unsafe_allow_html=True)
         for m in ms:
-            if st.button(m, key=f"nav_{m}",
+            if st.button(m, key=f"nav_{m}", use_container_width=True,
                          type="primary" if st.session_state["menu"] == m else "secondary"):
                 _go(m)
     st.divider()
