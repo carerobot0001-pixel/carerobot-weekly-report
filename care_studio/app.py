@@ -79,9 +79,13 @@ st.markdown("""<style>
   section[data-testid="stSidebar"] .stButton>button p{
     text-align:center !important; margin:0; }
   section[data-testid="stSidebar"] .stButton>button:hover{ background:#F2F2F2; }
-  section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-    background:#F4EAF3; color:var(--ig-ink) !important; font-weight:800;
-    box-shadow:inset 0 -3px 0 0 #DD2A7B; }
+  /* ⚠️ Streamlit 버전에 따라 kind="primary" 대신 data-testid 로 표시된다.
+     둘 다 걸어야 현재 메뉴가 기본 파랑으로 안 나온다. */
+  section[data-testid="stSidebar"] .stButton>button[kind="primary"],
+  section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]{
+    background:#F4EAF3 !important; color:var(--ig-ink) !important;
+    border:none !important; font-weight:800;
+    box-shadow:inset 0 -3px 0 0 #DD2A7B !important; }
   section[data-testid="stSidebar"] .st-key-theme_btn button{
     background:#FFFFFF !important; border:1px solid var(--ig-line) !important;
     font-size:.95rem !important; font-weight:700; }
@@ -135,6 +139,20 @@ st.markdown("""<style>
      위아래 여백을 따로 둔다(글꼴 높이가 줄상자를 넘친다). */
   .ig-brand{ font-weight:900; color:#6B2A91; line-height:1.6;
              display:block; padding:2px 0 4px; }
+  .ig-card{ border:1px solid var(--ig-line); border-radius:14px;
+            margin-bottom:1rem; background:#FFFFFF; overflow:hidden; }
+  .ig-card-head{ display:flex; align-items:center; gap:.6rem;
+                 padding:.85rem 1.1rem; border-bottom:1px solid #E4E4E4; }
+  .ig-ring{ width:42px; height:42px; border-radius:50%; padding:3px; flex:none; }
+  .ig-ring-in{ width:100%; height:100%; border-radius:50%; background:#FFFFFF;
+               display:flex; align-items:center; justify-content:center;
+               font-size:1.05rem; }
+  .ig-card-title{ font-weight:800; font-size:1.12rem; line-height:1.25;
+                  color:var(--ig-ink); }
+  .ig-card-title.warn{ color:var(--ig-warn); }
+  .ig-card-foot{ font-size:.92rem; color:var(--ig-sub); }
+  .ig-card-body{ padding:.95rem 1.1rem; color:var(--ig-ink);
+                 font-size:1.05rem; line-height:1.65; }
   .ig-cap{ color:var(--ig-sub); font-size:.92rem; }
   .cs-warn{ color:var(--ig-warn); font-weight:800; }
   .cs-dim{ color:var(--ig-sub); font-size:.92rem; }
@@ -171,8 +189,10 @@ if DARK:
         background:transparent !important; border:none !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{
         background:#1F1F1E !important; }
-      section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+      section[data-testid="stSidebar"] .stButton>button[kind="primary"],
+      section[data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]{
         background:#2A2333 !important; color:#F3EAF7 !important;
+        border:none !important;
         box-shadow:inset 0 -3px 0 0 #DD2A7B !important; }
       section[data-testid="stSidebar"] .st-key-theme_btn button{
         background:#1F1F1E !important; border:1px solid #4A4A47 !important; }
@@ -193,6 +213,13 @@ if DARK:
       section[data-testid="stMain"] .ig-brand,
       section[data-testid="stSidebar"] .ig-brand{
         color:#E4B7F5 !important; }
+      .ig-card{ background:#1B1B1A !important; border-color:#3A3A38 !important; }
+      .ig-card-head{ border-bottom-color:#33332F !important; }
+      .ig-ring-in{ background:#1B1B1A !important; }
+      .ig-card-title{ color:#E8E5E1 !important; }
+      .ig-card-title.warn{ color:#FF7A70 !important; }
+      .ig-card-body{ color:#DAD7D2 !important; }
+      .ig-card-foot{ color:#A8A49E !important; }
       .ig-cap, .cs-dim{ color:#A8A49E !important; }
       .cs-warn{ color:#FF7A70 !important; }
     </style>""", unsafe_allow_html=True)
@@ -445,30 +472,22 @@ def _stats(here, att, done):
 def _card(title, body, foot="", warn=False, icon="●"):
     """피드 카드 — 인스타 게시물 모양.
 
-    머리(동그란 아바타 + 제목 + 작은 회색 부제) / 본문 / 아래 회색 한 줄.
+    ⚠️ 배경·글씨색을 **인라인으로 주지 않는다**. 인라인은 CSS 를 이겨서
+    다크 모드에서 카드만 흰색으로 남았다. 클래스로 두고 테마가 덮게 한다.
     """
     ring = ("linear-gradient(45deg,#C62828,#F58529)" if warn
             else "linear-gradient(45deg,#F58529,#DD2A7B,#8134AF,#515BD4)")
-    color = "#C62828" if warn else "#1A1A1A"
     st.markdown(
-        "<div style='border:1px solid #C7C7C7;border-radius:14px;"
-        "margin-bottom:1rem;background:#fff;overflow:hidden'>"
-        # 머리
-        "<div style='display:flex;align-items:center;gap:.6rem;"
-        "padding:.85rem 1.1rem;border-bottom:1px solid #E4E4E4'>"
-        f"<div style='width:42px;height:42px;border-radius:50%;padding:3px;"
-        f"background:{ring};flex:none'>"
-        "<div style='width:100%;height:100%;border-radius:50%;background:#fff;"
-        "display:flex;align-items:center;justify-content:center;font-size:1.05rem'>"
-        f"{icon}</div></div>"
-        f"<div><div style='font-weight:800;font-size:1.12rem;color:{color};line-height:1.25'>"
+        "<div class='ig-card'>"
+        "<div class='ig-card-head'>"
+        f"<div class='ig-ring' style='background:{ring}'>"
+        f"<div class='ig-ring-in'>{icon}</div></div>"
+        f"<div><div class='ig-card-title{' warn' if warn else ''}'>"
         f"{html_escape(title)}</div>"
-        + (f"<div style='font-size:.92rem;color:#595959'>{html_escape(foot)}</div>"
-           if foot else "")
+        + (f"<div class='ig-card-foot'>{html_escape(foot)}</div>" if foot else "")
         + "</div></div>"
-        # 본문
-        f"<div style='padding:.95rem 1.1rem;color:#1A1A1A;font-size:1.05rem;line-height:1.65'>"
-        f"{html_escape(body)}</div></div>", unsafe_allow_html=True)
+        f"<div class='ig-card-body'>{html_escape(body)}</div></div>",
+        unsafe_allow_html=True)
 
 
 def _shortcuts():
