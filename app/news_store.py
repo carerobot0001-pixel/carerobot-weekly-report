@@ -34,32 +34,80 @@ JA = "hl=ja&gl=JP&ceid=JP:ja"
 #    "정말로 새로운 기법인가", "왜 중요한가"는 사람이나 모델이 읽어야 가려진다.
 #    여기서 맞출 수 있는 건 *어떤 주제를 긁어오는가* 까지다.
 # 각 키워드는 실제 조회해 수확이 좋은 것만 남겼다(2026-08 확인).
+# **2026-08: 앞쪽 탭을 복지부 11개 과제 그대로로 바꿨다.** 예전 주제별 5탭
+# (돌봄로봇·돌봄정책·AI·LLM·AI 활용법·로봇휴머노이드)은 과제와 대응이 안 맞아
+# "이 기사가 어느 과제 것이냐"를 사람이 다시 갈라야 했다.
+#
+# 키워드 출처: `과제별_자료조사_키워드_프롬프트_양식.xlsx` — 각 과제 담당자가 직접 적은 것.
+# ⚠️ **엑셀 키워드를 그대로 다 넣지는 못한다.** 두 가지 이유:
+#   · 논문 검색용 불리언(9번 식사는 `("식사보조로봇" OR …) AND (…) AND (…)`)은
+#     구글뉴스 RSS가 못 삼킨다 → 핵심 명사만 뽑았다.
+#   · 학술 용어(CycleGAN·Domain Adaptation·근전도)는 뉴스가 거의 안 잡힌다.
+# 그래서 **뉴스로 수확되는 것만** 골랐다. 원본 키워드 전체는 위 엑셀에 있다.
+# 담당자가 키워드를 고치면 이 목록도 같이 고칠 것.
+#
+# 2·3번(목욕·배설)은 엑셀이 아직 비어 있다 → **탭만 만들고 비워 둔다.**
+# 11번 AI 챗봇도 엑셀은 비었으나, 기존 'AI 활용법' 키워드를 이리로 옮겼다(지시).
 NEWS_SECTIONS = [
-    # 돌봄 ① 로봇·보조기술 — 일본이 이 분야 중심지라 JA를 두 개 넣었다
-    ("돌봄로봇", (("돌봄로봇", KO), ("돌봄로봇 실증", KO),
-                  ("assistive robot older adults", EN),
-                  ("companion robot dementia", EN),
-                  ("介護ロボット 導入", JA), ("見守り センサー 介護", JA))),
-    # 돌봄 ② 사람 돌봄 — 제도·인력·치매·재가. 국내를 앞에 둔다
-    ("돌봄·정책", (("장기요양보험 제도", KO), ("요양보호사 처우", KO),
-                    ("치매 돌봄 정책", KO), ("재가 돌봄 서비스", KO),
-                    ("long-term care workforce policy", EN))),
-    # AI ① 기술 동향 — 모델·오픈소스·에이전트·벤치마크
-    # ⚠️ 예전에 '생성형 AI 의료'·'AI 돌봄 서비스'로 좁혔더니 돌봄 탭과 겹쳐
-    #    지자체 돌봄 소식만 나왔다. 이 탭은 기술만 본다.
-    ("AI·LLM", (("오픈소스 LLM 공개", KO), ("오픈AI 앤스로픽", KO),
-                  ("AI 반도체 추론", KO),
-                  ("open weights model release", EN),
-                  ("AI agent framework open source", EN),
-                  ("LLM reasoning benchmark", EN))),
-    # AI ② 실전 활용법 — '어떻게 잘 쓰나'. LLM에 한정하지 않는다(업무 자동화·도구 포함)
-    ("AI 활용법", (("프롬프트 엔지니어링", KO), ("AI 업무 자동화 사례", KO),
-                  ("AI 도구 활용법", KO),
-                  ("prompt engineering technique", EN),
-                  ("RAG retrieval technique", EN),
-                  ("AI workflow productivity guide", EN))),
-    ("로봇·휴머노이드", (("휴머노이드 로봇", KO), ("서비스 로봇", KO),
-                       ("humanoid service robot", EN))),
+    # 1 이동 — 100mm 단차극복 (남재엽)
+    ("1 이동", (("노인 이동 보조 로봇", KO), ("보행 보조 로봇", KO),
+                ("전동휠체어 문턱", KO), ("낙상 예방", KO),
+                ("gait assistance robot", EN),
+                ("indoor mobility assistance elderly", EN))),
+    # 2 목욕 — 이동가능·가변형. 엑셀 키워드 미작성
+    ("2 목욕", ()),
+    # 3 배설 — 배설 양상 관리·배설유도. 엑셀 키워드 미작성
+    ("3 배설", ()),
+    # 4 유연착용형 — 의복·속옷형태, 하이브리드 (한벼리)
+    # ⚠️ '외골격 로봇'은 0건이다(붙여 쓰면 안 잡힌다). '착용형 로봇'·'엑소슈트'로 쓸 것
+    ("4 유연착용형", (("웨어러블 로봇", KO), ("착용형 로봇", KO),
+                      ("엑소슈트", KO), ("소프트 외골격", KO),
+                      ("wearable robot exosuit", EN),
+                      ("soft exoskeleton", EN),
+                      ("装着型 ロボット 介護", JA))),
+    # 5 인체영향성 — 근력보조 신체영향성 (한벼리). 4번과 키워드가 같아
+    #   임상·대사·재활 쪽 용어로 갈랐다(같은 엑셀 행에서 뽑음)
+    ("5 인체영향성", (("외골격 임상시험", KO), ("보행 재활 로봇", KO),
+                      ("뇌졸중 재활 로봇", KO),
+                      ("exoskeleton clinical trial", EN),
+                      ("exoskeleton metabolic cost", EN),
+                      ("gait rehabilitation robot stroke", EN))),
+    # 6 모니터링 — 요양시설중심·정보통합형 (류현경). 일본이 見守り 중심지라 JA 포함
+    ("6 모니터링", (("비접촉 모니터링 센서", KO), ("생체정보 모니터링", KO),
+                    ("낙상 감지 센서", KO),
+                    ("contactless vital sign monitoring", EN),
+                    ("remote patient monitoring elderly", EN),
+                    ("見守り センサー 介護", JA))),
+    # 7 이승 — 협소공간 사용·리포지셔닝 (남재엽)
+    ("7 이승", (("이승 보조 로봇", KO), ("환자 이송 보조", KO),
+                ("리포지셔닝 침대", KO),
+                ("patient transfer robot", EN),
+                ("bed to wheelchair transfer device", EN),
+                ("移乗 支援 ロボット", JA))),
+    # 8 욕창 — 초저소음·호환성 (이경진)
+    ("8 욕창", (("욕창 예방 매트리스", KO), ("체위변환 침대", KO),
+                ("스마트베드 욕창", KO),
+                ("pressure injury prevention device", EN),
+                ("smart mattress pressure ulcer", EN),
+                ("alternating pressure mattress", EN))),
+    # 9 식사 — 휴대성·융합형 (이윤환). 엑셀은 긴 불리언 → 핵심 명사만
+    ("9 식사", (("식사보조로봇", KO), ("식사 지원 로봇", KO),
+                ("식사보조기기", KO),
+                ("feeding assistance robot", EN),
+                ("robot-assisted feeding", EN),
+                ("食事 支援 ロボット", JA))),
+    # 10 커뮤니케이션 — 가정/병원 중심·현장소통 (김건양)
+    ("10 커뮤니케이션", (("소셜로봇", KO), ("반려로봇 노인", KO),
+                        ("독거노인 돌봄 로봇", KO), ("고독사 예방", KO),
+                        ("socially assistive robot", EN),
+                        ("companion robot loneliness", EN))),
+    # 11 AI 챗봇 — 비대면·시니어 헬스케어. 엑셀은 미작성.
+    #   '어떻게 잘 쓰나'(프롬프트·RAG·업무 자동화)를 여기로 옮겼다.
+    ("11 AI 챗봇", (("프롬프트 엔지니어링", KO), ("AI 업무 자동화 사례", KO),
+                    ("AI 도구 활용법", KO),
+                    ("prompt engineering technique", EN),
+                    ("RAG retrieval technique", EN),
+                    ("AI workflow productivity guide", EN))),
     # ── 아래 4개는 업무 밖 일반 뉴스(세계·한국·경제·축구).
     #    매일 받는 뉴스 브리핑 PPT의 섹션 구성을 그대로 가져왔다.
     #    일반 분야는 키워드 검색보다 **구글뉴스 토픽 피드**가 훨씬 낫다 —

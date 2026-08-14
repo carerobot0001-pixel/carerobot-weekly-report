@@ -1919,6 +1919,12 @@ def home_page():
     tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
     for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
         with tab:
+            if not queries:
+                # 과제 키워드가 아직 안 들어온 탭(목욕·배설). 자리만 잡아 둔다 —
+                # 빈 탭이 있어야 '아직 안 왔다'가 보인다.
+                st.caption("아직 키워드가 없습니다 — "
+                           "과제별 자료조사 키워드 양식이 들어오면 여기에 뜹니다.")
+                continue
             try:
                 items = fetch_section(queries, _day, 6)   # 8건은 빽빽했다
             except Exception:
