@@ -1926,7 +1926,9 @@ def home_page():
                            "과제별 자료조사 키워드 양식이 들어오면 여기에 뜹니다.")
                 continue
             try:
-                items = fetch_section(queries, _day, 6)   # 8건은 빽빽했다
+                # 개수 제한 없음 — 최근 24시간에 걸리는 대로 다 (최신순).
+                # 없으면 없는 대로 둔다(억지로 채우지 않는다).
+                items = fetch_section(queries, _day)
             except Exception:
                 items = []
             if items:
@@ -1936,6 +1938,10 @@ def home_page():
                 _dark = st.session_state.get("dark")
                 _tcol = "#e8e4dd" if _dark else "#24211d"
                 _mcol = "#8f8a82" if _dark else "#8a857d"
+                # ⚠️ 개수 제한을 없앤 뒤로는 **한 줄에 st.markdown 하나**로 그리면 안 된다.
+                # st.tabs는 **모든 탭 본문을 매 실행마다 그리기** 때문에, 기사 수백 건이면
+                # 요소도 수백 개가 되어 홈이 무거워진다 → 문자열로 모아 탭당 한 번만 그린다.
+                _html = []
                 for it in items:
                     ko = (it.get("title_ko") or "").strip()
                     head = ko if (ko and ko != it["title"]) else it["title"]
@@ -1952,17 +1958,19 @@ def home_page():
                     # 메타는 제목 **옆에** 붙인다 — 아래 줄에 두면 다음 기사 제목과
                     # 붙어 보여서 어느 기사의 출처인지 헷갈렸다.
                     # 줄 간격을 넉넉히 — 다닥다닥 붙으면 어디까지가 한 기사인지 안 보인다
-                    st.markdown(
+                    _html.append(
                         f"<div style='margin:0 0 .95rem;line-height:1.5'>"
                         f"<a href='{it['link']}' target='_blank'{tip} "
                         f"style='color:{_tcol};text-decoration:none;"
                         f"font-size:.96rem'>{html_escape(head)}</a>"
                         f"<span style='color:{_mcol};font-size:.74rem;"
                         f"white-space:nowrap'>&nbsp;&nbsp;"
-                        f"{' · '.join(meta)}</span></div>",
-                        unsafe_allow_html=True)
+                        f"{' · '.join(meta)}</span></div>")
+                st.markdown("".join(_html), unsafe_allow_html=True)
             else:
-                st.caption("불러오지 못했어요 (잠시 후 새로고침).")
+                # 최근 24시간에 그 과제 뉴스가 없으면 정상적으로 빈 탭이다.
+                # (예전엔 '불러오지 못했어요'라 오류처럼 보였다)
+                st.caption("오늘은 새 뉴스가 없습니다.")
 
 
 def member_page():

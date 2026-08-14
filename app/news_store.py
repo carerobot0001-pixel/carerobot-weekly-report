@@ -11,8 +11,11 @@
 제목·출처만 쓴다. 요약을 붙이려면 기사 본문을 읽는 별도 수단이 필요하다.
 섹션/키워드가 바뀌면 NEWS_SECTIONS만 수정.
 """
+import re
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote
 
 import requests
@@ -101,13 +104,17 @@ NEWS_SECTIONS = [
                         ("독거노인 돌봄 로봇", KO), ("고독사 예방", KO),
                         ("socially assistive robot", EN),
                         ("companion robot loneliness", EN))),
-    # 11 AI 챗봇 — 비대면·시니어 헬스케어. 엑셀은 미작성.
-    #   '어떻게 잘 쓰나'(프롬프트·RAG·업무 자동화)를 여기로 옮겼다.
-    ("11 AI 챗봇", (("프롬프트 엔지니어링", KO), ("AI 업무 자동화 사례", KO),
-                    ("AI 도구 활용법", KO),
-                    ("prompt engineering technique", EN),
-                    ("RAG retrieval technique", EN),
-                    ("AI workflow productivity guide", EN))),
+    # 11 AI 챗봇 — 비대면·시니어 헬스케어. 엑셀 칸은 비었지만,
+    #   `11. AI챗봇/AI챗봇_유사서비스_자료조사_202608.xlsx`(자체 조사)의 조사 축을 옮겼다:
+    #   AI 안부전화(클로바 케어콜·NUGU·KT AI케어) / AI 생활지원사 / 디지털휴먼·AI 아바타 /
+    #   시니어 특화 STT / 식단 이미지 영양분석.
+    #   ※ 예전에 여기 넣었던 'AI 활용법'(프롬프트·RAG·업무자동화)은 뺐다 — 과제와 무관.
+    ("11 AI 챗봇", (("시니어 AI 챗봇", KO), ("AI 안부전화", KO),
+                    ("AI 돌봄 콜", KO), ("디지털 휴먼 아바타", KO),
+                    ("시니어 헬스케어 AI", KO),
+                    ("senior care chatbot", EN),
+                    ("conversational agent older adults", EN),
+                    ("digital human avatar healthcare", EN))),
     # 과제에 안 걸리는 가로축 하나 — 제도·인력·치매·재가.
     # 과제 키워드는 전부 '기기' 쪽이라 제도·수가·인력 소식은 어느 탭에도 안 걸린다.
     # (AI·LLM / 로봇·휴머노이드 탭은 11개 과제로 바꾸며 없앴다)
@@ -118,11 +125,7 @@ NEWS_SECTIONS = [
     #    매일 받는 뉴스 브리핑 PPT의 섹션 구성을 그대로 가져왔다.
     #    일반 분야는 키워드 검색보다 **구글뉴스 토픽 피드**가 훨씬 낫다 —
     #    편집된 헤드라인이 와서 잡음이 적다. `topic:` 접두어로 쓴다.
-    ("세계", (("topic:WORLD", KO), ("topic:WORLD", EN))),
-    ("한국", (("topic:NATION", KO),)),
-    ("축구", (("손흥민", KO), ("K리그", KO), ("해외축구 이적", KO),
-              ("축구 국가대표", KO))),
-    # 경제·시장은 **맨 뒤**(지시). 탭 순서 = 화면 순서다
+    # 일반 뉴스는 경제·시장 하나만 남겼다(세계·한국·축구는 뺌). 맨 뒤가 제자리다
     ("경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
                   ("Federal Reserve rate decision", EN))),
 ]
@@ -141,6 +144,11 @@ def _src_lang(loc: str) -> str:
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def translate(text: str, src: str) -> str:
+    """`_translate` 의 캐시판(외부 호출용)."""
+    return _translate(text, src)
+
+
+def _translate(text: str, src: str) -> str:
     """해외 기사 제목을 한국어로. 실패하면 빈 문자열(원문만 보여준다).
 
     구글 번역의 키 없는 endpoint를 쓴다 — 무료·무설정이지만 **공식 API가 아니라
@@ -174,57 +182,114 @@ _GLOSSARY = {
 }
 
 
-def _fetch_specs(specs, per_query: int = 3, cap: int = 6) -> list:
-    """[{title, link, source, region}] — (키워드, 로케일) 목록에서 중복 제거 후 최대 cap개.
+def _age_hours(item) -> float:
+    """기사가 나온 지 몇 시간 됐나. pubDate가 없거나 깨지면 아주 큰 값(=버림)."""
+    raw = (item.findtext("pubDate") or "").strip()
+    if not raw:
+        return 1e9
+    try:
+        dt = parsedate_to_datetime(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+    except Exception:
+        return 1e9
 
-    국내만 채우고 끝나지 않도록 **키워드를 번갈아** 한 건씩 담는다(라운드로빈).
-    한 키워드에서 몰아 담으면 뒤의 해외 키워드가 cap에 걸려 아예 안 나온다.
+
+# 검색어 토큰에서 뺄 말 — 아무 기사에나 있어서 걸러내는 힘이 없다
+_STOP = {"older", "adults", "elderly", "device", "technique", "guide",
+         "system", "care", "robot", "ai", "the", "for", "with", "and"}
+
+
+def _relevant(title: str, q: str) -> bool:
+    """제목에 검색어의 낱말이 하나라도 들어 있나.
+
+    **왜 필요한가**: 구글뉴스는 낱말을 느슨하게 맞춰서, `노인 이동 보조 로봇` 으로
+    검색하면 '피매치 AI 약물안전 투자유치' 같은 기사도 딸려 온다. 예전에는 섹션당
+    6건만 담아 눈에 잘 안 띄었는데, 개수 제한을 없애니 이런 게 그대로 쌓였다.
+    → 제목에 낱말이 실제로 나오는 것만 남긴다. **억지로 끼워넣지 않는다**(지시).
+    **국문은 한 낱말, 영문은 두 낱말**을 요구한다. 국문 제목은 낱말 하나가 이미
+    구체적이라(`욕창`) 한 개면 충분한데, 영문은 `mattress` 하나로 침구 쇼핑 기사가
+    딸려 왔다(`alternating pressure mattress` → "The 11 Best Cooling Mattresses").
+    다 맞추라고 하면 멀쩡한 기사까지 떨어지므로 두 개까지만 요구한다.
     """
-    buckets = []
+    t = title.lower()
+    toks = [w for w in re.split(r"[^0-9A-Za-z가-힣]+", q.lower()) if w]
+    ko_q = bool(re.search(r"[가-힣]", q))
+    toks = [w for w in toks
+            if w not in _STOP and (len(w) >= 2 if re.search(r"[가-힣]", w)
+                                   else len(w) >= 4)]
+    if not toks:                       # 전부 흔한 낱말이면 거르지 않는다
+        return True
+    need = 1 if ko_q else min(2, len(toks))
+    return sum(1 for w in toks if w in t) >= need
+
+
+def _fetch_specs(specs, max_age_h: int = 24) -> list:
+    """[{title, link, source, region, hours}] — 최근 24시간 기사 전부, 최신순.
+
+    **개수 제한이 없다**(2026-08 지시). 예전엔 섹션당 6건으로 자르고 키워드를
+    번갈아 담았는데(라운드로빈), 그러면 *없는 뉴스를 억지로 채우지는 않는 대신*
+    **있는 뉴스가 잘려 나갔다**. 지금은 걸리는 만큼 다 보여주고, 없으면 안 보여준다.
+
+    **하루 지난 기사는 버린다** — 매일 새 것만 나오게. 두 겹으로 막는다:
+      ① 검색어에 구글뉴스의 `when:1d` 를 붙여 애초에 최근 것만 받는다
+      ② 그래도 오래된 게 섞여 오므로 `pubDate` 로 다시 거른다(토픽 피드는 ①이 안 먹는다)
+    """
+    seen, out = set(), []
     for q, loc in specs:
-        got = []
         try:
-            # `topic:WORLD` 처럼 오면 검색이 아니라 구글뉴스 **토픽 피드**를 쓴다
-            # (세계·한국·경제 같은 넓은 분야는 편집된 헤드라인이 훨씬 깨끗하다)
+            # `topic:BUSINESS` 처럼 오면 검색이 아니라 구글뉴스 **토픽 피드**를 쓴다
+            # (경제 같은 넓은 분야는 편집된 헤드라인이 훨씬 깨끗하다).
+            # ⚠️ 토픽 피드에는 `when:` 을 못 붙인다 — pubDate 로만 거른다.
             if q.startswith("topic:"):
                 url = ("https://news.google.com/rss/headlines/section/topic/"
                        f"{quote(q[len('topic:'):])}?{loc}")
             else:
-                url = f"https://news.google.com/rss/search?q={quote(q)}&{loc}"
+                url = (f"https://news.google.com/rss/search?"
+                       f"q={quote(q + ' when:1d')}&{loc}")
             r = requests.get(url, timeout=8, headers=_UA)
             root = ET.fromstring(r.content)
             for item in root.iter("item"):
+                age = _age_hours(item)
+                if age > max_age_h:
+                    continue
                 title = (item.findtext("title") or "").strip()
                 title = title.rsplit(" - ", 1)[0] if " - " in title else title
                 link = (item.findtext("link") or "").strip()
                 src_el = item.find("{*}source")
                 source = src_el.text if src_el is not None else ""
-                if not title or not link:
+                if not title or not link or title in seen:
                     continue
-                got.append({"title": title, "link": link, "source": source,
-                            "region": _region(loc), "lang": _src_lang(loc)})
-                if len(got) >= per_query:
-                    break
+                # 토픽 피드(경제 등)는 키워드가 없으니 걸러내지 않는다
+                if not q.startswith("topic:") and not _relevant(title, q):
+                    continue
+                seen.add(title)
+                out.append({"title": title, "link": link, "source": source,
+                            "region": _region(loc), "lang": _src_lang(loc),
+                            "hours": age})
         except Exception:
             pass
-        buckets.append(got)
 
-    seen, out = set(), []
-    for i in range(per_query):
-        for b in buckets:
-            if i < len(b) and b[i]["title"] not in seen:
-                seen.add(b[i]["title"])
-                out.append(b[i])
-                if len(out) >= cap:
-                    return _with_ko(out)
+    out.sort(key=lambda it: it["hours"])          # 최신순
     return _with_ko(out)
 
 
 def _with_ko(items):
-    """해외 기사에 한국어 제목(`title_ko`)을 붙인다. 담긴 것만 번역해 호출을 아낀다."""
-    for it in items:
-        if it.get("region") == "해외":
-            it["title_ko"] = translate(it["title"], it.get("lang", "en"))
+    """해외 기사에 한국어 제목(`title_ko`)을 붙인다.
+
+    ⚠️ 개수 제한을 없애면서 해외 기사가 수십 건이 됐다. 하나씩 번역하면 제목 하나에
+    0.3~1초라 **그날 처음 연 사람이 몇십 초를 기다린다** → 8개씩 동시에 부른다.
+    (`st.cache_data` 를 붙인 `translate` 대신 맨 함수를 쓴다 — 워커 스레드에는
+    스크립트 컨텍스트가 없어 캐시가 경고를 낸다. 결과는 `fetch_section` 캐시에 남는다.)
+    """
+    todo = [it for it in items if it.get("region") == "해외"]
+    if not todo:
+        return items
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for it, ko in zip(todo, ex.map(
+                lambda x: _translate(x["title"], x.get("lang", "en")), todo)):
+            it["title_ko"] = ko
     return items
 
 
@@ -238,17 +303,16 @@ def today_key() -> str:
 #    (예약 실행 장치 없이 '하루 1회 수집 · 매일 교체'를 만드는 방법)
 #    ttl은 이틀 — 자정 직후에도 어제 것이 남아 있지 않게 날짜 키가 먼저 갈린다.
 @st.cache_data(ttl=172800, show_spinner=False)
-def fetch_section(specs: tuple, day: str, cap: int = 8) -> list:
-    """한 섹션의 기사 목록(국내·해외 섞임). 섹션 탭용. day = today_key().
+def fetch_section(specs: tuple, day: str, max_age_h: int = 24) -> list:
+    """한 섹션의 최근 24시간 기사 전부(국내·해외 섞임, 최신순). day = today_key().
 
-    키워드가 하나뿐인 섹션(예: 한국=NATION 토픽 하나)은 per_query가 낮으면
-    항목이 몇 개 안 나온다 → 소스 수에 맞춰 자동으로 더 담는다.
+    개수 제한 없음 — 걸리는 대로 다 준다. 해당 과제에 그날 뉴스가 없으면 **빈 목록**이다
+    (억지로 채우지 않는다). 화면에서는 '오늘은 새 뉴스가 없습니다'로 보인다.
     """
-    n = max(1, len(specs))
-    return _fetch_specs(list(specs), per_query=max(3, -(-cap // n)), cap=cap)
+    return _fetch_specs(list(specs), max_age_h=max_age_h)
 
 
 @st.cache_data(ttl=172800, show_spinner=False)
-def fetch_news(day: str, per_query: int = 2, cap: int = 9) -> list:
+def fetch_news(day: str, max_age_h: int = 24) -> list:
     """전체 합본(돌봄 우선). 섹션 탭을 쓰지 않는 곳의 호환용."""
-    return _fetch_specs(list(_ALL_SPECS), per_query=per_query, cap=cap)
+    return _fetch_specs(list(_ALL_SPECS), max_age_h=max_age_h)
