@@ -108,16 +108,23 @@ NEWS_SECTIONS = [
                     ("prompt engineering technique", EN),
                     ("RAG retrieval technique", EN),
                     ("AI workflow productivity guide", EN))),
+    # 과제에 안 걸리는 가로축 하나 — 제도·인력·치매·재가.
+    # 과제 키워드는 전부 '기기' 쪽이라 제도·수가·인력 소식은 어느 탭에도 안 걸린다.
+    # (AI·LLM / 로봇·휴머노이드 탭은 11개 과제로 바꾸며 없앴다)
+    ("돌봄·정책", (("장기요양보험 제도", KO), ("요양보호사 처우", KO),
+                    ("치매 돌봄 정책", KO), ("재가 돌봄 서비스", KO),
+                    ("long-term care workforce policy", EN))),
     # ── 아래 4개는 업무 밖 일반 뉴스(세계·한국·경제·축구).
     #    매일 받는 뉴스 브리핑 PPT의 섹션 구성을 그대로 가져왔다.
     #    일반 분야는 키워드 검색보다 **구글뉴스 토픽 피드**가 훨씬 낫다 —
     #    편집된 헤드라인이 와서 잡음이 적다. `topic:` 접두어로 쓴다.
     ("세계", (("topic:WORLD", KO), ("topic:WORLD", EN))),
     ("한국", (("topic:NATION", KO),)),
-    ("경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
-                  ("Federal Reserve rate decision", EN))),
     ("축구", (("손흥민", KO), ("K리그", KO), ("해외축구 이적", KO),
               ("축구 국가대표", KO))),
+    # 경제·시장은 **맨 뒤**(지시). 탭 순서 = 화면 순서다
+    ("경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
+                  ("Federal Reserve rate decision", EN))),
 ]
 # 전체 합본용(구버전 홈 호환)
 _ALL_SPECS = tuple(s for _, specs in NEWS_SECTIONS for s in specs)
