@@ -225,7 +225,7 @@ def _relevant(title: str, q: str) -> bool:
     return sum(1 for w in toks if w in t) >= need
 
 
-def _fetch_specs(specs, max_age_h: int = 24) -> list:
+def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
     """[{title, link, source, region, hours}] — 최근 24시간 기사 전부, 최신순.
 
     **개수 제한이 없다**(2026-08 지시). 예전엔 섹션당 6건으로 자르고 키워드를
@@ -272,6 +272,8 @@ def _fetch_specs(specs, max_age_h: int = 24) -> list:
             pass
 
     out.sort(key=lambda it: it["hours"])          # 최신순
+    if cap:                                       # 자를 거면 **번역 전에** 자른다
+        out = out[:cap]
     return _with_ko(out)
 
 
@@ -302,14 +304,20 @@ def today_key() -> str:
 #    같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 모두가 같이 본다.
 #    (예약 실행 장치 없이 '하루 1회 수집 · 매일 교체'를 만드는 방법)
 #    ttl은 이틀 — 자정 직후에도 어제 것이 남아 있지 않게 날짜 키가 먼저 갈린다.
-@st.cache_data(ttl=172800, show_spinner=False)
-def fetch_section(specs: tuple, day: str, max_age_h: int = 24) -> list:
-    """한 섹션의 최근 24시간 기사 전부(국내·해외 섞임, 최신순). day = today_key().
+# 섹션별 개수 상한 — 여기 없는 탭은 **제한 없음**(걸리는 대로 다).
+# 경제·시장만 자른다: 토픽 피드라 관련성 필터가 안 걸려 하루 100건씩 쌓인다.
+SECTION_CAP = {"경제·시장": 10}
 
-    개수 제한 없음 — 걸리는 대로 다 준다. 해당 과제에 그날 뉴스가 없으면 **빈 목록**이다
-    (억지로 채우지 않는다). 화면에서는 '오늘은 새 뉴스가 없습니다'로 보인다.
+
+@st.cache_data(ttl=172800, show_spinner=False)
+def fetch_section(specs: tuple, day: str, max_age_h: int = 24,
+                  cap: int = 0) -> list:
+    """한 섹션의 최근 24시간 기사(국내·해외 섞임, 최신순). day = today_key().
+
+    `cap=0`이면 개수 제한 없음 — 걸리는 대로 다 준다. 해당 과제에 그날 뉴스가 없으면
+    **빈 목록**이다(억지로 채우지 않는다). 화면에는 '오늘은 새 뉴스가 없습니다'.
     """
-    return _fetch_specs(list(specs), max_age_h=max_age_h)
+    return _fetch_specs(list(specs), max_age_h=max_age_h, cap=cap)
 
 
 @st.cache_data(ttl=172800, show_spinner=False)

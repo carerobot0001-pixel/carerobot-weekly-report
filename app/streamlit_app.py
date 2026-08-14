@@ -51,7 +51,7 @@ from calendar_store import (
     calendar_enabled, embed_url, upcoming_events, today_events, month_events,
     add_event, update_event, delete_event, event_view,
 )
-from news_store import (fetch_news, fetch_section, NEWS_SECTIONS,
+from news_store import (fetch_news, fetch_section, NEWS_SECTIONS, SECTION_CAP,
                         today_key as news_today)
 from notice_store import (notices, add_notice, delete_notice,
                           is_expired, sweep_expired,
@@ -1926,9 +1926,10 @@ def home_page():
                            "과제별 자료조사 키워드 양식이 들어오면 여기에 뜹니다.")
                 continue
             try:
-                # 개수 제한 없음 — 최근 24시간에 걸리는 대로 다 (최신순).
-                # 없으면 없는 대로 둔다(억지로 채우지 않는다).
-                items = fetch_section(queries, _day)
+                # 최근 24시간에 걸리는 대로 다 (최신순). 없으면 없는 대로 둔다.
+                # 경제·시장만 상한이 있다(SECTION_CAP) — 토픽 피드라 100건씩 쌓인다.
+                items = fetch_section(queries, _day,
+                                      cap=SECTION_CAP.get(_name, 0))
             except Exception:
                 items = []
             if items:
