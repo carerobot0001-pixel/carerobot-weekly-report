@@ -125,6 +125,13 @@ NEWS_SECTIONS = [
     #    매일 받는 뉴스 브리핑 PPT의 섹션 구성을 그대로 가져왔다.
     #    일반 분야는 키워드 검색보다 **구글뉴스 토픽 피드**가 훨씬 낫다 —
     #    편집된 헤드라인이 와서 잡음이 적다. `topic:` 접두어로 쓴다.
+    # 과제가 아니라 **일하는 방법** — 프롬프트·RAG·업무 자동화.
+    # 11 AI 챗봇에 잠깐 넣었다가 뺐다: 과제(시니어 챗봇) 기사가 활용법 기사에 묻혔다.
+    ("AI 활용법", (("프롬프트 엔지니어링", KO), ("AI 업무 자동화 사례", KO),
+                  ("AI 도구 활용법", KO),
+                  ("prompt engineering technique", EN),
+                  ("RAG retrieval technique", EN),
+                  ("AI workflow productivity guide", EN))),
     # 일반 뉴스는 경제·시장 하나만 남겼다(세계·한국·축구는 뺌). 맨 뒤가 제자리다
     ("경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
                   ("Federal Reserve rate decision", EN))),

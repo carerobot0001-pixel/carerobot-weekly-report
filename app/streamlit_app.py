@@ -1456,9 +1456,9 @@ def home_page():
                             except Exception as e:
                                 st.error(f"저장 실패: {e}")
                             st.rerun()
-                # 시스템 할 일(주간보고·협업·일정)은 업무 쪽에 둔다
-                if todo_lines:
-                    st.markdown("\n".join(f"- {t}" for t in todo_lines))
+                # ⚠️ 시스템 할 일(주간보고·협업·일정)을 여기서 그리면 **두 번 나온다** —
+                #    아래 '🏢 업무' 머리글 아래에서 같은 목록을 또 그린다(실제로 그랬다).
+                #    한 곳에서만 그린다.
                 # 주간보고와 같은 구분으로 나눠 보여준다(영역 빈칸 = 옛 데이터 = 업무)
                 _by_area = {todo_store.AREA_RESEARCH: [],
                             todo_store.AREA_WORK: []}
@@ -1480,6 +1480,9 @@ def home_page():
                     st.rerun()
                 if _mytodos and _sortable and st.session_state.get(
                         "todo_sort_mode"):
+                    # 정렬 모드에서는 아래 머리글 루프를 안 타므로 여기서 한 번 그린다
+                    if todo_lines:
+                        st.markdown("\n".join(f"- {t}" for t in todo_lines))
                     _drag_sort(_by_area, uid, today)
                 else:
                     for _label, _icon in ((todo_store.AREA_RESEARCH, "🔬"),
