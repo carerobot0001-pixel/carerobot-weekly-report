@@ -204,8 +204,15 @@ def _age_hours(item) -> float:
 
 
 # 검색어 토큰에서 뺄 말 — 아무 기사에나 있어서 걸러내는 힘이 없다
+# 검색어 토큰에서 뺄 말 — 아무 기사에나 있어서 걸러내는 힘이 없다.
+# 국문의 '예방·지원·사업'을 뺀 이유: `낙상 예방` 으로 검색했더니 '부정수급 예방 교육'이
+# 통과했다(제목에 '예방'만 있어도 한 낱말 규칙을 만족). 남는 낱말(낙상)로만 판정한다.
 _STOP = {"older", "adults", "elderly", "device", "technique", "guide",
-         "system", "care", "robot", "ai", "the", "for", "with", "and"}
+         "system", "care", "robot", "ai", "the", "for", "with", "and",
+         "예방", "지원", "사업", "교육", "확대", "관리", "서비스", "기기",
+         # 일본어도 같은 이유 — `食事 支援 ロボット` 인데 '手術支援ロボット'(수술)이
+         # 支援+ロボット 두 낱말로 통과했다. 판정은 남는 낱말(食事)로만 한다.
+         "支援", "ロボット"}
 
 
 def _relevant(title: str, q: str) -> bool:
@@ -221,15 +228,46 @@ def _relevant(title: str, q: str) -> bool:
     다 맞추라고 하면 멀쩡한 기사까지 떨어지므로 두 개까지만 요구한다.
     """
     t = title.lower()
-    toks = [w for w in re.split(r"[^0-9A-Za-z가-힣]+", q.lower()) if w]
-    ko_q = bool(re.search(r"[가-힣]", q))
+    # ⚠️ 일본어(移乗 支援 ロボット)를 낱말로 안 쪼개면 토큰이 0개가 되어
+    #    **아무거나 통과**했다 — 그래서 '이승' 탭에 LOVOT 기사가, '식사' 탭에
+    #    수술로봇 시장 리포트가 들어왔다. 가나·한자도 낱말 글자로 넣는다.
+    _WORD = r"[^0-9A-Za-z가-힣぀-ヿ一-鿿]+"
+    toks = [w for w in re.split(_WORD, q.lower()) if w]
+    cjk = bool(re.search(r"[가-힣぀-ヿ一-鿿]", q))
     toks = [w for w in toks
-            if w not in _STOP and (len(w) >= 2 if re.search(r"[가-힣]", w)
-                                   else len(w) >= 4)]
+            if w not in _STOP
+            and (len(w) >= 2 if re.search(
+                r"[가-힣぀-ヿ一-鿿]", w) else len(w) >= 4)]
     if not toks:                       # 전부 흔한 낱말이면 거르지 않는다
         return True
-    need = 1 if ko_q else min(2, len(toks))
+    need = 1 if cjk else min(2, len(toks))
     return sum(1 for w in toks if w in t) >= need
+
+
+def _key_tokens(title: str) -> set:
+    """제목을 낱말 뭉치로. 같은 사건을 다르게 쓴 제목을 알아보려고 쓴다."""
+    return {w for w in re.split(
+        r"[^0-9A-Za-z가-힣぀-ヿ一-鿿]+", title.lower())
+        if len(w) >= 2}
+
+
+def _near_dup(toks: set, kept: list) -> bool:
+    """이미 담은 것과 사실상 같은 기사인가(낱말 절반 이상 겹침).
+
+    **왜**: 같은 사건을 여러 매체가 조금씩 다르게 쓴다 —
+    '엔젤로보틱스, 베트남 재활로봇 심포지엄 개최' 와
+    '엔젤로보틱스, 베트남서 국제 로봇 재활 심포지엄 개최…아세안 시장 공략'.
+    제목 완전일치로만 걸러서 한 탭에 같은 소식이 두세 줄씩 쌓였다.
+    """
+    if not toks:
+        return False
+    for k in kept:
+        if not k:
+            continue
+        inter = len(toks & k)
+        if inter / min(len(toks), len(k)) >= 0.6:
+            return True
+    return False
 
 
 def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
@@ -243,7 +281,7 @@ def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
       ① 검색어에 구글뉴스의 `when:1d` 를 붙여 애초에 최근 것만 받는다
       ② 그래도 오래된 게 섞여 오므로 `pubDate` 로 다시 거른다(토픽 피드는 ①이 안 먹는다)
     """
-    seen, out = set(), []
+    seen, kept, out = set(), [], []
     for q, loc in specs:
         try:
             # `topic:BUSINESS` 처럼 오면 검색이 아니라 구글뉴스 **토픽 피드**를 쓴다
@@ -268,10 +306,14 @@ def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
                 source = src_el.text if src_el is not None else ""
                 if not title or not link or title in seen:
                     continue
+                _tk = _key_tokens(title)
+                if _near_dup(_tk, kept):      # 같은 사건을 다르게 쓴 제목
+                    continue
                 # 토픽 피드(경제 등)는 키워드가 없으니 걸러내지 않는다
                 if not q.startswith("topic:") and not _relevant(title, q):
                     continue
                 seen.add(title)
+                kept.append(_tk)
                 out.append({"title": title, "link": link, "source": source,
                             "region": _region(loc), "lang": _src_lang(loc),
                             "hours": age})
