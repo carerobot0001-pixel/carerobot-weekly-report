@@ -4379,6 +4379,38 @@ def week_page():
         work = []
     per = personal_todos(uid)
 
+    # ── 되풀이 규칙 → 오늘 몫 만들기.
+    # **오늘 것만 만든다.** 이번 주 7일치를 미리 넣으면 홈 '내 할 일'이 미래 항목으로
+    # 가득 찬다. 미래 요일은 아래에서 회색 미리보기로만 보여준다(저장 안 함).
+    # 두 번 만들지 않으려고: ①이미 그 날짜로 있는 것 ②오늘 완료 기록에 있는 것 제외.
+    if off == 0:
+        try:
+            reps = todo_store.repeats(uid)
+        except Exception:
+            reps = []
+        if reps and st.session_state.get("wk_gen") != today.isoformat():
+            try:
+                done_today = {c["내용"].strip()
+                              for c in todo_store.completed_todos(
+                                  uid, since=today.isoformat())}
+            except Exception:
+                done_today = set()
+            have = {(w["내용"].strip(), (w.get("마감일", "") or "").strip())
+                    for w in work}
+            made = 0
+            for r in reps:
+                txt = r["내용"].strip()
+                if not todo_store.repeat_hits(r.get("마감일", ""), today):
+                    continue
+                if (txt, today.isoformat()) in have or txt in done_today:
+                    continue
+                todo_store.add_todo(uid, txt, due=today.isoformat(),
+                                    area=(r.get("영역") or todo_store.AREA_WORK))
+                made += 1
+            st.session_state["wk_gen"] = today.isoformat()
+            if made:
+                work = todo_store.list_todos(uid)
+
     def _wk_of(dt):
         return [w for w in work
                 if (w.get("마감일", "") or "").strip() == dt.isoformat()]
@@ -4403,6 +4435,11 @@ def week_page():
                     todo_store.set_due(uid, w["_row"], w["내용"],
                                        today.isoformat())
                     st.rerun()
+
+    try:
+        st.session_state["wk_reps"] = todo_store.repeats(uid)
+    except Exception:
+        st.session_state["wk_reps"] = []
 
     cols = st.columns(7)
     for col, dt in zip(cols, days):
@@ -4429,6 +4466,14 @@ def week_page():
                 if st.checkbox(f"🙋 {x.get('t', '')}", key=f"wk_p_{dt}_{i}"):
                     save_personal(uid, [y for j, y in enumerate(per) if j != i])
                     st.rerun()
+            # 미래 요일: 되풀이로 그날 생길 것을 미리 보여준다(저장은 그날 아침에)
+            if dt > today:
+                for r in st.session_state.get("wk_reps", []):
+                    if todo_store.repeat_hits(r.get("마감일", ""), dt):
+                        st.markdown(
+                            f"<div style='opacity:.45;font-size:.84rem;"
+                            f"padding:.1rem 0'>🔁 {html_escape(r['내용'])}</div>",
+                            unsafe_allow_html=True)
             with st.form(f"wk_add_{dt}", clear_on_submit=True):
                 txt = st.text_input("추가", key=f"wk_txt_{dt}",
                                     label_visibility="collapsed",
@@ -4445,6 +4490,32 @@ def week_page():
                             "t": txt.strip(), "d": dt.isoformat(),
                             "ts": datetime.now(KST).strftime("%Y-%m-%d %H:%M")}])
                     st.rerun()
+
+    # ── 되풀이 규칙 관리 — 매주 같은 걸 다시 적지 않게
+    _reps = st.session_state.get("wk_reps", [])
+    with st.expander(f"🔁 되풀이 할 일 ({len(_reps)})", expanded=False):
+        st.caption("매일·매주 같은 일을 등록해두면 그날 아침 자동으로 칸에 들어옵니다. "
+                   "체크는 평소처럼 하면 되고, 다음 주에 또 생깁니다.")
+        for r in _reps:
+            rc1, rc2 = st.columns([9, 1])
+            rc1.markdown(f"🔁 **{html_escape(r['내용'])}** "
+                         f"<span style='opacity:.6'>· {html_escape(r.get('마감일', ''))}"
+                         f" · {html_escape(r.get('영역') or '업무')}</span>",
+                         unsafe_allow_html=True)
+            if rc2.button("✕", key=f"wk_rep_del_{r['_row']}", help="규칙 삭제"):
+                todo_store.delete_todo(uid, r["_row"], r["내용"])
+                st.session_state.pop("wk_gen", None)
+                st.rerun()
+        with st.form("wk_rep_add", clear_on_submit=True):
+            f1, f2, f3 = st.columns([5, 2, 1])
+            rtxt = f1.text_input("내용", label_visibility="collapsed",
+                                 placeholder="예: 주간보고 작성")
+            rrule = f2.selectbox("주기", ["매일"] + [f"매주 {w}" for w in "월화수목금토일"],
+                                 label_visibility="collapsed")
+            if f3.form_submit_button("등록") and rtxt.strip():
+                todo_store.add_repeat(uid, rtxt.strip(), rrule)
+                st.session_state.pop("wk_gen", None)   # 오늘 몫 다시 계산
+                st.rerun()
 
     # ── 날짜를 안 정한 할 일 — 노트에는 없던 것. 여기서 요일 칸으로 보낸다
     undated = [w for w in work if not (w.get("마감일", "") or "").strip()]

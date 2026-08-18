@@ -38,6 +38,12 @@ KIND_DONE = "완료"                            # 완료 처리된 업무 할 �
 # 이걸 두는 이유: 이미 가져온 걸 또 넣지 않기 위해서. 특히 사용자가 ✓로 지운
 # 항목이 자동 가져오기 때문에 되살아나는 것을 막는다.
 KIND_SYNC = "_sync"
+# 매일·매주 되풀이되는 일. **이건 할 일이 아니라 '규칙'** 이다 —
+# 화면에는 안 뜨고(list_todos가 구분으로 걸러냄), 그 날이 되면 이 규칙을 보고
+# 진짜 할 일(구분=할일)을 하나 만들어 준다.
+# 규칙은 `마감일` 칸에 사람이 읽는 말로 넣는다: "매일" 또는 "매주 화".
+# (칸을 새로 만들지 않으려고 그렇게 했다. 반복 행에서 마감일은 뜻이 없다)
+KIND_REPEAT = "반복"
 
 
 def get_sync(uid, key):
@@ -313,3 +319,24 @@ def groups(uid):
         if g and g not in out:
             out.append(g)
     return out
+
+
+def repeats(uid):
+    """되풀이 규칙 목록 [{내용, 마감일=규칙, 영역, _row}, ...]."""
+    return list_todos(uid, KIND_REPEAT)
+
+
+def add_repeat(uid, text, rule, area=AREA_WORK):
+    """되풀이 규칙 추가. rule = "매일" 또는 "매주 월"~"매주 일"."""
+    add_todo(uid, text, kind=KIND_REPEAT, due=(rule or "").strip(), area=area)
+
+
+def repeat_hits(rule, d):
+    """규칙이 날짜 d에 해당하나. d는 datetime.date."""
+    r = (rule or "").strip()
+    if r == "매일":
+        return True
+    if r.startswith("매주"):
+        w = r.replace("매주", "").strip()[:1]
+        return bool(w) and "월화수목금토일".find(w) == d.weekday()
+    return False
