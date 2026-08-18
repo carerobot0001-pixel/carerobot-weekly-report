@@ -76,8 +76,10 @@ NEWS_SECTIONS = [
                       ("exoskeleton metabolic cost", EN),
                       ("gait rehabilitation robot stroke", EN))),
     # 6 모니터링 — 요양시설중심·정보통합형 (류현경). 일본이 見守り 중심지라 JA 포함
-    ("6 모니터링", (("비접촉 모니터링 센서", KO), ("생체정보 모니터링", KO),
-                    ("낙상 감지 센서", KO),
+    # ⚠️ '비접촉 모니터링 센서'·'생체정보 모니터링'은 **논문 용어**라 기사 제목에 안 쓴다
+    #    (24시간 0건). 기사에 실제로 쓰는 말로 바꿨다.
+    ("6 모니터링", (("낙상 감지", KO), ("스마트 돌봄 센서", KO),
+                    ("AI 돌봄 모니터링", KO),
                     ("contactless vital sign monitoring", EN),
                     ("remote patient monitoring elderly", EN),
                     ("見守り センサー 介護", JA))),
@@ -88,8 +90,9 @@ NEWS_SECTIONS = [
                 ("bed to wheelchair transfer device", EN),
                 ("移乗 支援 ロボット", JA))),
     # 8 욕창 — 초저소음·호환성 (이경진)
-    ("8 욕창", (("욕창 예방 매트리스", KO), ("체위변환 침대", KO),
-                ("스마트베드 욕창", KO),
+    # ⚠️ '스마트베드' 단독은 쓰지 말 것 — 24시간 10건이 전부 수면가구(모션베드) 기사다
+    ("8 욕창", (("욕창", KO), ("욕창 예방 매트리스", KO),
+                ("체위변환 침대", KO), ("스마트베드 욕창", KO),
                 ("pressure injury prevention device", EN),
                 ("smart mattress pressure ulcer", EN),
                 ("alternating pressure mattress", EN))),
@@ -100,8 +103,10 @@ NEWS_SECTIONS = [
                 ("robot-assisted feeding", EN),
                 ("食事 支援 ロボット", JA))),
     # 10 커뮤니케이션 — 가정/병원 중심·현장소통 (김건양)
+    # ⚠️ '고독사 예방'을 뺐다 — 뉴스에서는 **지자체 복지행정**만 물어와서(하루 7건)
+    #    로봇 기사가 통째로 묻혔다. 과제는 커뮤니케이션 로봇이다.
     ("10 커뮤니케이션", (("소셜로봇", KO), ("반려로봇 노인", KO),
-                        ("독거노인 돌봄 로봇", KO), ("고독사 예방", KO),
+                        ("독거노인 돌봄 로봇", KO), ("말벗 로봇", KO),
                         ("socially assistive robot", EN),
                         ("companion robot loneliness", EN))),
     # 11 AI 챗봇 — 비대면·시니어 헬스케어. 엑셀 칸은 비었지만,
