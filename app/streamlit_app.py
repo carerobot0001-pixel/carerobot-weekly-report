@@ -4319,6 +4319,138 @@ def _inject_pwa():
     st.session_state["_pwa_done"] = True
 
 
+def week_page():
+    """🗓 주간 계획 — 스케줄러 노트를 그대로 옮긴 화면.
+
+    **왜 만들었나**: 앱을 두고도 종이 스케줄러를 계속 쓰는 이유가 기능이 아니라
+    *모양*이었다. 노트는 요일 칸이 있어 아침에 그 칸에 적고 밤에 체크한다.
+    앱의 할 일은 한 덩어리 목록이라 그 리듬이 안 된다.
+    → 월~일 일곱 칸을 그대로 만들고, 칸마다 바로 적고 바로 체크하게 했다.
+
+    데이터는 새로 만들지 않는다. 기존 `개인할일` 시트의 **마감일**을 '그 날 할 일'의
+    날짜로 쓴다(업무), 개인 할 일은 브라우저 저장 그대로에 날짜(`d`)만 붙인다.
+    그래서 여기서 적은 것이 홈 '내 할 일'·주간보고 실적에 그대로 이어진다.
+    """
+    uid = st.session_state.get("uid", "")
+    if not uid:
+        st.info("로그인 후 사용할 수 있습니다.")
+        return
+    today = datetime.now(KST).date()
+    off = st.session_state.get("wk_off", 0)
+    monday = today - timedelta(days=today.weekday()) + timedelta(weeks=off)
+    days = [monday + timedelta(days=i) for i in range(7)]
+
+    st.markdown("### 🗓 주간 계획")
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 4])
+    if c1.button("◀ 지난주", use_container_width=True):
+        st.session_state["wk_off"] = off - 1
+        st.rerun()
+    if c2.button("이번 주", use_container_width=True):
+        st.session_state["wk_off"] = 0
+        st.rerun()
+    if c3.button("다음주 ▶", use_container_width=True):
+        st.session_state["wk_off"] = off + 1
+        st.rerun()
+    c4.caption(f"{monday:%Y-%m-%d} ~ {days[-1]:%m-%d}"
+               + ("  ·  이번 주" if off == 0 else ""))
+
+    # 새 항목을 어디에 담을지 — 업무는 시트(폰·PC 공유, 주간보고 연계),
+    # 개인은 이 브라우저에만 저장된다.
+    area = st.radio("적을 곳", ["업무", "개인"], horizontal=True,
+                    key="wk_area", label_visibility="collapsed",
+                    help="업무=팀 시트에 저장(다른 기기에서도 보임) · "
+                         "개인=이 브라우저에만 저장")
+
+    try:
+        work = todo_store.list_todos(uid)
+    except Exception as e:
+        st.error(f"할 일을 불러오지 못했습니다: {e}")
+        work = []
+    per = personal_todos(uid)
+
+    def _wk_of(dt):
+        return [w for w in work
+                if (w.get("마감일", "") or "").strip() == dt.isoformat()]
+
+    def _pk_of(dt):
+        return [(i, x) for i, x in enumerate(per)
+                if (x.get("d", "") or "").strip() == dt.isoformat()]
+
+    # ── 지난 미완료: 노트에서 화살표로 옮겨 적던 것. 하루 지나면 여기로 모인다
+    late = [w for w in work
+            if (w.get("마감일", "") or "").strip()
+            and (w.get("마감일", "") or "").strip() < today.isoformat()]
+    if late and off == 0:
+        with st.container(border=True):
+            st.markdown(f"**⏭ 지난 미완료 {len(late)}건** — 오늘로 옮기거나 그대로 두세요")
+            for w in late:
+                lc1, lc2 = st.columns([8, 1])
+                lc1.markdown(f"<span style='opacity:.75'>{w['마감일'][5:]} · "
+                             f"{html_escape(w['내용'])}</span>",
+                             unsafe_allow_html=True)
+                if lc2.button("오늘로", key=f"wk_late_{w['_row']}"):
+                    todo_store.set_due(uid, w["_row"], w["내용"],
+                                       today.isoformat())
+                    st.rerun()
+
+    cols = st.columns(7)
+    for col, dt in zip(cols, days):
+        with col:
+            is_today = (dt == today)
+            nm = "월화수목금토일"[dt.weekday()]
+            head = f"{nm} {dt.day}"
+            col.markdown(
+                f"<div style='text-align:center;font-weight:700;"
+                f"padding:.25rem 0;border-bottom:2px solid "
+                f"{'#c96442' if is_today else 'transparent'}'>"
+                f"{head}{' ·오늘' if is_today else ''}</div>",
+                unsafe_allow_html=True)
+            # 업무(시트) — 체크하면 완료 기록으로 남아 주간보고 실적에 쓰인다
+            for w in _wk_of(dt):
+                if st.checkbox(w["내용"], key=f"wk_w_{w['_row']}"):
+                    try:
+                        todo_store.complete_todo(uid, w["_row"], w["내용"])
+                    except Exception as e:
+                        st.error(f"완료 처리 실패: {e}")
+                    st.rerun()
+            # 개인(브라우저) — 체크하면 그냥 지운다(기록 안 남김)
+            for i, x in _pk_of(dt):
+                if st.checkbox(f"🙋 {x.get('t', '')}", key=f"wk_p_{dt}_{i}"):
+                    save_personal(uid, [y for j, y in enumerate(per) if j != i])
+                    st.rerun()
+            with st.form(f"wk_add_{dt}", clear_on_submit=True):
+                txt = st.text_input("추가", key=f"wk_txt_{dt}",
+                                    label_visibility="collapsed",
+                                    placeholder="＋ 할 일")
+                if st.form_submit_button("추가", use_container_width=True)                         and txt.strip():
+                    if area == "업무":
+                        try:
+                            todo_store.add_todo(uid, txt.strip(),
+                                                due=dt.isoformat())
+                        except Exception as e:
+                            st.error(f"저장 실패: {e}")
+                    else:
+                        save_personal(uid, per + [{
+                            "t": txt.strip(), "d": dt.isoformat(),
+                            "ts": datetime.now(KST).strftime("%Y-%m-%d %H:%M")}])
+                    st.rerun()
+
+    # ── 날짜를 안 정한 할 일 — 노트에는 없던 것. 여기서 요일 칸으로 보낸다
+    undated = [w for w in work if not (w.get("마감일", "") or "").strip()]
+    if undated:
+        with st.expander(f"📥 날짜 없는 할 일 ({len(undated)})", expanded=False):
+            for w in undated:
+                uc1, uc2, uc3 = st.columns([6, 2, 1])
+                uc1.markdown(html_escape(w["내용"]))
+                pick = uc2.selectbox("날짜", days, key=f"wk_pick_{w['_row']}",
+                                     format_func=lambda d: f"{'월화수목금토일'[d.weekday()]} {d.day}",
+                                     label_visibility="collapsed")
+                if uc3.button("배치", key=f"wk_set_{w['_row']}"):
+                    todo_store.set_due(uid, w["_row"], w["내용"],
+                                       pick.isoformat())
+                    st.rerun()
+
+
 def main():
     # 🔧 제조사 제출 입구 — 로그인 **앞**에 둔다(같은 앱의 다른 문).
     #    토큰을 secrets에 넣어두면 그 값일 때만 열린다. 없으면 값이 있기만 하면 열림
@@ -4633,7 +4765,7 @@ def main():
       *{ scrollbar-color:var(--ds-surface2) var(--ds-bg); }
     </style>""", unsafe_allow_html=True)
 
-    mode_options = ["🏠 홈", "🖥️ 주간취합", "📝 업무보고 작성·취합",
+    mode_options = ["🏠 홈", "🗓 주간 계획", "🖥️ 주간취합", "📝 업무보고 작성·취합",
                     "🏠 스마트돌봄스페이스", "🛒 구매요청서", "📋 문서 협업",
                     "📁 자료실", "🔧 장비 사용현황", "📍 실증 방문 일지",
                     "📚 과거 회의록 열람", "💡 개선 요청"]
@@ -4684,7 +4816,7 @@ def main():
         if mode not in mode_options:
             mode = "🏠 홈"
         # 카테고리별 정리 + 큰 글씨 버튼 네비게이션
-        _cats = [("", ["🏠 홈", "🖥️ 주간취합"]),
+        _cats = [("", ["🏠 홈", "🗓 주간 계획", "🖥️ 주간취합"]),
                  ("업무", ["📝 업무보고 작성·취합", "🛒 구매요청서", "📋 문서 협업"]),
                  ("자료·장비", ["📁 자료실", "🔧 장비 사용현황",
                               "📍 실증 방문 일지", "📚 과거 회의록 열람"]),
@@ -4725,6 +4857,8 @@ def main():
 
     if mode == "🏠 홈":
         home_page()
+    elif mode == "🗓 주간 계획":
+        week_page()
     elif mode == "🖥️ 주간취합":
         meeting_page()
     elif mode == "📝 업무보고 작성·취합":
