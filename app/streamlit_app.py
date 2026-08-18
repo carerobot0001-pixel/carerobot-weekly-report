@@ -4341,6 +4341,17 @@ def week_page():
     days = [monday + timedelta(days=i) for i in range(7)]
 
     st.markdown("### 🗓 주간 계획")
+    # 요일 칸을 낮게 — '추가' 버튼이 칸 높이를 두 배로 먹었다. 입력칸에 엔터가
+    # 기본 동작이고 버튼은 보조라서 작게 만든다.
+    # ⚠️ 여백·크기 CSS는 반드시 stMain 안으로 한정할 것(사이드바로 새면 메뉴가 무너진다)
+    st.markdown("""<style>
+      section[data-testid="stMain"] div[data-testid="stForm"]{
+        border:0; padding:0; margin:0; }
+      section[data-testid="stMain"] div[data-testid="stForm"] button{
+        min-height:26px; height:26px; padding:0 .4rem; font-size:.78rem; }
+      section[data-testid="stMain"] div[data-testid="stForm"] input{
+        padding:.25rem .45rem; font-size:.86rem; }
+    </style>""", unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns([1, 1, 1, 4])
     if c1.button("◀ 지난주", use_container_width=True):
         st.session_state["wk_off"] = off - 1
@@ -4422,7 +4433,7 @@ def week_page():
                 txt = st.text_input("추가", key=f"wk_txt_{dt}",
                                     label_visibility="collapsed",
                                     placeholder="＋ 할 일")
-                if st.form_submit_button("추가", use_container_width=True)                         and txt.strip():
+                if st.form_submit_button("＋ 추가") and txt.strip():
                     if area == "업무":
                         try:
                             todo_store.add_todo(uid, txt.strip(),
