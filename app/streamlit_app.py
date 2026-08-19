@@ -460,6 +460,39 @@ def personal_todos(uid):
     return st.session_state.get("_per", [])
 
 
+# 캘린더 ID도 같은 이유로 **브라우저에만** 둔다. 캘린더 ID는 보통 본인 지메일
+# 주소라, 팀 공용 시트에 두면 시트를 여는 사람에게 그대로 보인다.
+def _cal_key(uid):
+    return f"ds_cal_{(uid or '').strip()}"
+
+
+def my_calendars(uid):
+    """브라우저에 저장된 내 캘린더 {'work':ID,'per':ID} (세션당 1회 읽음)."""
+    if not uid:
+        return {}
+    if not st.session_state.get("_cal_loaded"):
+        try:
+            from streamlit_js_eval import get_local_storage
+            raw = get_local_storage(_cal_key(uid), component_key="ls_cal_get")
+        except Exception:
+            raw = None
+        if raw is not None:                    # None = 아직 응답 전(다음 실행에 옴)
+            try:
+                st.session_state["_cal"] = json.loads(raw) if raw else {}
+            except Exception:
+                st.session_state["_cal"] = {}
+            st.session_state["_cal_loaded"] = True
+    return st.session_state.get("_cal", {})
+
+
+def save_my_calendars(uid, data):
+    """내 캘린더 저장 — 실제 쓰기는 main() 끝에서(컴포넌트 렌더 타이밍)."""
+    st.session_state["_cal"] = data
+    st.session_state["_cal_loaded"] = True
+    st.session_state["_ls_cal_save"] = (_cal_key(uid),
+                                        json.dumps(data, ensure_ascii=False))
+
+
 def save_personal(uid, items):
     """개인 할 일 저장 — 실제 쓰기는 main() 끝에서(컴포넌트 렌더 타이밍 때문)."""
     st.session_state["_per"] = items
@@ -4371,19 +4404,35 @@ def week_page():
     # ⚠️ 비공개 캘린더도 그대로 넣으면 된다 — 임베드는 **보는 사람의 구글 로그인**으로
     #    그려져서, 남의 화면에는 안 보인다. 그래서 시트에는 캘린더 ID만 둔다
     #    (일정 내용이나 비공개 ICS 주소는 저장하지 않는다).
-    cal_w = cal_p = ""
-    try:
-        cal_w = (todo_store.get_sync(uid, "mycal") or "").strip()      # 업무(옛 키)
-        cal_p = (todo_store.get_sync(uid, "mycal_per") or "").strip()  # 개인
-    except Exception:
-        pass
+    # 캘린더 ID는 **브라우저에만** 둔다(개인 할 일과 같은 이유 — 팀 시트에 두면
+    # 본인 지메일 주소가 시트 여는 사람에게 다 보인다).
+    _mycal = my_calendars(uid)
+    cal_w = (_mycal.get("work", "") or "").strip()
+    cal_p = (_mycal.get("per", "") or "").strip()
+    # 옛 값(시트)이 남아 있으면 브라우저로 옮기고 시트에서는 지운다
+    if st.session_state.get("_cal_loaded") and not (cal_w or cal_p):
+        try:
+            _ow = (todo_store.get_sync(uid, "mycal") or "").strip()
+            _op = (todo_store.get_sync(uid, "mycal_per") or "").strip()
+        except Exception:
+            _ow = _op = ""
+        if _ow or _op:
+            save_my_calendars(uid, {"work": _ow, "per": _op})
+            try:
+                todo_store.set_sync(uid, "mycal", "")
+                todo_store.set_sync(uid, "mycal_per", "")
+            except Exception:
+                pass
+            cal_w, cal_p = _ow, _op
+            st.caption("📆 캘린더 설정을 이 기기로 옮기고 팀 시트에서는 지웠습니다.")
     _cals = [c for c in (cal_w, cal_p) if c]
     with st.expander("📆 내 캘린더" + (f" ({len(_cals)}개 연결)" if _cals
                                       else " — 연결 안 됨"),
                      expanded=bool(_cals) and st.session_state.get("wk_cal_open", False)):
         st.caption("구글 캘린더 ID(보통 본인 지메일)를 넣으면 여기 주간 달력이 뜹니다. "
                    "노션 캘린더를 써도 같은 구글 계정이면 같은 일정이 보입니다. "
-                   "업무·개인을 나눠 넣으면 둘이 함께 표시됩니다.")
+                   "🔒 이 설정은 **이 브라우저에만** 저장됩니다(팀 시트에 안 올라갑니다). "
+                   "다른 기기에서는 다시 넣어야 합니다.")
         cc1, cc2, cc3 = st.columns([3, 3, 1])
         nw = cc1.text_input("업무 캘린더", value=cal_w, key="wk_cal_w",
                             placeholder="업무 캘린더 ID")
@@ -4391,8 +4440,7 @@ def week_page():
                              placeholder="개인 캘린더 ID(선택)")
         cc3.markdown("<div style='height:1.8rem'></div>", unsafe_allow_html=True)
         if cc3.button("저장", key="wk_cal_save", use_container_width=True):
-            todo_store.set_sync(uid, "mycal", nw.strip())
-            todo_store.set_sync(uid, "mycal_per", npv.strip())
+            save_my_calendars(uid, {"work": nw.strip(), "per": npv.strip()})
             st.session_state["wk_cal_open"] = bool(nw.strip() or npv.strip())
             st.rerun()
         if _cals:
@@ -4627,6 +4675,14 @@ def main():
         try:
             from streamlit_js_eval import set_local_storage
             set_local_storage(_psave[0], _psave[1], component_key="ls_per_set")
+        except Exception:
+            pass
+
+    _csave = st.session_state.pop("_ls_cal_save", None)
+    if _csave:
+        try:
+            from streamlit_js_eval import set_local_storage
+            set_local_storage(_csave[0], _csave[1], component_key="ls_cal_set")
         except Exception:
             pass
 
