@@ -125,8 +125,14 @@ def _body(summary, the_date, all_day, start_t, end_t, desc, location=""):
     return b
 
 
-def add_event(summary, the_date, all_day, start_t, end_t, desc="", location="") -> str:
-    r = _sess().post(f"{CAL_API}/calendars/{_cid()}/events",
+def add_event(summary, the_date, all_day, start_t, end_t, desc="", location="",
+              cal="") -> str:
+    """일정 추가. cal 을 주면 그 캘린더에(개인 캘린더 등), 없으면 사업단 캘린더에.
+
+    ⚠️ 개인 캘린더에 쓰려면 그 캘린더를 서비스 계정(`streamlit-bot@…`)에
+    **'일정 변경' 권한으로 공유**해야 한다. 안 하면 403이 온다.
+    """
+    r = _sess().post(f"{CAL_API}/calendars/{quote(cal) if cal else _cid()}/events",
                      json=_body(summary, the_date, all_day, start_t, end_t, desc, location))
     r.raise_for_status()
     upcoming_events.clear()

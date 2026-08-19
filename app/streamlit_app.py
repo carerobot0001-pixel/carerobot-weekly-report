@@ -4371,38 +4371,53 @@ def week_page():
     # ⚠️ 비공개 캘린더도 그대로 넣으면 된다 — 임베드는 **보는 사람의 구글 로그인**으로
     #    그려져서, 남의 화면에는 안 보인다. 그래서 시트에는 캘린더 ID만 둔다
     #    (일정 내용이나 비공개 ICS 주소는 저장하지 않는다).
-    mycal = ""
+    cal_w = cal_p = ""
     try:
-        mycal = (todo_store.get_sync(uid, "mycal") or "").strip()
+        cal_w = (todo_store.get_sync(uid, "mycal") or "").strip()      # 업무(옛 키)
+        cal_p = (todo_store.get_sync(uid, "mycal_per") or "").strip()  # 개인
     except Exception:
         pass
-    with st.expander("📆 내 캘린더" + (" (연결됨)" if mycal else " — 연결 안 됨"),
-                     expanded=bool(mycal) and st.session_state.get("wk_cal_open", False)):
-        st.caption("구글 캘린더 ID(보통 본인 지메일 주소)를 넣으면 여기 주간 달력이 뜹니다. "
-                   "노션 캘린더를 쓰는 분도 같은 구글 계정이면 같은 일정이 보입니다.")
-        cc1, cc2 = st.columns([4, 1])
-        newcal = cc1.text_input("캘린더 ID", value=mycal, key="wk_cal_id",
-                                label_visibility="collapsed",
-                                placeholder="예: hong@gmail.com")
-        if cc2.button("저장", key="wk_cal_save", use_container_width=True):
-            todo_store.set_sync(uid, "mycal", newcal.strip())
-            st.session_state["wk_cal_open"] = bool(newcal.strip())
+    _cals = [c for c in (cal_w, cal_p) if c]
+    with st.expander("📆 내 캘린더" + (f" ({len(_cals)}개 연결)" if _cals
+                                      else " — 연결 안 됨"),
+                     expanded=bool(_cals) and st.session_state.get("wk_cal_open", False)):
+        st.caption("구글 캘린더 ID(보통 본인 지메일)를 넣으면 여기 주간 달력이 뜹니다. "
+                   "노션 캘린더를 써도 같은 구글 계정이면 같은 일정이 보입니다. "
+                   "업무·개인을 나눠 넣으면 둘이 함께 표시됩니다.")
+        cc1, cc2, cc3 = st.columns([3, 3, 1])
+        nw = cc1.text_input("업무 캘린더", value=cal_w, key="wk_cal_w",
+                            placeholder="업무 캘린더 ID")
+        npv = cc2.text_input("개인 캘린더", value=cal_p, key="wk_cal_p",
+                             placeholder="개인 캘린더 ID(선택)")
+        cc3.markdown("<div style='height:1.8rem'></div>", unsafe_allow_html=True)
+        if cc3.button("저장", key="wk_cal_save", use_container_width=True):
+            todo_store.set_sync(uid, "mycal", nw.strip())
+            todo_store.set_sync(uid, "mycal_per", npv.strip())
+            st.session_state["wk_cal_open"] = bool(nw.strip() or npv.strip())
             st.rerun()
-        if mycal:
-            _u = ("https://calendar.google.com/calendar/embed?"
-                  f"src={quote(mycal)}&ctz=Asia%2FSeoul&mode=WEEK"
-                  "&showTitle=0&showPrint=0&showTabs=1&showCalendars=0")
+        if _cals:
+            _src = "".join(f"&src={quote(c)}" for c in _cals)
+            _u = ("https://calendar.google.com/calendar/embed?ctz=Asia%2FSeoul"
+                  f"&mode=WEEK&showTitle=0&showPrint=0&showTabs=1{_src}")
             _if = getattr(st, "iframe", components.iframe)
             _if(_u, height=460)
-            st.caption("본인 구글 계정으로 로그인한 브라우저에서만 보입니다. "
-                       "빈 화면이면 구글에 로그인하거나 캘린더 ID를 확인하세요.")
+            st.caption("⚠️ 이 달력은 **보기 전용**입니다(구글 임베드라 여기서 못 고칩니다). "
+                       "일정을 고치려면 구글 캘린더에서 하세요. "
+                       "아래 요일 칸에 적을 때 '캘린더에도'를 켜면 이 달력으로 넘어갑니다.")
 
     # 새 항목을 어디에 담을지 — 업무는 시트(폰·PC 공유, 주간보고 연계),
     # 개인은 이 브라우저에만 저장된다.
-    area = st.radio("적을 곳", ["업무", "개인"], horizontal=True,
-                    key="wk_area", label_visibility="collapsed",
-                    help="업무=팀 시트에 저장(다른 기기에서도 보임) · "
-                         "개인=이 브라우저에만 저장")
+    ac1, ac2 = st.columns([2, 3])
+    area = ac1.radio("적을 곳", ["업무", "개인"], horizontal=True,
+                     key="wk_area", label_visibility="collapsed",
+                     help="업무=팀 시트에 저장(다른 기기에서도 보임) · "
+                          "개인=이 브라우저에만 저장")
+    # 적은 것을 내 구글 캘린더에도 종일 일정으로 넣는다(업무→업무 캘린더,
+    # 개인→개인 캘린더). 임베드가 보기 전용이라, 넣는 길을 이쪽으로 낸 것.
+    to_cal = False
+    _tgt = cal_w if area == "업무" else (cal_p or cal_w)
+    if _tgt:
+        to_cal = ac2.checkbox(f"캘린더에도 추가 ({_tgt[:22]})", key="wk_to_cal")
 
     try:
         work = todo_store.list_todos(uid)
@@ -4521,6 +4536,21 @@ def week_page():
                         save_personal(uid, per + [{
                             "t": txt.strip(), "d": dt.isoformat(),
                             "ts": datetime.now(KST).strftime("%Y-%m-%d %H:%M")}])
+                    if to_cal and _tgt:
+                        try:
+                            add_event(txt.strip(), dt.isoformat(), True,
+                                      "09:00", "10:00",
+                                      desc="Dolbom Studio 주간 계획",
+                                      cal=_tgt)
+                        except Exception as e:
+                            # 서비스 계정이 그 캘린더에 공유돼 있지 않으면 403
+                            st.warning(
+                                "캘린더에 못 넣었습니다 — 구글 캘린더 설정에서 "
+                                "이 캘린더를 서비스 계정"
+                                "(streamlit-bot@molten-guide-469800-e0"
+                                ".iam.gserviceaccount.com) 에 "
+                                "**'일정 변경 권한'**으로 공유해야 합니다. "
+                                f"({e})")
                     st.rerun()
 
     # ── 되풀이 규칙 관리 — 매주 같은 걸 다시 적지 않게
