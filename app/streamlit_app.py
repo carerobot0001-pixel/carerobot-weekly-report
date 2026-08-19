@@ -4365,6 +4365,38 @@ def week_page():
     c4.caption(f"{monday:%Y-%m-%d} ~ {days[-1]:%m-%d}"
                + ("  ·  이번 주" if off == 0 else ""))
 
+    # ── 내 캘린더(각자 것) — 노션 캘린더가 보여주는 것도 결국 각자의 구글 캘린더다.
+    # 노션 캘린더는 **앱이라 임베드 주소가 없어** 직접 못 붙인다. 대신 그 바탕인
+    # 구글 캘린더를 붙이면 같은 화면이 된다.
+    # ⚠️ 비공개 캘린더도 그대로 넣으면 된다 — 임베드는 **보는 사람의 구글 로그인**으로
+    #    그려져서, 남의 화면에는 안 보인다. 그래서 시트에는 캘린더 ID만 둔다
+    #    (일정 내용이나 비공개 ICS 주소는 저장하지 않는다).
+    mycal = ""
+    try:
+        mycal = (todo_store.get_sync(uid, "mycal") or "").strip()
+    except Exception:
+        pass
+    with st.expander("📆 내 캘린더" + (" (연결됨)" if mycal else " — 연결 안 됨"),
+                     expanded=bool(mycal) and st.session_state.get("wk_cal_open", False)):
+        st.caption("구글 캘린더 ID(보통 본인 지메일 주소)를 넣으면 여기 주간 달력이 뜹니다. "
+                   "노션 캘린더를 쓰는 분도 같은 구글 계정이면 같은 일정이 보입니다.")
+        cc1, cc2 = st.columns([4, 1])
+        newcal = cc1.text_input("캘린더 ID", value=mycal, key="wk_cal_id",
+                                label_visibility="collapsed",
+                                placeholder="예: hong@gmail.com")
+        if cc2.button("저장", key="wk_cal_save", use_container_width=True):
+            todo_store.set_sync(uid, "mycal", newcal.strip())
+            st.session_state["wk_cal_open"] = bool(newcal.strip())
+            st.rerun()
+        if mycal:
+            _u = ("https://calendar.google.com/calendar/embed?"
+                  f"src={quote(mycal)}&ctz=Asia%2FSeoul&mode=WEEK"
+                  "&showTitle=0&showPrint=0&showTabs=1&showCalendars=0")
+            _if = getattr(st, "iframe", components.iframe)
+            _if(_u, height=460)
+            st.caption("본인 구글 계정으로 로그인한 브라우저에서만 보입니다. "
+                       "빈 화면이면 구글에 로그인하거나 캘린더 ID를 확인하세요.")
+
     # 새 항목을 어디에 담을지 — 업무는 시트(폰·PC 공유, 주간보고 연계),
     # 개인은 이 브라우저에만 저장된다.
     area = st.radio("적을 곳", ["업무", "개인"], horizontal=True,
