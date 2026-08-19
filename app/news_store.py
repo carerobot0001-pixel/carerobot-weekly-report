@@ -215,6 +215,11 @@ def _age_hours(item) -> float:
 _STOP = {"older", "adults", "elderly", "device", "technique", "guide",
          "system", "care", "robot", "ai", "the", "for", "with", "and",
          "예방", "지원", "사업", "교육", "확대", "관리", "서비스", "기기",
+         # 국문 '로봇'이 빠져 있어서(영문 robot만 있었다) '식사 지원 로봇' 검색에
+         # '국방 피지컬 AI·로봇 도입'이, '착용형 로봇'에 '서울대 로보틱스 연구소'가
+         # 통과했다. '시니어'·'돌봄'·'노인'도 같은 이유로 뺀다 —
+         # '시니어 헬스케어 AI' 가 '시니어가 지갑 열자'를 물어왔다.
+         "로봇", "돌봄", "시니어", "노인", "기술", "케어",
          # 일본어도 같은 이유 — `食事 支援 ロボット` 인데 '手術支援ロボット'(수술)이
          # 支援+ロボット 두 낱말로 통과했다. 판정은 남는 낱말(食事)로만 한다.
          "支援", "ロボット"}
@@ -270,7 +275,9 @@ def _near_dup(toks: set, kept: list) -> bool:
         if not k:
             continue
         inter = len(toks & k)
-        if inter / min(len(toks), len(k)) >= 0.6:
+        # 임계 0.6은 느슨했다 — 같은 심포지엄 기사가 매체마다 0.50 겹침으로
+        # 통과해 한 탭에 4줄이 쌓였다(2026-08-19 확인). 0.45로 조인다.
+        if inter / min(len(toks), len(k)) >= 0.45:
             return True
     return False
 
