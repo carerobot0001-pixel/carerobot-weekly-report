@@ -4444,11 +4444,23 @@ def week_page():
             st.session_state["wk_cal_open"] = bool(nw.strip() or npv.strip())
             st.rerun()
         if _cals:
+            # 보기 방식 — 주간 격자는 구글이 스크롤 위치를 정해서 저녁 시간대가
+            # 먼저 보일 때가 있다(시작 시각을 정하는 URL 인자가 없다).
+            # 그때는 '일정 목록'이 읽기 편하다.
+            _md = st.radio("보기", ["주간", "월간", "일정 목록"], horizontal=True,
+                           key="wk_cal_mode", label_visibility="collapsed")
+            _mode = {"주간": "WEEK", "월간": "MONTH", "일정 목록": "AGENDA"}[_md]
             _src = "".join(f"&src={quote(c)}" for c in _cals)
             _u = ("https://calendar.google.com/calendar/embed?ctz=Asia%2FSeoul"
-                  f"&mode=WEEK&showTitle=0&showPrint=0&showTabs=1{_src}")
+                  f"&mode={_mode}&showTitle=0&showPrint=0&showTabs=1{_src}")
             _if = getattr(st, "iframe", components.iframe)
-            _if(_u, height=460)
+            _if(_u, height=560 if _mode != "AGENDA" else 380)
+            if len(_cals) > 1:
+                st.caption("여러 계정을 함께 보려면, 다른 계정 캘린더를 "
+                           "**지금 로그인한 구글 계정에 공유**해야 합니다 "
+                           "(구글 캘린더 → 설정 및 공유 → 특정 사용자와 공유 → "
+                           "'모든 일정 세부정보 보기'). 안 하면 '권한이 없어 표시할 수 "
+                           "없습니다'가 뜹니다.")
             st.caption("⚠️ 이 달력은 **보기 전용**입니다(구글 임베드라 여기서 못 고칩니다). "
                        "일정을 고치려면 구글 캘린더에서 하세요. "
                        "아래 요일 칸에 적을 때 '캘린더에도'를 켜면 이 달력으로 넘어갑니다.")
