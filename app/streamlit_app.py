@@ -494,6 +494,75 @@ def save_my_calendars(uid, data):
                                         json.dumps(data, ensure_ascii=False))
 
 
+# 홈 상자(오늘 챙길 것·사업단 일정·관련 뉴스)의 접힘 상태.
+# ⚠️ `st.expander` 는 **접었는지 파이썬에 안 알려준다** → 새로고침하면 항상 기본값으로
+#    돌아간다. 그래서 같은 모양의 접기 버튼(`_fold`)을 두고 상태를 우리가 들고 있는다.
+#    저장 위치는 브라우저(계정별) — 화면 취향이라 팀 시트에 둘 이유가 없다.
+def _ui_key(uid):
+    return f"ds_ui_{(uid or '').strip()}"
+
+
+def ui_prefs(uid):
+    """브라우저에 저장된 화면 상태 {'care':False,'cal':True,...} (세션당 1회 읽음)."""
+    if not uid:
+        return {}
+    if not st.session_state.get("_ui_loaded"):
+        try:
+            from streamlit_js_eval import get_local_storage
+            raw = get_local_storage(_ui_key(uid), component_key="ls_ui_get")
+        except Exception:
+            raw = None
+        if raw is not None:
+            try:
+                st.session_state["_ui"] = json.loads(raw) if raw else {}
+            except Exception:
+                st.session_state["_ui"] = {}
+            st.session_state["_ui_loaded"] = True
+    return st.session_state.get("_ui", {})
+
+
+def save_ui_pref(uid, key, value):
+    """화면 상태 1개 저장 — 실제 쓰기는 main() 끝에서(컴포넌트 렌더 타이밍)."""
+    cur = dict(ui_prefs(uid))
+    cur[key] = bool(value)
+    st.session_state["_ui"] = cur
+    st.session_state["_ui_loaded"] = True
+    st.session_state["_ls_ui_save"] = (_ui_key(uid),
+                                       json.dumps(cur, ensure_ascii=False))
+
+
+class _NullBox:
+    """접혀 있을 때 `with` 안 내용을 **아예 안 그리는** 상자.
+
+    Streamlit 에는 '그리지 않기'가 없어서, 접힘일 때는 화면에 안 붙는
+    임시 컨테이너(st.empty().container())를 준다 — 위젯 키 충돌도 안 난다.
+    """
+
+    def __enter__(self):
+        self._holder = st.empty()
+        self._ctx = self._holder.container()
+        self._ctx.__enter__()
+        return self
+
+    def __exit__(self, *a):
+        self._ctx.__exit__(*a)
+        self._holder.empty()          # 그린 것을 지운다
+        return False
+
+
+def _fold(label, key, uid, default=False):
+    """접기·펴기 머리글. 누른 상태가 **새로고침 뒤에도 그대로**다.
+
+    st.expander 와 겉모습을 맞추려고 전체폭 버튼 + ▾▸ 를 쓴다(CSS는 main() 참고).
+    """
+    open_ = bool(ui_prefs(uid).get(key, default))
+    if st.button(("▾  " if open_ else "▸  ") + label,
+                 key=f"fold_{key}", use_container_width=True):
+        save_ui_pref(uid, key, not open_)
+        st.rerun()
+    return open_
+
+
 def save_personal(uid, items):
     """개인 할 일 저장 — 실제 쓰기는 main() 끝에서(컴포넌트 렌더 타이밍 때문)."""
     st.session_state["_per"] = items
@@ -1269,7 +1338,9 @@ def home_page():
         # 새로고침 없이 즉시 접힘). ＋ 는 상자 안 첫 줄 버튼으로 옮김.
         any_reminder = False
         _mycare = []
-        with st.expander("🔔 오늘 챙길 것", expanded=True):
+        _care_open = _fold("🔔 오늘 챙길 것", "care", uid, default=False)
+        _care_box = st.container(border=True) if _care_open else _NullBox()
+        with _care_box:
             if uid and st.button(
                     "－" if st.session_state.get("care_add_open") else "＋",
                     key="care_add_btn",
@@ -1917,8 +1988,10 @@ def home_page():
     # 접기·펴기는 '🏢 업무'·'🙋 개인' 상자와 **같은 방식**(st.expander)으로 맞췄다.
     # 예전엔 제목 옆 ▾▸ 링크였는데, 화면마다 접는 방법이 다르면 헷갈린다.
     st.divider()
+    _uid_ui = st.session_state.get("uid", "")
     if calendar_enabled():
-        with st.expander("📅 사업단 일정", expanded=True):
+        _cal_open = _fold("📅 사업단 일정", "cal", _uid_ui, default=True)
+        with st.container(border=True) if _cal_open else _NullBox():
             # ＋ = 일정 추가·수정·삭제 패널 토글(상자 안 버튼으로 옮김)
             _copen = st.session_state.get("home_cal_open", False)
             if st.button("－" if _copen else "＋", key="home_cal_btn",
@@ -1938,8 +2011,11 @@ def home_page():
     # 하루 1회 수집 · 매일 교체 — 날짜를 캐시 키로 준다(예약 실행 장치 없이).
     # 같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 함께 본다.
     _day = news_today()
-    with st.expander(f"📰 관련 뉴스  ·  {_day} 수집", expanded=True):
-        _news_tabs(_day)
+    _news_open = _fold(f"📰 관련 뉴스  ·  {_day} 수집", "news", _uid_ui,
+                       default=True)
+    if _news_open:                   # 접혀 있으면 수집도 안 한다(홈이 가벼워진다)
+        with st.container(border=True):
+            _news_tabs(_day)
 
 
 def _news_tabs(_day):
@@ -4850,6 +4926,14 @@ def main():
         except Exception:
             pass
 
+    _usave = st.session_state.pop("_ls_ui_save", None)
+    if _usave:
+        try:
+            from streamlit_js_eval import set_local_storage
+            set_local_storage(_usave[0], _usave[1], component_key="ls_ui_set")
+        except Exception:
+            pass
+
     _csave = st.session_state.pop("_ls_cal_save", None)
     if _csave:
         try:
@@ -4864,6 +4948,12 @@ def main():
       [data-testid="stMainBlockContainer"]{
         padding-top:3.6rem;padding-bottom:2rem;
         padding-left:1.6rem;padding-right:1.6rem;}
+      /* 접기 버튼(_fold)을 expander 머리글처럼 — 왼쪽 정렬·연한 면 */
+      section[data-testid="stMain"] [class*="st-key-fold_"] button{
+        justify-content:flex-start; text-align:left; font-weight:600;
+        background:#faf7f4; border-color:#e7ddd4; }
+      section[data-testid="stMain"] [class*="st-key-fold_"] button p{
+        text-align:left; width:100%; }
       /* 헤더·섹션 라벨(굵은글씨)·링크를 주황갈색으로 (알림박스 안 굵은글씨는 제외) */
       h1,h2,h3,h4,h5,h6{ color:#8A3F12; }
       [data-testid="stMarkdownContainer"] strong{ color:#A8501A; }
@@ -4880,6 +4970,9 @@ def main():
       section[data-testid="stSidebar"] .stButton>button p,
       section[data-testid="stSidebar"] .stButton>button div{
         text-align:left !important; width:100%; margin:0; }
+      section[data-testid="stMain"] [class*="st-key-fold_"] button{
+        background:var(--ds-surface) !important;
+        border-color:var(--ds-border) !important; }
       section[data-testid="stSidebar"] .stButton>button:hover{ background:#3c2d22; }
       section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
         background:#C4622D; color:#fff !important; font-weight:700; }
