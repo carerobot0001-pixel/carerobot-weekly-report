@@ -814,20 +814,18 @@ def _mail_panel(uid, existing_rows, today):
             st.rerun()
 
 
-def _todo_row(p, uid, today, no=None, show_del=False):
-    """업무 할 일 한 줄 — 번호·내용·배지 + ⋯(진행 메모) + ✓(완료) [+ ✕].
+def _todo_row(p, uid, today, no=None):
+    """업무 할 일 한 줄 — 번호·내용·배지 + ⋯(진행 메모) + ✓(완료) + ✕(삭제).
 
-    ✕는 ＋(추가)를 열었을 때만 보인다 — 평소 목록을 단순하게 두고,
-    실수로 지우는 것도 막기 위함.
+    ✓와 ✕는 **뜻이 다르다**: ✓는 완료 기록을 남겨 주간보고 실적으로 이어지고,
+    ✕는 기록 없이 그냥 지운다(메일·보고에서 자동으로 들어왔다가 필요 없어진 것 등).
+    ✕는 예전엔 ＋(추가)를 열었을 때만 보였는데, 그때만 지울 수 있는 게 불편해
+    **항상 보이게** 바꿨다(2026-08).
     ☆(중요)는 없앴다 — 드래그로 순서를 정하니 '맨 위로' 표시가 겹쳤다.
     시트의 `중요` 칸과 `set_star`는 옛 데이터 때문에 남겨 둔다.
     """
     note = (p.get("진행", "") or "").strip()
-    if show_del:
-        c1, cw, c3, c4 = st.columns([9, 1, 1, 1])
-    else:
-        c1, cw, c3 = st.columns([9, 1, 1])
-        c4 = None
+    c1, cw, c3, c4 = st.columns([9, 1, 1, 1])
     _head = f"{no}." if no else "-"
     # 내용 앞에 출처 아이콘(📄 보고 · 📧 메일 · 📅 일정)이 이미 있으면
     # 기본 아이콘(📝)을 덧붙이지 않는다 — 두 개가 겹쳐 보인다.
@@ -895,8 +893,8 @@ def _todo_row(p, uid, today, no=None, show_del=False):
             st.error(f"완료 처리 실패: {e}")
         st.rerun()
     # ✕ 삭제 — 잘못 들어온 항목을 '완료'로 남기지 않고 그냥 지운다
-    if c4 is not None and c4.button("✕", key=f"todo_del_{p['_row']}",
-                                    help="삭제 — 실적 기록 없이 지움"):
+    if c4.button("✕", key=f"todo_del_{p['_row']}",
+                 help="삭제 — 실적 기록 없이 지움(✓는 완료 기록이 남습니다)"):
         try:
             todo_store.delete_todo(uid, p["_row"], p["내용"])
         except Exception as e:
@@ -1538,8 +1536,7 @@ def home_page():
                                 sorted(_items,
                                        key=lambda x: _todo_sort_key(x, today)),
                                 start=1):
-                            _todo_row(_p, uid, today, no=_i,
-                                      show_del=_todo_open)
+                            _todo_row(_p, uid, today, no=_i)
             # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
