@@ -193,6 +193,15 @@
 
 ### OAuth 파일 자동업로드 (2026-06 추가)
 
+⚠️ **`uploadType=multipart` 는 5MB 한도다**(2026-08 확인). 152MB 엑셀을 올렸다가
+`413 Client Error: Request Entity Too Large` 가 났다. 지금은 `collab_store.drive_upload()`
+가 크기를 보고 **4MB 초과면 resumable**(세션을 열고 본문을 PUT)로 보낸다.
+`maker_store.upload_file`(최대 20MB)도 같은 함수를 쓴다 — 거기도 같은 버그가 있었다.
+검증: 6.2MB xlsx 를 올려 구글 시트 변환·링크 생성까지 확인하고 테스트 파일은 지웠다.
+⚠️ 업로드가 되더라도 **구글 변환 한도**는 따로다 — 시트 1,000만 셀, 문서 50MB,
+슬라이드 100MB. 넘으면 변환에서 실패하므로, 화면에 "드라이브에 직접 올려 링크를
+붙여넣으라"는 안내를 띄운다.
+
 요청자가 **파일만 올리면 앱이 구글 문서로 자동 변환·공유·링크생성**까지 함. (링크 직접 붙여넣기도 여전히 가능)
 
 - secrets `[google_oauth]`(client_id/client_secret/refresh_token)가 있으면 활성 — `collab_store.drive_enabled()`.

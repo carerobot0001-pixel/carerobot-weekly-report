@@ -2821,7 +2821,11 @@ def collab_page():
                 else:
                     try:
                         if up is not None:
-                            with st.spinner("구글 문서로 변환하는 중..."):
+                            _mb = len(up.getvalue()) / 1024 / 1024
+                            with st.spinner(
+                                    f"구글 문서로 변환하는 중… ({_mb:.0f}MB)"
+                                    + (" — 큰 파일은 몇 분 걸립니다."
+                                       if _mb > 20 else "")):
                                 final_link = create_drive_doc(up.getvalue(), up.name)
                         add_collab(my_name, title.strip(), request_text.strip(),
                                    final_link, deadline.strftime("%Y-%m-%d"),
@@ -2834,6 +2838,18 @@ def collab_page():
                         st.rerun()
                     except Exception as e:
                         st.error(f"등록 실패: {e}")
+                        # 큰 파일은 구글 변환 한도(시트 1,000만 셀 · 문서 50MB ·
+                        # 슬라이드 100MB)에 걸린다. 무엇을 하면 되는지 함께 안내.
+                        if up is not None:
+                            _mb = len(up.getvalue()) / 1024 / 1024
+                            if _mb > 50:
+                                st.info(
+                                    f"올린 파일이 {_mb:.0f}MB 입니다. 구글 문서로 "
+                                    "바꿀 수 있는 한도를 넘었을 수 있습니다"
+                                    "(시트 1,000만 셀 · 문서 50MB · 슬라이드 100MB). "
+                                    "엑셀에 사진·영상이 들어 있으면 그것부터 빼거나, "
+                                    "구글 드라이브에 직접 올려 만든 링크를 "
+                                    "**'링크 붙여넣기'** 칸에 넣어 주세요.")
 
     st.divider()
     rows = collab_rows()

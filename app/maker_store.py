@@ -158,17 +158,11 @@ def upload_file(file_bytes: bytes, filename: str) -> str:
                         scopes=["https://www.googleapis.com/auth/drive.file"])
     creds.refresh(Request())
     sess = AuthorizedSession(creds)
-    b = "carebotmakerboundary"
-    meta = {"name": filename}                    # mimeType 지정 안 함 = 원본 유지
-    body = (f"--{b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
-            + _json.dumps(meta)
-            + f"\r\n--{b}\r\nContent-Type: application/octet-stream\r\n\r\n"
-            ).encode("utf-8") + file_bytes + f"\r\n--{b}--".encode()
-    r = sess.post("https://www.googleapis.com/upload/drive/v3/files"
-                  "?uploadType=multipart&fields=id,webViewLink", data=body,
-                  headers={"Content-Type": f"multipart/related; boundary={b}"})
-    r.raise_for_status()
-    info = r.json()
+    # ⚠️ multipart 는 5MB 한도라 20MB 매뉴얼에서 413 이 난다 →
+    #    collab_store.drive_upload 가 크기에 따라 resumable 로 보낸다.
+    from collab_store import drive_upload
+    info = drive_upload(sess, {"name": filename}, file_bytes,
+                        "application/octet-stream")   # 변환 없이 원본 유지
     fid = info["id"]
     sess.post(f"https://www.googleapis.com/drive/v3/files/{fid}/permissions",
               json={"role": "reader", "type": "anyone"})

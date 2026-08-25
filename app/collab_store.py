@@ -67,6 +67,52 @@ def _oauth_session():
     return AuthorizedSession(creds)
 
 
+_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files"
+_MULTIPART_MAX = 4 * 1024 * 1024      # 여유를 둔 값(구글 실제 한도 5MB)
+
+
+def drive_upload(sess, meta: dict, data: bytes, mime: str) -> dict:
+    """드라이브에 파일을 올리고 {id, webViewLink} 를 돌려준다.
+
+    ⚠️ **`uploadType=multipart` 는 5MB 한도다.** 152MB 엑셀을 올렸다가
+       `413 Client Error: Request Entity Too Large` 를 받았다(2026-08 확인).
+       그래서 큰 파일은 **resumable**(업로드 세션을 먼저 열고 본문을 PUT)로 보낸다.
+    청크로 쪼개지는 않는다 — 끊겼을 때 이어붙이는 처리가 따로 필요해서,
+    1단계에서는 한 번에 PUT 한다.
+    """
+    if len(data) <= _MULTIPART_MAX:
+        b = "carebotdocboundary"
+        head = ("--" + b + chr(13) + chr(10)
+                + "Content-Type: application/json; charset=UTF-8"
+                + chr(13) + chr(10) + chr(13) + chr(10)
+                + json.dumps(meta) + chr(13) + chr(10)
+                + "--" + b + chr(13) + chr(10)
+                + "Content-Type: " + mime
+                + chr(13) + chr(10) + chr(13) + chr(10))
+        tail = chr(13) + chr(10) + "--" + b + "--"
+        body = head.encode("utf-8") + data + tail.encode("utf-8")
+        r = sess.post(_UPLOAD_URL + "?uploadType=multipart"
+                      "&fields=id,webViewLink", data=body,
+                      headers={"Content-Type":
+                               "multipart/related; boundary=" + b})
+        r.raise_for_status()
+        return r.json()
+
+    r = sess.post(_UPLOAD_URL + "?uploadType=resumable&fields=id,webViewLink",
+                  json=meta,
+                  headers={"X-Upload-Content-Type": mime,
+                           "X-Upload-Content-Length": str(len(data))})
+    r.raise_for_status()
+    loc = r.headers.get("Location")
+    if not loc:
+        raise RuntimeError("업로드 세션을 열지 못했습니다(Location 헤더 없음).")
+    r2 = sess.put(loc, data=data,
+                  headers={"Content-Type": mime,
+                           "Content-Length": str(len(data))})
+    r2.raise_for_status()
+    return r2.json()
+
+
 def create_drive_doc(file_bytes: bytes, filename: str) -> str:
     """업로드 파일(엑셀/워드/PPT)을 구글 문서로 변환·생성하고 '링크가 있는 사용자
     편집' 공유를 건 뒤 편집 링크를 반환. (소유자=연결된 본인 계정, 본인 드라이브에 보관)"""
@@ -76,17 +122,8 @@ def create_drive_doc(file_bytes: bytes, filename: str) -> str:
     src_mime, dst_mime = _CONVERT[ext]
     name = filename.rsplit(".", 1)[0]
     sess = _oauth_session()
-    b = "carebotdocboundary"
-    meta = {"name": name, "mimeType": dst_mime}
-    body = (f"--{b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
-            + json.dumps(meta) + f"\r\n--{b}\r\nContent-Type: {src_mime}\r\n\r\n"
-            ).encode("utf-8") + file_bytes + f"\r\n--{b}--".encode()
-    r = sess.post("https://www.googleapis.com/upload/drive/v3/files"
-                  "?uploadType=multipart&fields=id,webViewLink",
-                  data=body,
-                  headers={"Content-Type": f"multipart/related; boundary={b}"})
-    r.raise_for_status()
-    info = r.json()
+    info = drive_upload(sess, {"name": name, "mimeType": dst_mime},
+                        file_bytes, src_mime)
     fid = info["id"]
     # 팀원이 편집할 수 있게 '링크가 있는 사용자 편집' 공유
     sess.post(f"https://www.googleapis.com/drive/v3/files/{fid}/permissions",
