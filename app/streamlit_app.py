@@ -1975,7 +1975,8 @@ def _news_tabs(_day):
                 # 최근 24시간에 걸리는 대로 다 (최신순). 없으면 없는 대로 둔다.
                 # 경제·시장만 상한이 있다(SECTION_CAP) — 토픽 피드라 100건씩 쌓인다.
                 items = fetch_section(queries, _day,
-                                      cap=SECTION_CAP.get(_name, 0))
+                                      cap=SECTION_CAP.get(_name, 0),
+                                      drop=_name)
             except Exception:
                 items = []
             if items:

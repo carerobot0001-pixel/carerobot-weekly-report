@@ -142,11 +142,14 @@ NEWS_SECTIONS = [
     #    편집된 헤드라인이 와서 잡음이 적다. `topic:` 접두어로 쓴다.
     # 과제가 아니라 **일하는 방법** — 프롬프트·RAG·업무 자동화.
     # 11 AI 챗봇에 잠깐 넣었다가 뺐다: 과제(시니어 챗봇) 기사가 활용법 기사에 묻혔다.
-    ("AI 활용법", (("프롬프트 엔지니어링", KO), ("AI 업무 자동화 사례", KO),
-                  ("AI 도구 활용법", KO),
+    # ⚠️ `AI 업무 자동화 사례`는 뺐다 — 하루 9건이 **전부 기업 도입 보도자료**라
+    #    (KT·한컴·솔트룩스…) 탭이 홍보창처럼 됐다. 정작 방법을 다루는 국문 키워드는
+    #    하루 0~2건이라, 영문 `how to use AI agents`(하루 29건)로 실속을 채운다.
+    ("AI 활용법", (("AI 도구 활용법", KO), ("AI 프롬프트 작성", KO),
+                  ("AI 에이전트 활용법", KO), ("프롬프트 엔지니어링", KO),
+                  ("how to use AI agents", EN),
                   ("prompt engineering technique", EN),
-                  ("RAG retrieval technique", EN),
-                  ("AI workflow productivity guide", EN))),
+                  ("RAG retrieval technique", EN))),
     # 일반 뉴스는 경제·시장 하나만 남겼다(세계·한국·축구는 뺌). 맨 뒤가 제자리다
     ("경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
                   ("Federal Reserve rate decision", EN))),
@@ -407,6 +410,16 @@ def today_key() -> str:
 #    같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 모두가 같이 본다.
 #    (예약 실행 장치 없이 '하루 1회 수집 · 매일 교체'를 만드는 방법)
 #    ttl은 이틀 — 자정 직후에도 어제 것이 남아 있지 않게 날짜 키가 먼저 갈린다.
+# 섹션별로 더 빼는 것 — 키워드로는 못 거르는 결이 있다.
+# 'AI 활용법'은 **어떻게 잘 쓰나**를 보는 탭인데, 한국 기사는 대부분
+# "○○사, AI 도입/구축/출시" 형태의 보도자료라 그것만 쌓였다.
+SECTION_DROP = {
+    "AI 활용법": re.compile(
+        r"도입|구축|출시|공급|계약|체결|MOU|협약|파트너십|수주|런칭|"
+        r"고도화|맞손|업무협약|시연|사업 확대|실증"),
+}
+
+
 # 섹션별 개수 상한 — 여기 없는 탭은 **제한 없음**(걸리는 대로 다).
 # 경제·시장만 자른다: 토픽 피드라 관련성 필터가 안 걸려 하루 100건씩 쌓인다.
 SECTION_CAP = {"경제·시장": 10}
@@ -414,13 +427,17 @@ SECTION_CAP = {"경제·시장": 10}
 
 @st.cache_data(ttl=172800, show_spinner=False)
 def fetch_section(specs: tuple, day: str, max_age_h: int = 24,
-                  cap: int = 0) -> list:
+                  cap: int = 0, drop: str = "") -> list:
     """한 섹션의 최근 24시간 기사(국내·해외 섞임, 최신순). day = today_key().
 
     `cap=0`이면 개수 제한 없음 — 걸리는 대로 다 준다. 해당 과제에 그날 뉴스가 없으면
     **빈 목록**이다(억지로 채우지 않는다). 화면에는 '오늘은 새 뉴스가 없습니다'.
     """
-    return _fetch_specs(list(specs), max_age_h=max_age_h, cap=cap)
+    out = _fetch_specs(list(specs), max_age_h=max_age_h, cap=cap)
+    pat = SECTION_DROP.get(drop)
+    if pat:
+        out = [x for x in out if not pat.search(x["title"])]
+    return out
 
 
 @st.cache_data(ttl=172800, show_spinner=False)
