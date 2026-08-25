@@ -37,7 +37,8 @@ from purchase_store import (
     delete_purchase_request, clear_all_purchases, build_purchase_list_xlsx,
 )
 from collab_store import (
-    COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status, delete_collab,
+    COLLAB_HEADER, collab_rows, add_collab, mark_done, mark_open,
+    set_status, delete_collab,
     drive_enabled, create_drive_doc, doc_activity,
 )
 from equip_store import (
@@ -2774,6 +2775,11 @@ def _email_to_name() -> dict:
     return out
 
 
+# 카톡 등 밖으로 내보내는 공유 링크의 기준 주소(배포본).
+# 구 주소 carerobot-weekly-report… 는 레포 이름 흔적이라 쓰지 않는다.
+APP_URL = "https://dolbom-studio.streamlit.app"
+
+
 def collab_page():
     """문서 협업 보드 — 구글 문서 링크 + 요청 + 제출현황 (파일은 구글에 보관)."""
     st.header("📋 문서 협업")
@@ -2783,6 +2789,48 @@ def collab_page():
 
     my_name = st.selectbox("👤 내 이름 (요청자·완료체크에 사용)", USER_NAMES,
                            index=_me_index(USER_NAMES), key="collab_my_name")
+
+    # 카톡 등에서 `?doc=` 링크로 들어온 경우 — 그 건 하나만 크게 보여준다
+    _focus = st.session_state.get("doc_focus")
+    if _focus:
+        _row = next((r for r in collab_rows() if r[0] == _focus), None)
+        if _row is None:
+            st.warning("공유 링크의 협업 건을 찾지 못했습니다(삭제되었을 수 있습니다).")
+            st.session_state.pop("doc_focus", None)
+        else:
+            _seen_key = f"doc_seen_{_focus}"
+            if not st.session_state.get(_seen_key):
+                try:
+                    mark_open(_focus, my_name)      # 열람 기록(1회)
+                except Exception:
+                    pass
+                st.session_state[_seen_key] = True
+            with st.container(border=True):
+                st.markdown(f"### 📄 {_row[3]}")
+                st.caption(f"요청 {_row[2]}"
+                           + (f" · 마감 {_row[6]}" if _row[6].strip() else ""))
+                if _row[4].strip():
+                    st.info(_row[4])
+                if _row[5].strip().startswith("http"):
+                    st.link_button("🔗 구글 문서 열어서 작성하기", _row[5],
+                                   use_container_width=True, type="primary")
+                st.caption("작성을 마치면 **아래 버튼**을 눌러 주세요. "
+                           "그래야 요청자 화면에 완료로 보입니다.")
+                _fc1, _fc2 = st.columns(2)
+                if _fc1.button(f"✅ 내 부분 완료 ({my_name})",
+                               key=f"focus_done_{_focus}",
+                               use_container_width=True):
+                    try:
+                        mark_done(_focus, my_name)
+                        st.session_state["collab_flash"] = "✅ 완료로 표시했습니다."
+                    except Exception as e:
+                        st.error(f"실패: {e}")
+                    st.rerun()
+                if _fc2.button("전체 목록 보기", key=f"focus_all_{_focus}",
+                               use_container_width=True):
+                    st.session_state.pop("doc_focus", None)
+                    st.rerun()
+        st.divider()
 
     # 등록 폼: 펼침창 대신 토글 버튼 + 컨테이너 (작성 중 새로고침돼도 안 닫히게)
     open_form = st.session_state.get("collab_show_form", False)
@@ -2902,9 +2950,15 @@ def collab_page():
                     st.session_state[_ck] = not st.session_state.get(_ck, False)
                     st.rerun()
                 if st.session_state.get(_ck):
-                    st.code(link, language=None)
-                    st.caption("주소 오른쪽 위 아이콘을 누르면 복사됩니다 — "
-                               "카톡 단톡방에 그대로 붙여넣으세요.")
+                    # 카톡에는 **앱 주소**를 보내는 걸 기본으로 한다 — 앱을 거쳐야
+                    # 누가 열었는지 남고, 그 자리에서 완료를 누를 수 있다.
+                    st.markdown("**단톡방에는 이 주소를** (앱을 거쳐 문서로 갑니다)")
+                    st.code(f"{APP_URL}/?doc={req_id}", language=None)
+                    st.caption("작성 후 '내 부분 완료'까지 한 화면에서 됩니다.")
+                    with st.expander("구글 문서 주소 그대로 쓰기", expanded=False):
+                        st.code(link, language=None)
+                        st.caption("이 주소로 보내면 앱을 안 거치므로 "
+                                   "제출현황이 ⏳로 남습니다.")
             elif link.strip():
                 st.caption(f"링크: {link}")
                 st.code(link, language=None)
@@ -2914,9 +2968,12 @@ def collab_page():
             edited = {_e2n.get(x["email"], x["name"])
                       for x in act.get("named", [])}
             if roster:
+                _seen = {n.strip() for n in
+                         (r[10] if len(r) > 10 else "").split(",") if n.strip()}
                 st.caption("제출현황 — " + "  ".join(
                     (f"✅{n}" if n in done_list
-                     else (f"✏️{n}" if n in edited else f"⏳{n}"))
+                     else (f"✏️{n}" if n in edited
+                           else (f"👀{n}" if n in _seen else f"⏳{n}")))
                     for n in roster))
             else:
                 st.caption("아직 완료 표시한 사람이 없습니다.")
@@ -4732,6 +4789,17 @@ def main():
     if not auth_gate():
         return
     _inject_pwa()
+    # ── 공유 링크 `?doc=요청ID` — 카톡으로는 **앱 주소**를 보내고, 앱을 거쳐
+    #    구글 문서로 들어가게 한다. 그래야 누가 열었는지 알 수 있고, 그 자리에서
+    #    '내 부분 완료'를 누를 수 있다(구글 문서만 보내면 앱에 안 들어와 ⏳로 남는다).
+    _doc = st.query_params.get("doc")
+    if _doc:
+        try:
+            del st.query_params["doc"]
+        except Exception:
+            pass
+        st.session_state["doc_focus"] = _doc
+        st.session_state["main_menu"] = "📋 문서 협업"
     # me·is_admin은 로그인 시 _set_session()에서 세팅됨(개인 계정).
     # 로그인 유지: ?uid=&tok= URL 토큰 + 브라우저 localStorage(다음 방문 자동 로그인).
     # 저장은 여기(정상 렌더)에서 1회 — 로그인 직후 rerun에 컴포넌트 쓰기가 잘리지 않게.

@@ -14,8 +14,9 @@ from datetime import datetime
 from sheets_store import _get_client, KST
 
 COLLAB_WS_TITLE = "문서협업"
+# '열람자'는 **맨 뒤에 붙였다** — 옛 행이 밀리지 않게(다른 시트와 같은 원칙).
 COLLAB_HEADER = ["요청ID", "등록일시", "요청자", "제목", "요청사항", "문서링크",
-                 "마감일", "담당자", "완료자", "상태"]
+                 "마감일", "담당자", "완료자", "상태", "열람자"]
 
 STATUS_OPEN = "진행중"
 STATUS_CLOSED = "완료"
@@ -169,7 +170,7 @@ def add_collab(requester: str, title: str, request_text: str, link: str,
     req_id = now.strftime("%Y%m%d-%H%M%S-") + requester
     row = [req_id, now.strftime("%Y-%m-%d %H:%M"), requester, title, request_text,
            link, deadline, ", ".join(assignees) if assignees else "전체",
-           "", STATUS_OPEN]
+           "", STATUS_OPEN, ""]        # 마지막 "" = 열람자
     ws.append_row(row, value_input_option="USER_ENTERED")
     collab_rows.clear()
     return req_id
@@ -191,6 +192,24 @@ def mark_done(req_id: str, member: str) -> list:
     if member not in names:
         names.append(member)
     ws.update_cell(i, 9, ", ".join(names))  # I열 = 완료자
+    collab_rows.clear()
+    return names
+
+
+def mark_open(req_id: str, member: str) -> list:
+    """'열람자'(K열)에 member 추가 (중복 방지). 반환: 열람자 목록.
+
+    앱을 거쳐 문서로 들어가는 공유 링크(`?doc=요청ID`)를 탄 사람을 기록한다.
+    ⚠️ '열람'은 **문서를 열어봤다**는 뜻일 뿐 완료가 아니다 — ✅는 본인이 눌러야 한다.
+    """
+    ws = _ws()
+    i, r = _find_row(ws, req_id)
+    k = COLLAB_HEADER.index("열람자")
+    cur = (r[k] if len(r) > k else "").strip()
+    names = [n.strip() for n in cur.split(",") if n.strip()]
+    if member and member not in names:
+        names.append(member)
+    ws.update_cell(i, k + 1, ", ".join(names))
     collab_rows.clear()
     return names
 
