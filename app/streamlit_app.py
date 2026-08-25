@@ -2780,6 +2780,50 @@ def _email_to_name() -> dict:
 APP_URL = "https://dolbom-studio.streamlit.app"
 
 
+def _copy_link_button(url: str, key: str, label: str = "📋 링크 복사"):
+    """누르면 **바로 클립보드에 복사**되는 버튼.
+
+    st.button 은 파이썬으로 되돌아오는 것뿐이라 클립보드를 못 만진다. 복사는
+    **클릭한 그 순간 브라우저에서** 일어나야 해서 작은 HTML 컴포넌트로 만든다.
+    - Streamlit 컴포넌트 iframe 은 `allow="… clipboard-write …"` 가 붙어 있어
+      `navigator.clipboard` 를 쓸 수 있다(확인함).
+    - 그래도 막히는 브라우저가 있어 `execCommand('copy')` 로 한 번 더 시도하고,
+      둘 다 실패하면 주소를 그 자리에 펼쳐 손으로 복사할 수 있게 한다.
+    """
+    safe, lab = json.dumps(url), json.dumps(label)
+    _dark = bool(st.session_state.get("dark"))
+    bg = "#1d1d1c" if _dark else "#ffffff"
+    fg = "#d1cdc5" if _dark else "#8A3F12"
+    bd = "#333331" if _dark else "#d9c9be"
+    components.html(
+        "<style>"
+        "button{width:100%;height:36px;border:1px solid " + bd + ";"
+        "border-radius:8px;background:" + bg + ";color:" + fg + ";"
+        "font-size:.86rem;cursor:pointer;font-family:'Source Sans Pro',sans-serif}"
+        "button:hover{border-color:#C4622D}"
+        "input{width:100%;margin-top:6px;font-size:.78rem;padding:4px;"
+        "border:1px solid " + bd + ";border-radius:6px;background:" + bg + ";"
+        "color:" + fg + "}"
+        "</style>"
+        "<button id='b'></button><input id='f' style='display:none'>"
+        "<script>"
+        "const t=" + safe + ",L=" + lab + ";"
+        "const b=document.getElementById('b'),f=document.getElementById('f');"
+        "b.textContent=L;"
+        "function ok(){b.textContent='✅ 복사됨';"
+        "setTimeout(()=>{b.textContent=L},1500);}"
+        "b.onclick=async()=>{"
+        " try{await navigator.clipboard.writeText(t);ok();return;}catch(e){}"
+        " const ta=document.createElement('textarea');ta.value=t;"
+        " ta.style.position='fixed';ta.style.opacity='0';"
+        " document.body.appendChild(ta);ta.focus();ta.select();"
+        " try{document.execCommand('copy');ok();}"
+        " catch(e2){b.textContent='아래 주소를 길게 눌러 복사하세요';"
+        "  f.value=t;f.style.display='block';f.select();}"
+        " ta.remove();};"
+        "</script>", height=48)
+
+
 def collab_page():
     """문서 협업 보드 — 구글 문서 링크 + 요청 + 제출현황 (파일은 구글에 보관)."""
     st.header("📋 문서 협업")
@@ -2945,16 +2989,11 @@ def collab_page():
                 lk1, lk2 = st.columns([3, 1])
                 lk1.link_button("🔗 문서 열기 (작성하러 가기)", link,
                                 use_container_width=True)
-                _ck = f"collab_copy_{req_id}"
-                if lk2.button("📋 링크 복사", key=f"{_ck}_btn",
-                              use_container_width=True,
-                              help="주소를 펼칩니다. 오른쪽 위 복사 아이콘을 누르세요."):
-                    st.session_state[_ck] = not st.session_state.get(_ck, False)
-                    st.rerun()
-                if st.session_state.get(_ck):
-                    # 앱을 거쳐 문서로 가는 주소만 준다. 구글 문서 주소를 함께 보여주면
-                    # 그걸 보내게 되고, 그러면 앱에 안 들어와 제출현황이 ⏳로 남는다.
-                    st.code(f"{APP_URL}/?doc={req_id}", language=None)
+                # 누르면 바로 복사된다. 주소는 **앱을 거쳐 문서로 가는 것**만 준다 —
+                # 구글 문서 주소를 보내면 앱에 안 들어와 제출현황이 ⏳로 남는다.
+                with lk2:
+                    _copy_link_button(f"{APP_URL}/?doc={req_id}",
+                                      key=f"collab_copy_{req_id}")
             elif link.strip():
                 st.caption(f"링크: {link}")
                 st.code(link, language=None)
