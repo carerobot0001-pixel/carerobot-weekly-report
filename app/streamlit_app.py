@@ -2952,15 +2952,9 @@ def collab_page():
                     st.session_state[_ck] = not st.session_state.get(_ck, False)
                     st.rerun()
                 if st.session_state.get(_ck):
-                    # 카톡에는 **앱 주소**를 보내는 걸 기본으로 한다 — 앱을 거쳐야
-                    # 누가 열었는지 남고, 그 자리에서 완료를 누를 수 있다.
-                    st.markdown("**단톡방에는 이 주소를** (앱을 거쳐 문서로 갑니다)")
+                    # 앱을 거쳐 문서로 가는 주소만 준다. 구글 문서 주소를 함께 보여주면
+                    # 그걸 보내게 되고, 그러면 앱에 안 들어와 제출현황이 ⏳로 남는다.
                     st.code(f"{APP_URL}/?doc={req_id}", language=None)
-                    st.caption("작성 후 '내 부분 완료'까지 한 화면에서 됩니다.")
-                    with st.expander("구글 문서 주소 그대로 쓰기", expanded=False):
-                        st.code(link, language=None)
-                        st.caption("이 주소로 보내면 앱을 안 거치므로 "
-                                   "제출현황이 ⏳로 남습니다.")
             elif link.strip():
                 st.caption(f"링크: {link}")
                 st.code(link, language=None)
