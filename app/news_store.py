@@ -49,7 +49,7 @@ JA = "hl=ja&gl=JP&ceid=JP:ja"
 # 그래서 **뉴스로 수확되는 것만** 골랐다. 원본 키워드 전체는 위 엑셀에 있다.
 # 담당자가 키워드를 고치면 이 목록도 같이 고칠 것.
 #
-# 2·3번(목욕·배설)은 엑셀이 아직 비어 있다 → **탭만 만들고 비워 둔다.**
+# 2·3번(목욕·배설)은 엑셀이 아직 비어 있어 **임시 키워드**를 넣어 뒀다(담당자 작성분 아님).
 # 11번 AI 챗봇도 엑셀은 비었으나, 기존 'AI 활용법' 키워드를 이리로 옮겼다(지시).
 NEWS_SECTIONS = [
     # 1 이동 — 100mm 단차극복 (남재엽)
@@ -57,10 +57,20 @@ NEWS_SECTIONS = [
                 ("전동휠체어 문턱", KO), ("낙상 예방", KO),
                 ("gait assistance robot", EN),
                 ("indoor mobility assistance elderly", EN))),
-    # 2 목욕 — 이동가능·가변형. 엑셀 키워드 미작성
-    ("2 목욕", ()),
-    # 3 배설 — 배설 양상 관리·배설유도. 엑셀 키워드 미작성
-    ("3 배설", ()),
+    # 2 목욕 — 이동가능·가변형.
+    # ⚠️ 엑셀은 아직 비어 있다. 아래는 **담당자 작성분이 아니라** 임시로 넣은 것 —
+    #    키워드가 들어오면 통째로 바꿀 것. 하루 수확은 0~1건으로 원래 조용한 분야다.
+    ("2 목욕", (("목욕 보조 로봇", KO), ("입욕 보조", KO),
+                ("목욕 리프트", KO), ("노인 목욕 서비스", KO),
+                ("bathing assistance robot", EN),
+                ("shower assist device elderly", EN),
+                ("入浴 支援 ロボット", JA))),
+    # 3 배설 — 배설 양상 관리·배설유도. (2번과 같이 임시 키워드)
+    ("3 배설", (("배설 케어 로봇", KO), ("배설 예측 센서", KO),
+                ("기저귀 센서", KO), ("요실금 관리", KO),
+                ("incontinence care technology", EN),
+                ("bladder monitoring sensor", EN),
+                ("排泄 支援 介護", JA))),
     # 4 유연착용형 — 의복·속옷형태, 하이브리드 (한벼리)
     # ⚠️ '외골격 로봇'은 0건이다(붙여 쓰면 안 잡힌다). '착용형 로봇'·'엑소슈트'로 쓸 것
     ("4 유연착용형", (("웨어러블 로봇", KO), ("착용형 로봇", KO),
@@ -141,6 +151,14 @@ NEWS_SECTIONS = [
     ("경제·시장", (("topic:BUSINESS", KO), ("코스피 환율", KO),
                   ("Federal Reserve rate decision", EN))),
 ]
+# 탭 순서 — **가로축 셋을 앞으로**(지시). 매일 보는 건 이쪽이고, 과제 탭은
+# 그날 뉴스가 없으면 자주 비기 때문이다. 정의 위치는 그대로 두고 순서만 바꾼다.
+_FRONT = ("돌봄·정책", "AI 활용법", "경제·시장")
+NEWS_SECTIONS = (
+    sorted((x for x in NEWS_SECTIONS if x[0] in _FRONT),
+           key=lambda x: _FRONT.index(x[0]))
+    + [x for x in NEWS_SECTIONS if x[0] not in _FRONT])
+
 # 전체 합본용(구버전 홈 호환)
 _ALL_SPECS = tuple(s for _, specs in NEWS_SECTIONS for s in specs)
 _UA = {"User-Agent": "Mozilla/5.0"}
@@ -222,7 +240,9 @@ _STOP = {"older", "adults", "elderly", "device", "technique", "guide",
          "로봇", "돌봄", "시니어", "노인", "기술", "케어",
          # 일본어도 같은 이유 — `食事 支援 ロボット` 인데 '手術支援ロボット'(수술)이
          # 支援+ロボット 두 낱말로 통과했다. 판정은 남는 낱말(食事)로만 한다.
-         "支援", "ロボット"}
+         # `介護`(개호)도 일본 기사에 늘 붙는 말이라 뺀다 — `排泄 支援 介護` 로
+         # 검색해 유치장 기사(介護職員 언급)가 배설 탭에 들어왔다.
+         "支援", "ロボット", "介護"}
 
 
 def _relevant(title: str, q: str) -> bool:
