@@ -653,6 +653,7 @@ def _drag_sort(by_area, uid, today):
                     ordered.append((p["_row"], area, idx))
         try:
             todo_store.reorder(uid, ordered)
+            st.session_state["box_work"] = True
             st.session_state["todo_sort_mode"] = False
             st.toast("↕ 순서를 저장했습니다.")
         except Exception as e:
@@ -843,6 +844,7 @@ def _todo_row(p, uid, today, no=None):
     _nkey = f"note_open_{p['_row']}"
     if cw.button("⋯", key=f"todo_wait_{p['_row']}",
                  help="진행 상황 적기 — 주간보고 실적에도 함께 넣을 수 있음"):
+        st.session_state["box_work"] = True
         st.session_state[_nkey] = not st.session_state.get(_nkey, False)
         st.rerun()
     if st.session_state.get(_nkey):
@@ -884,6 +886,7 @@ def _todo_row(p, uid, today, no=None):
     if c3.button("✓", key=f"todo_done_{p['_row']}",
                  help="완료 — 주간보고 실적에 넣을 수 있게 기록됨"):
         try:
+            st.session_state["box_work"] = True   # 상자를 열어 둔 채로
             todo_store.complete_todo(uid, p["_row"], p["내용"])
             # 큰 일은 완료해도 뒤가 이어진다 → 다음 할 일을 바로 적게 물어본다.
             st.session_state["after_done"] = {
@@ -896,6 +899,7 @@ def _todo_row(p, uid, today, no=None):
     if c4.button("✕", key=f"todo_del_{p['_row']}",
                  help="삭제 — 실적 기록 없이 지움(✓는 완료 기록이 남습니다)"):
         try:
+            st.session_state["box_work"] = True   # 상자를 열어 둔 채로
             todo_store.delete_todo(uid, p["_row"], p["내용"])
         except Exception as e:
             st.error(f"삭제 실패: {e}")
@@ -1271,13 +1275,18 @@ def home_page():
         # 새로고침하면 이 기본값으로 돌아간다 — 대신 접고 펴는 게 즉시(리런 없음)다.
         # 상태를 저장하려면 버튼으로 바꿔야 하는데, 그러면 누를 때마다 화면이
         # 새로 그려져 느리다(2026-08 시도해 보고 되돌림).
-        with st.expander("🔔 오늘 챙길 것", expanded=False):
+        # 안에서 버튼을 누르면 리런이 나는데, 그때 이 상자가 기본값(닫힘)으로
+        # 다시 그려져 매번 닫혔다. 한 번이라도 손댔으면 열린 채로 둔다.
+        with st.expander("🔔 오늘 챙길 것",
+                         expanded=st.session_state.get("box_care", False)):
             if uid and st.button(
                     "－" if st.session_state.get("care_add_open") else "＋",
                     key="care_add_btn",
                     help="닫기" if st.session_state.get("care_add_open")
                     else "오늘 챙길 것 추가(나만 보임)"):
-                st.session_state["care_add_open"] =                     not st.session_state.get("care_add_open", False)
+                st.session_state["box_care"] = True
+                st.session_state["care_add_open"] = (
+                    not st.session_state.get("care_add_open", False))
                 st.rerun()
             if st.session_state.get("care_add_open") and uid:
                 with st.form("care_add_form", clear_on_submit=True):
@@ -1377,6 +1386,7 @@ def home_page():
                 _cc1, _cc2 = st.columns([8, 1])
                 _cc1.markdown(f"📌 {_c['내용']}")
                 if _cc2.button("✓", key=f"care_done_{_c['_row']}", help="완료(삭제)"):
+                    st.session_state["box_care"] = True
                     try:
                         todo_store.delete_todo(uid, _c["_row"], _c["내용"])
                     except Exception as e:
@@ -1406,12 +1416,14 @@ def home_page():
             # 🔀 옮기기 모드 — 평소엔 ✓만 보이고, 켤 때만 업무↔개인 이동 버튼 노출
             # 오른쪽 컬럼과 같은 st.expander. 추가는 ＋ 버튼 하나로.
             # (마감일은 추가할 때 함께 입력 — 목록에서 고치는 '편집 모드'는 없앴다)
+            # ✓·✕·⋯ 를 누르면 리런이 나므로, 손댄 뒤에는 열어 둔다(위 참고)
             with st.expander(f"🏢 업무 ({len(todo_lines) + len(_mytodos)})",
-                             expanded=False):
+                             expanded=st.session_state.get("box_work", False)):
                 if uid and st.button("－" if _todo_open else "＋",
                                      key="todo_add_btn",
                                      help="닫기" if _todo_open
                                      else "할 일 추가(마감일도 함께 입력)"):
+                    st.session_state["box_work"] = True
                     st.session_state["todo_add_open"] = not _todo_open
                     st.rerun()
                 # 📄 보고에서 골라 담기 — 자동 수집은 주차당 1회라 보고를 고친
@@ -1421,6 +1433,7 @@ def home_page():
                                      key="report_pick_btn",
                                      help="닫기" if _rp_open
                                      else "주간보고 계획에서 골라 담기"):
+                    st.session_state["box_work"] = True
                     st.session_state["report_pick_open"] = not _rp_open
                     st.rerun()
                 if _rp_open and uid:
@@ -1432,6 +1445,7 @@ def home_page():
                                      key="mail_pick_btn",
                                      help="닫기" if _mp_open
                                      else "받은 메일 본문에서 골라 담기"):
+                    st.session_state["box_work"] = True
                     st.session_state["mail_pick_open"] = not _mp_open
                     st.rerun()
                 if _mp_open and uid:
@@ -1540,7 +1554,9 @@ def home_page():
             # 🙋 개인: 업무와 분리해서 표시. 비어 있어도 열어둔다(여기서 바로 추가).
             if uid:
                 # 옮기기 모드는 위 '🏢 업무' 머리글의 🔀로 켠다(항상 보임).
-                with st.expander(f"🙋 개인 ({len(_myper)})", expanded=False):
+                with st.expander(
+                        f"🙋 개인 ({len(_myper)})",
+                        expanded=st.session_state.get("box_per", False)):
                     if st.button(
                             "－" if st.session_state.get("per_add_open")
                             else "＋", key="per_add_btn",
@@ -1604,6 +1620,7 @@ def home_page():
                                        help="완료(삭제) — 기록에 남지 않음"):
                             save_personal(uid, [q for j, q in enumerate(_myper)
                                                 if j != _i])
+                            st.session_state["box_per"] = True
                             st.rerun()
             # 옛 개인 할 일이 팀 시트에 남아 있으면 내 기기로 옮길 수 있게 안내.
             # (자동으로 지우지 않는다 — 삭제는 되돌릴 수 없으므로 직접 누르게)
