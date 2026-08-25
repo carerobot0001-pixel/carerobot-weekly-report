@@ -394,7 +394,8 @@ def _with_ko(items):
     todo = [it for it in items if it.get("region") == "해외"]
     if not todo:
         return items
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    # 동시 호출 수를 줄였다(8→4) — 한꺼번에 몰아치면 429를 더 잘 맞는다.
+    with ThreadPoolExecutor(max_workers=4) as ex:
         for it, ko in zip(todo, ex.map(
                 lambda x: _translate(x["title"], x.get("lang", "en")), todo)):
             it["title_ko"] = ko
@@ -420,8 +421,12 @@ SECTION_DROP = {
 }
 
 
-# 섹션별 개수 상한 — 여기 없는 탭은 **제한 없음**(걸리는 대로 다).
-# 경제·시장만 자른다: 토픽 피드라 관련성 필터가 안 걸려 하루 100건씩 쌓인다.
+# 섹션별 개수 상한. **기본 15건**(`DEFAULT_CAP`) — 그 이상은 어차피 안 읽고,
+# 해외 기사 제목을 하나씩 번역하므로 호출도 늘어난다.
+# ⚠️ 번역은 구글의 키 없는 endpoint라 한 번에 많이 부르면 **429(일시 차단)** 가 온다.
+#    실제로 하루에 여러 번 통째로 뽑았더니 429가 떠 제목이 원문으로 나왔다(2026-08).
+# 경제·시장은 토픽 피드라 관련성 필터가 안 걸려 더 짧게 자른다.
+DEFAULT_CAP = 15
 SECTION_CAP = {"경제·시장": 10}
 
 
