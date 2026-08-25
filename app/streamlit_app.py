@@ -2873,10 +2873,25 @@ def collab_page():
             if req_text.strip():
                 st.caption(f"요청사항: {req_text}")
             if link.strip().startswith("http"):
-                st.link_button("🔗 문서 열기 (작성하러 가기)", link,
-                               use_container_width=True)
+                # 열기 + 복사. 카톡 단톡방에 붙여넣으려면 주소 자체가 필요한데
+                # link_button 만 있으면 복사할 방법이 없었다.
+                # st.code 는 오른쪽 위에 **복사 아이콘**이 기본으로 붙는다(JS 불필요).
+                lk1, lk2 = st.columns([3, 1])
+                lk1.link_button("🔗 문서 열기 (작성하러 가기)", link,
+                                use_container_width=True)
+                _ck = f"collab_copy_{req_id}"
+                if lk2.button("📋 링크 복사", key=f"{_ck}_btn",
+                              use_container_width=True,
+                              help="주소를 펼칩니다. 오른쪽 위 복사 아이콘을 누르세요."):
+                    st.session_state[_ck] = not st.session_state.get(_ck, False)
+                    st.rerun()
+                if st.session_state.get(_ck):
+                    st.code(link, language=None)
+                    st.caption("주소 오른쪽 위 아이콘을 누르면 복사됩니다 — "
+                               "카톡 단톡방에 그대로 붙여넣으세요.")
             elif link.strip():
                 st.caption(f"링크: {link}")
+                st.code(link, language=None)
             if roster:
                 st.caption("제출현황 — " + "  ".join(
                     (f"✅{n}" if n in done_list else f"⏳{n}") for n in roster))
