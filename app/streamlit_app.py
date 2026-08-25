@@ -2924,7 +2924,9 @@ def collab_page():
     if not active:
         st.caption("진행중인 협업 요청이 없습니다.")
     for r in sorted(active, key=lambda x: x[0], reverse=True):
-        req_id, ts, who, title, req_text, link, dl, assignees, doners, status = r
+        # 뒤에 '열람자'가 붙어 길이가 늘 수 있다 → 앞 10칸만 푼다
+        (req_id, ts, who, title, req_text, link, dl,
+         assignees, doners, status) = r[:10]
         done_list = [n.strip() for n in doners.split(",") if n.strip()]
         assigned = [n.strip() for n in assignees.split(",")
                     if n.strip() and n.strip() != "전체"]
@@ -3032,7 +3034,9 @@ def collab_page():
         if not closed:
             st.caption("아직 완료된 요청이 없습니다.")
         for r in sorted(closed, key=lambda x: x[0], reverse=True)[:30]:
-            req_id, ts, who, title, req_text, link, dl, assignees, doners, status = r
+            # 뒤에 '열람자'가 붙어 길이가 늘 수 있다 → 앞 10칸만 푼다
+            (req_id, ts, who, title, req_text, link, dl,
+             assignees, doners, status) = r[:10]
             d_done = [n.strip() for n in doners.split(",") if n.strip()]
             st.markdown(f"**{title}** · {who} · {ts}"
                         + (f"  ·  [🔗 문서]({link})" if link.strip().startswith("http")
