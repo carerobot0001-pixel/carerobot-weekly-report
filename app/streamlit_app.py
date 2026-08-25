@@ -2968,6 +2968,9 @@ def collab_page():
     if not active:
         st.caption("진행중인 협업 요청이 없습니다.")
     for r in sorted(active, key=lambda x: x[0], reverse=True):
+        # 공유 링크로 들어와 위에 크게 띄운 건은 아래 목록에서 뺀다(같은 게 두 번 보임)
+        if r[0] == st.session_state.get("doc_focus"):
+            continue
         # 뒤에 '열람자'가 붙어 길이가 늘 수 있다 → 앞 10칸만 푼다
         (req_id, ts, who, title, req_text, link, dl,
          assignees, doners, status) = r[:10]
