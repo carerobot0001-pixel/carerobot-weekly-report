@@ -302,6 +302,25 @@ def _near_dup(toks: set, kept: list) -> bool:
     return False
 
 
+# 연예·스포츠 기사 걸러내기 — 키워드가 넓으면 엉뚱한 데서 걸린다.
+# 실제로 '낙상 예방'에 **지드래곤 낙상 사고 미담**이 1 이동·6 모니터링 양쪽에 들어왔다.
+# ⚠️ 사람 이름을 다 적을 수는 없다. 그래서 **연예·스포츠 기사에만 나오는 말**과
+#    **연예 매체 이름**으로 거른다. 넓게 잡으면 멀쩡한 기사가 죽으니 좁게 유지할 것.
+_NOISE_WORD = re.compile(
+    r"지드래곤|아이돌|걸그룹|보이그룹|팬미팅|콘서트|열애|결혼설|이혼설|"
+    r"예능|드라마|출연료|시상식|컴백|소속사|연예인|주연|캐스팅|"
+    r"프로야구|프로축구|감독 선임|이적설")
+_NOISE_SRC = re.compile(
+    r"스포츠서울|스포츠조선|스포츠경향|일간스포츠|OSEN|디스패치|텐아시아|"
+    r"스타뉴스|마이데일리|뉴스엔|TV리포트|엑스포츠뉴스|헤럴드POP", re.I)
+
+
+def _is_noise(title: str, source: str) -> bool:
+    """연예·스포츠 기사인가(제목 낱말 또는 매체 이름으로 판정)."""
+    return bool(_NOISE_WORD.search(title or "")
+                or _NOISE_SRC.search(source or ""))
+
+
 def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
     """[{title, link, source, region, hours}] — 최근 24시간 기사 전부, 최신순.
 
@@ -341,7 +360,10 @@ def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
                 _tk = _key_tokens(title)
                 if _near_dup(_tk, kept):      # 같은 사건을 다르게 쓴 제목
                     continue
-                # 토픽 피드(경제 등)는 키워드가 없으니 걸러내지 않는다
+                # 토픽 피드(경제 등)는 키워드가 없으니 관련성은 안 따진다.
+                # 연예·스포츠는 어느 탭에서든 뺀다.
+                if _is_noise(title, source):
+                    continue
                 if not q.startswith("topic:") and not _relevant(title, q):
                     continue
                 seen.add(title)

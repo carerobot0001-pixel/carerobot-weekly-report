@@ -1913,65 +1913,37 @@ def home_page():
                                 st.session_state[_ekey] = False
                                 st.rerun()
 
-    # ── 📅 사업단 일정 (제목 옆 ➕로 일정 추가·수정·삭제 토글) ─────────────
+    # ── 📅 사업단 일정 / 📰 관련 뉴스 ──────────────────────────────
+    # 접기·펴기는 '🏢 업무'·'🙋 개인' 상자와 **같은 방식**(st.expander)으로 맞췄다.
+    # 예전엔 제목 옆 ▾▸ 링크였는데, 화면마다 접는 방법이 다르면 헷갈린다.
     st.divider()
     if calendar_enabled():
-        # 제목 + ＋를 한 HTML 줄에(컬럼 폭 문제 없이 딱 붙음). ＋는 ?go=cal 링크로 토글.
-        _cuid = st.session_state.get("uid", "")
-        _ctok = st.session_state.get("tok", "")
-        _cb = f"uid={quote(_cuid)}&tok={quote(_ctok)}"
-        _copen = st.session_state.get("home_cal_open", False)
-        _sym = "－" if _copen else "＋"
-        # 바로 아래가 달력 임베드라 여백이 좁으면 붙어 보인다 → 아래 여백 확보.
-        # 색도 다크 대응(진한 주황 #A8501A는 어두운 배경에서 묻힘).
-        _cdk = bool(st.session_state.get("dark"))
-        st.markdown(
-            "<div style='display:flex;align-items:center;gap:9px;"
-            "margin:2px 0 14px;'>"
-            f"<span style='font-weight:700;font-size:1.05rem;"
-            f"color:{'#fbfaf7' if _cdk else '#A8501A'};'>"
-            "📅 사업단 일정</span>"
-            f"<a href='?{_cb}&go=calfold' target='_self' "
-            f"title='접기·펴기' style='text-decoration:none;font-size:1.1rem;"
-            f"color:{'#e08a63' if _cdk else '#C4622D'};line-height:1;'>"
-            f"{'▸' if st.session_state.get('home_cal_fold') else '▾'}</a>"
-            f"<a href='?{_cb}&go=cal' target='_self' title='일정 추가·수정·삭제' "
-            f"style='text-decoration:none;font-size:1.4rem;"
-            f"color:{'#e08a63' if _cdk else '#C4622D'};"
-            f"line-height:1;font-weight:700;'>{_sym}</a></div>",
-            unsafe_allow_html=True)
-        if _copen:
-            _calendar_manage()
-        # 접혀 있으면 임베드를 아예 안 그린다(iframe 로딩도 안 함).
-        if not st.session_state.get("home_cal_fold"):
+        with st.expander("📅 사업단 일정", expanded=True):
+            # ＋ = 일정 추가·수정·삭제 패널 토글(상자 안 버튼으로 옮김)
+            _copen = st.session_state.get("home_cal_open", False)
+            if st.button("－" if _copen else "＋", key="home_cal_btn",
+                         help="일정 추가·수정·삭제"):
+                st.session_state["home_cal_open"] = not _copen
+                st.rerun()
+            if _copen:
+                _calendar_manage()
             # 임베드 달력(기본 월간). 팀원 폰에서 로그인 벽 없이 보이려면 이 구글
-            # 캘린더를 '공개(모든 일정 세부정보 보기)'로 설정해야 함 → AGENTS.md 참고.
+            # 캘린더를 '공개(모든 일정 세부정보 보기)'로 해야 함 → AGENTS.md 참고.
             _iframe = getattr(st, "iframe", components.iframe)
             _iframe(embed_url("MONTH"), height=520)
     else:
         st.markdown("**📅 사업단 일정**")
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
-    # ── 📰 관련 뉴스 (전체 폭, 달력 아래) ────────────────────────────────
     # 하루 1회 수집 · 매일 교체 — 날짜를 캐시 키로 준다(예약 실행 장치 없이).
     # 같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 함께 본다.
     _day = news_today()
-    _nfold = st.session_state.get("home_news_fold")
-    _ndk = bool(st.session_state.get("dark"))
-    _nb = (f"uid={quote(st.session_state.get('uid', ''))}"
-           f"&tok={quote(st.session_state.get('tok', ''))}")
-    st.markdown(
-        "<div style='display:flex;align-items:center;gap:8px;margin:2px 0 8px;'>"
-        f"<a href='?{_nb}&go=newsfold' target='_self' title='접기·펴기' "
-        f"style='text-decoration:none;font-size:1.1rem;line-height:1;"
-        f"color:{'#e08a63' if _ndk else '#C4622D'};'>"
-        f"{'▸' if _nfold else '▾'}</a>"
-        f"<span style='font-weight:700;font-size:1.05rem;"
-        f"color:{'#fbfaf7' if _ndk else '#A8501A'};'>📰 관련 뉴스</span>"
-        f"<span style='opacity:.55;font-size:.8rem'>{_day} 수집</span></div>",
-        unsafe_allow_html=True)
-    if _nfold:
-        return          # 접힘 — 수집도 하지 않는다(홈이 가벼워진다)
+    with st.expander(f"📰 관련 뉴스  ·  {_day} 수집", expanded=True):
+        _news_tabs(_day)
+
+
+def _news_tabs(_day):
+    """📰 관련 뉴스 탭 묶음 — 홈의 expander 안에서 부른다."""
     tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
     for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
         with tab:
@@ -5185,11 +5157,6 @@ def main():
         elif _go == "cal":
             st.session_state["home_cal_open"] = \
                 not st.session_state.get("home_cal_open", False)
-            st.session_state["main_menu"] = "🏠 홈"
-        elif _go in ("calfold", "newsfold"):
-            # 📅 사업단 일정 / 📰 관련 뉴스 접기·펴기(제목 옆 ▾▸)
-            _k = "home_cal_fold" if _go == "calfold" else "home_news_fold"
-            st.session_state[_k] = not st.session_state.get(_k, False)
             st.session_state["main_menu"] = "🏠 홈"
         elif _go in ("care_open", "care_close", "todo_open", "todo_close"):
             _nm, _act = _go.rsplit("_", 1)   # 명시적 열기/닫기(토글 아님)
