@@ -6,6 +6,7 @@
 컬럼이 바뀌면 COLLAB_HEADER만 맞추면 된다.
 """
 import json
+import re
 import gspread
 import streamlit as st
 from datetime import datetime
@@ -208,3 +209,54 @@ def delete_collab(req_id: str) -> None:
     i, _ = _find_row(ws, req_id)
     ws.delete_rows(i)
     collab_rows.clear()
+
+_ID_RE = re.compile(r"/d/([A-Za-z0-9_-]{20,})|[?&]id=([A-Za-z0-9_-]{20,})")
+
+
+def file_id(link: str) -> str:
+    """구글 문서 링크에서 파일 ID만 뽑는다(못 뽑으면 빈 문자열)."""
+    m = _ID_RE.search(link or "")
+    return (m.group(1) or m.group(2)) if m else ""
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def doc_activity(link: str) -> dict:
+    """문서가 실제로 고쳐졌는지 — {modified, count, named, anon}.
+
+    ⚠️ **누가 고쳤는지는 대개 알 수 없다**(2026-08 실측). 실제 협업 시트의 편집
+       이력 9건 중 7건에 사용자 정보가 없었다 — '링크가 있는 사람 편집'으로 연
+       사람이 구글에 로그인돼 있지 않으면 구글이 이름을 안 남긴다.
+       그래서 이름은 **잡히는 것만** 주고(`named`), 나머지는 수만 센다(`anon`).
+    ⚠️ 이것은 '편집 흔적'이지 '완료'가 아니다. 한 글자만 고쳐도 잡힌다.
+    ⚠️ 우리 앱이 만든 문서만 조회된다(OAuth 범위 `drive.file`). 남이 만든 문서·
+       OneDrive 링크는 권한이 없어 빈 값이 온다(오류 아님).
+    """
+    empty = {"modified": "", "count": 0, "named": [], "anon": 0}
+    fid = file_id(link)
+    if not fid or not drive_enabled():
+        return empty
+    try:
+        sess = _oauth_session()
+        r = sess.get(
+            f"https://www.googleapis.com/drive/v3/files/{fid}/revisions",
+            params={"fields": "revisions(modifiedTime,lastModifyingUser(displayName,emailAddress))", "pageSize": 1000})
+        if r.status_code != 200:
+            return empty
+        revs = r.json().get("revisions", [])
+        named, anon = {}, 0
+        for rev in revs:
+            u = rev.get("lastModifyingUser") or {}
+            em = (u.get("emailAddress") or "").strip().lower()
+            nm = (u.get("displayName") or "").strip()
+            t = (rev.get("modifiedTime") or "")[:10]
+            if not (em or nm):
+                anon += 1
+                continue
+            named[em or nm] = {"name": nm, "email": em, "time": t}
+        return {"modified": max((x.get("modifiedTime", "") for x in revs),
+                                default="")[:10],
+                "count": len(revs), "anon": anon,
+                "named": sorted(named.values(),
+                                key=lambda x: x["time"], reverse=True)}
+    except Exception:
+        return empty

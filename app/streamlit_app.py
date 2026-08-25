@@ -38,7 +38,7 @@ from purchase_store import (
 )
 from collab_store import (
     COLLAB_HEADER, collab_rows, add_collab, mark_done, set_status, delete_collab,
-    drive_enabled, create_drive_doc,
+    drive_enabled, create_drive_doc, doc_activity,
 )
 from equip_store import (
     EQUIP_HEADER, equip_rows, save_all_equipment, build_equip_xlsx, sheet_link,
@@ -2758,6 +2758,22 @@ def purchase_page():
             _show_items(grp)
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def _email_to_name() -> dict:
+    """가입 이메일 → 팀원 이름. 구글이 알려주는 편집자 이메일을 우리 이름으로 바꾼다."""
+    out = {}
+    try:
+        for a in account_store.all_accounts():
+            nm = (a.get("이름", "") or "").strip()
+            for k in ("이메일_korea", "이메일_gmail"):
+                e = (a.get(k, "") or "").strip().lower()
+                if e and nm:
+                    out[e] = nm
+    except Exception:
+        pass
+    return out
+
+
 def collab_page():
     """문서 협업 보드 — 구글 문서 링크 + 요청 + 제출현황 (파일은 구글에 보관)."""
     st.header("📋 문서 협업")
@@ -2892,11 +2908,25 @@ def collab_page():
             elif link.strip():
                 st.caption(f"링크: {link}")
                 st.code(link, language=None)
+            # 문서가 실제로 고쳐졌는지(편집 흔적). ✅(본인이 누른 완료)와 구분한다.
+            act = doc_activity(link) if link.strip().startswith("http") else {}
+            _e2n = _email_to_name()
+            edited = {_e2n.get(x["email"], x["name"])
+                      for x in act.get("named", [])}
             if roster:
                 st.caption("제출현황 — " + "  ".join(
-                    (f"✅{n}" if n in done_list else f"⏳{n}") for n in roster))
+                    (f"✅{n}" if n in done_list
+                     else (f"✏️{n}" if n in edited else f"⏳{n}"))
+                    for n in roster))
             else:
                 st.caption("아직 완료 표시한 사람이 없습니다.")
+            if act.get("count"):
+                _msg = (f"📝 마지막 수정 {act['modified'][5:]} · "
+                        f"편집 {act['count']}회")
+                if act.get("anon"):
+                    _msg += (f" (그중 {act['anon']}회는 누가 했는지 알 수 없음 — "
+                             "구글 로그인 없이 링크로 연 경우)")
+                st.caption(_msg)
             bc1, bc2 = st.columns(2)
             if bc1.button(f"✅ 내 부분 완료 ({my_name})",
                           key=f"collab_done_{req_id}", use_container_width=True):
