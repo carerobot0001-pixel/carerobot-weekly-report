@@ -1269,7 +1269,11 @@ def home_page():
         # 새로고침 없이 즉시 접힘). ＋ 는 상자 안 첫 줄 버튼으로 옮김.
         any_reminder = False
         _mycare = []
-        with st.expander("🔔 오늘 챙길 것", expanded=True):
+        # 기본 **닫힘**(지시). st.expander 는 접었는지 파이썬에 안 알려주므로
+        # 새로고침하면 이 기본값으로 돌아간다 — 대신 접고 펴는 게 즉시(리런 없음)다.
+        # 상태를 저장하려면 버튼으로 바꿔야 하는데, 그러면 누를 때마다 화면이
+        # 새로 그려져 느리다(2026-08 시도해 보고 되돌림).
+        with st.expander("🔔 오늘 챙길 것", expanded=False):
             if uid and st.button(
                     "－" if st.session_state.get("care_add_open") else "＋",
                     key="care_add_btn",
