@@ -398,9 +398,11 @@
     - ⚠️ 번역 endpoint는 **429(일시 차단)** 를 준다. 하루에 뉴스를 여러 번 통째로
       뽑았더니 429가 떠 제목이 원문으로만 나왔다(2026-08 확인, 코드 문제 아님).
       그래서 섹션 상한 15건 + 동시 호출 4개로 줄였다. 실패는 원문으로 되돌아간다.
-    - **해외 제목 번역**(`news_store.translate`): 구글 번역의 **키 없는 endpoint**
-      (`translate.googleapis.com/translate_a/single?client=gtx`). 무료·무설정이지만
-      **공식 API가 아니라 막히거나 바뀔 수 있다** → 실패를 정상 경로로 보고 원문으로 되돌린다.
+    - **해외 제목 번역**(`news_store.translate`): 구글의 **키 없는 endpoint 두 곳**을
+      차례로 쓴다 — ①`translate.googleapis.com/translate_a/single?client=gtx`
+      ②`clients5.google.com/translate_a/t?client=dict-chrome-ex`.
+      ①이 429로 막힌 상태에서 ②는 200으로 정상 번역되는 것을 확인했다(2026-08).
+      둘 다 공식 API가 아니라 막히거나 바뀔 수 있다 → 실패는 원문으로 되돌린다.
       `@st.cache_data(ttl=86400)`으로 제목당 하루 1회만 호출.
     - ⚠️ **기계번역은 틀린다.** `令和8年度`(2026년도) → '2007년'으로 나온다(MyMemory도
       '2018회계연도'로 틀림). 그래서 화면에 **원문 제목을 회색으로 함께** 둔다.

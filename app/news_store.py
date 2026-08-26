@@ -176,27 +176,53 @@ def translate(text: str, src: str) -> str:
 def _translate(text: str, src: str) -> str:
     """해외 기사 제목을 한국어로. 실패하면 빈 문자열(원문만 보여준다).
 
-    구글 번역의 키 없는 endpoint를 쓴다 — 무료·무설정이지만 **공식 API가 아니라
-    막히거나 바뀔 수 있다.** 그래서 실패를 정상 경로로 취급하고 원문으로 돌아간다.
-    ⚠️ 기계번역이라 틀린다. 실제로 `令和8年度`(2026년도)를 '2007년'으로 옮겼다.
-    그래서 화면에는 **원문 제목을 함께** 보여주고, 인용할 때는 원문을 봐야 한다.
+    구글의 **키 없는 endpoint 두 곳**을 차례로 쓴다 — 무료·무설정이지만
+    공식 API가 아니라 막히거나 바뀔 수 있다. 그래서 실패를 정상 경로로 보고
+    원문으로 되돌린다.
+    ⚠️ 첫 번째(`translate_a/single`)는 호출이 몰리면 **429**를 준다(실측).
+       그때 두 번째(`clients5… dict-chrome-ex`)가 받아 준다 — 같은 날 429가 난
+       상태에서 이쪽은 200으로 정상 번역되는 것을 확인했다(2026-08).
+    ⚠️ 기계번역이라 틀린다. `令和8年度`(2026년도)를 '2007년'으로 옮겼다.
+       그래서 화면에는 원문 제목을 함께 두고, 인용할 때는 원문을 봐야 한다.
     """
     t = (text or "").strip()
     if not t:
         return ""
-    try:
-        url = ("https://translate.googleapis.com/translate_a/single?client=gtx"
-               f"&sl={src}&tl=ko&dt=t&q={quote(t)}")
-        r = requests.get(url, timeout=6, headers=_UA)
-        if r.status_code != 200:
-            return ""
-        out = "".join(part[0] for part in r.json()[0]).strip()
-        for wrong, right in _GLOSSARY.items():
-            out = out.replace(wrong, right)
-        return out
-    except Exception:
-        return ""
+    for fn in (_tr_gtx, _tr_clients5):
+        try:
+            out = fn(t, src)
+        except Exception:
+            out = ""
+        if out:
+            for wrong, right in _GLOSSARY.items():
+                out = out.replace(wrong, right)
+            return out
+    return ""
 
+
+def _tr_gtx(t: str, src: str) -> str:
+    url = ("https://translate.googleapis.com/translate_a/single?client=gtx"
+           f"&sl={src}&tl=ko&dt=t&q={quote(t)}")
+    r = requests.get(url, timeout=6, headers=_UA)
+    if r.status_code != 200:
+        return ""
+    return "".join(part[0] for part in r.json()[0]).strip()
+
+
+def _tr_clients5(t: str, src: str) -> str:
+    """예비 경로. 응답이 ["문장"] 또는 [["문장", …]] 로 온다."""
+    url = ("https://clients5.google.com/translate_a/t?client=dict-chrome-ex"
+           f"&sl={src}&tl=ko&q={quote(t)}")
+    r = requests.get(url, timeout=6, headers=_UA)
+    if r.status_code != 200:
+        return ""
+    j = r.json()
+    if isinstance(j, list) and j:
+        if isinstance(j[0], str):
+            return "".join(x for x in j if isinstance(x, str)).strip()
+        if isinstance(j[0], list):
+            return "".join(x[0] for x in j if x).strip()
+    return ""
 
 # 기계번역이 기술 용어를 통째로 잘못 옮기는 것만 바로잡는다.
 # (뜻을 바꾸는 '의역'은 하지 않는다 — 틀린 게 확인된 것만 넣을 것)
