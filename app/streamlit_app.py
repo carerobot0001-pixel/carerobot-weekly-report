@@ -1937,7 +1937,9 @@ def home_page():
     # 예전엔 제목 옆 ▾▸ 링크였는데, 화면마다 접는 방법이 다르면 헷갈린다.
     st.divider()
     if calendar_enabled():
-        with st.expander("📅 사업단 일정", expanded=True):
+        # 기본 **닫힘** — 달력은 자리를 많이 먹고 매일 볼 필요는 없다.
+        # (열어 둔 상태는 앱 안에서 유지되고, 새로고침하면 이 기본값으로 돌아온다)
+        with st.expander("📅 사업단 일정", expanded=False):
             # ＋ = 일정 추가·수정·삭제 패널 토글(상자 안 버튼으로 옮김)
             _copen = st.session_state.get("home_cal_open", False)
             if st.button("－" if _copen else "＋", key="home_cal_btn",
