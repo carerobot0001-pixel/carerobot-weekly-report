@@ -1952,7 +1952,9 @@ def home_page():
             # 캘린더를 '공개(모든 일정 세부정보 보기)'로 해야 함 → AGENTS.md 참고.
             _iframe = getattr(st, "iframe", components.iframe)
             # 월간 달력은 6주치가 들어가야 한 달이 다 보인다 — 520이면 아래가 잘렸다.
-            _iframe(embed_url("MONTH"), height=700)
+            # 900이면 각 날짜 칸이 넉넉해 일정 제목이 여러 줄 보인다(기본 닫힘이라
+            # 홈이 길어지는 부담도 없다).
+            _iframe(embed_url("MONTH"), height=900)
     else:
         st.markdown("**📅 사업단 일정**")
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
