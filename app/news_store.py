@@ -457,9 +457,17 @@ def today_key() -> str:
 # 'AI 활용법'은 **어떻게 잘 쓰나**를 보는 탭인데, 한국 기사는 대부분
 # "○○사, AI 도입/구축/출시" 형태의 보도자료라 그것만 쌓였다.
 SECTION_DROP = {
+    # 국문: "○○사, AI 도입/구축/출시" 보도자료.
+    # 영문도 같은 문제였다 — 영문 키워드를 늘렸더니 이번엔 해외 보도자료·투자·
+    # 코인 기사로 기울었다(AXL.tech·Westpac·Paxos·Arthur Hayes…). 이 탭은
+    # **어떻게 쓰나**를 보는 곳이라 '누가 무엇을 도입/출시/투자'는 뺀다.
     "AI 활용법": re.compile(
         r"도입|구축|출시|공급|계약|체결|MOU|협약|파트너십|수주|런칭|"
-        r"고도화|맞손|업무협약|시연|사업 확대|실증"),
+        r"고도화|맞손|업무협약|시연|사업 확대|실증"
+        r"|(?i:\b(raises?|raised|funding|series [ab]|valuation|"
+        r"acquires?|acquisition|partners with|partnership|deploys?|"
+        r"rolls out|launch(es|ed)?|unveils?|expands?|selects?|plugs|opens|"
+        r"ipo|stock|shares|crypto|bitcoin|stablecoins?|token price)\b)"),
 }
 
 
