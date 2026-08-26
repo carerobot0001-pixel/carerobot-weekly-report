@@ -1951,7 +1951,8 @@ def home_page():
             # 임베드 달력(기본 월간). 팀원 폰에서 로그인 벽 없이 보이려면 이 구글
             # 캘린더를 '공개(모든 일정 세부정보 보기)'로 해야 함 → AGENTS.md 참고.
             _iframe = getattr(st, "iframe", components.iframe)
-            _iframe(embed_url("MONTH"), height=520)
+            # 월간 달력은 6주치가 들어가야 한 달이 다 보인다 — 520이면 아래가 잘렸다.
+            _iframe(embed_url("MONTH"), height=700)
     else:
         st.markdown("**📅 사업단 일정**")
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
