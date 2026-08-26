@@ -188,7 +188,7 @@ def _translate(text: str, src: str) -> str:
     t = (text or "").strip()
     if not t:
         return ""
-    for fn in (_tr_gtx, _tr_clients5):
+    for fn in (_tr_gtx, _tr_clients5, _tr_mymemory):
         try:
             out = fn(t, src)
         except Exception:
@@ -223,6 +223,30 @@ def _tr_clients5(t: str, src: str) -> str:
         if isinstance(j[0], list):
             return "".join(x[0] for x in j if x).strip()
     return ""
+
+def _tr_mymemory(t: str, src: str) -> str:
+    """세 번째 경로 — 구글이 아닌 곳(MyMemory). 구글 주소가 통째로 막힐 때 쓴다.
+
+    ⚠️ **구글보다 품질이 떨어진다**(실측: `令和8年度` 를 '2018회계연도'로 옮겼다).
+       그래서 순서상 마지막이다 — 구글이 되면 구글 것을 쓴다.
+    ⚠️ 익명 호출은 하루 사용량 제한이 있다. 넘으면 빈 문자열 → 원문으로 되돌아간다.
+    **왜 필요한가**: Streamlit Cloud 같은 데이터센터 IP는 구글의 키 없는 번역
+    주소에서 자주 막힌다(2026-08, 배포본에서 제목이 전부 원문으로 나옴).
+    """
+    url = ("https://api.mymemory.translated.net/get"
+           f"?q={quote(t)}&langpair={src}|ko")
+    r = requests.get(url, timeout=6, headers=_UA)
+    if r.status_code != 200:
+        return ""
+    j = r.json()
+    out = ((j.get("responseData") or {}).get("translatedText") or "").strip()
+    # 실패 시 원문을 그대로 돌려주기도 한다 → 그건 번역 실패로 본다
+    if not out or out.strip().lower() == t.strip().lower():
+        return ""
+    if "MYMEMORY WARNING" in out.upper() or "QUOTA" in out.upper():
+        return ""
+    return out
+
 
 # 기계번역이 기술 용어를 통째로 잘못 옮기는 것만 바로잡는다.
 # (뜻을 바꾸는 '의역'은 하지 않는다 — 틀린 게 확인된 것만 넣을 것)

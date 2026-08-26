@@ -398,7 +398,12 @@
     - ⚠️ 번역 endpoint는 **429(일시 차단)** 를 준다. 하루에 뉴스를 여러 번 통째로
       뽑았더니 429가 떠 제목이 원문으로만 나왔다(2026-08 확인, 코드 문제 아님).
       그래서 섹션 상한 15건 + 동시 호출 4개로 줄였다. 실패는 원문으로 되돌아간다.
-    - **해외 제목 번역**(`news_store.translate`): 구글의 **키 없는 endpoint 두 곳**을
+    - **해외 제목 번역**(`news_store.translate`): 경로 **세 곳**을 차례로 쓴다.
+      ⚠️ **Streamlit Cloud 같은 데이터센터 IP는 구글 키 없는 주소에서 막힌다**
+      (2026-08 배포본에서 제목이 전부 원문으로 나옴) → 구글이 아닌
+      `api.mymemory.translated.net` 를 세 번째로 둔다. 품질은 구글보다 낮아
+      (`令和8年度`→'2018회계연도') **마지막 순서**이고, 익명 호출 일일 한도가 있다.
+    - (구버전 설명) 구글의 **키 없는 endpoint 두 곳**을
       차례로 쓴다 — ①`translate.googleapis.com/translate_a/single?client=gtx`
       ②`clients5.google.com/translate_a/t?client=dict-chrome-ex`.
       ①이 429로 막힌 상태에서 ②는 200으로 정상 번역되는 것을 확인했다(2026-08).
