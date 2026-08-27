@@ -1366,6 +1366,39 @@ def home_page():
                     st.rerun()
                 any_reminder = True
 
+            # 💡 개선 요청 알림 — ①관리자에겐 새로 들어온 것 ②올린 사람에겐 완료 소식.
+            #   ②는 '확인'을 누르면 사라지고, 안 눌러도 3일 뒤엔 그만 뜬다.
+            try:
+                if st.session_state.get("is_admin"):
+                    _fbnew = _fb_new        # 위에서 이미 조회함
+                    if _fbnew:
+                        _fc1, _fc2 = st.columns([8, 1])
+                        _fc1.info(f"💡 **새 개선 요청 {len(_fbnew)}건** — "
+                                  + " · ".join(
+                                      f"{r['작성자']}: {r['내용'][:24]}"
+                                      for r in _fbnew[:2]))
+                        if _fc2.button("보기", key="fb_go",
+                                       help="💡 개선 요청 페이지로"):
+                            _nav_to("💡 개선 요청")
+                        any_reminder = True
+                for _fd in _fb_done:
+                    _dc1, _dc2 = st.columns([8, 1])
+                    _memo = (_fd.get("처리메모", "") or "").strip()
+                    _dc1.success(
+                        f"✅ **개선 요청 처리됨** — {_fd['내용'][:40]}"
+                        + (f"  →  {_memo[:60]}" if _memo else ""))
+                    if _dc2.button("확인", key=f"fb_ack_{_fd['_row']}",
+                                   help="확인했습니다(알림 지우기)"):
+                        try:
+                            feedback_store.mark_seen(
+                                int(_fd["_row"]), _fd["등록일시"], my)
+                        except Exception as e:
+                            st.error(f"확인 실패: {e}")
+                        st.rerun()
+                    any_reminder = True
+            except Exception:
+                pass
+
             # ⚠️ 취합본을 만든 뒤에 보고를 고친 사람 — 받아둔 파일이 옛 것이 되므로 알림.
             #   제출시간·생성시각 모두 'YYYY-MM-DD HH:MM'이라 문자열 비교로 시간순 판정.
             try:

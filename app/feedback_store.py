@@ -12,8 +12,10 @@ import streamlit as st
 from sheets_store import _get_client, KST
 
 FB_WS = "개선요청"
+# '확인'은 **맨 뒤**에 붙였다(옛 행이 안 밀리게). 요청한 사람이 완료 알림을
+# 홈에서 확인하면 이 칸에 이름이 들어가고, 그때부터 알림이 사라진다.
 FB_HEADER = ["등록일시", "작성자", "분류", "내용", "상태", "처리메모",
-             "처리일시", "처리자"]
+             "처리일시", "처리자", "확인"]
 _COL_STATUS = FB_HEADER.index("상태") + 1
 _COL_MEMO = FB_HEADER.index("처리메모") + 1
 _COL_AT = FB_HEADER.index("처리일시") + 1
@@ -91,6 +93,49 @@ def set_status(row, expected_ts, status, memo, who):
                        datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
         ws.update_cell(row, _COL_BY, (who or "").strip())
     fb_rows.clear()
+
+
+def mark_seen(row, expected_ts, who):
+    """요청자가 완료 알림을 '확인'했다고 표시 — 홈에서 그 알림이 사라진다."""
+    ws = _ws()
+    _check(ws, row, expected_ts)
+    ws.update_cell(row, FB_HEADER.index("확인") + 1,
+                   (who or "").strip() or "확인")
+    fb_rows.clear()
+
+
+def new_for_admin():
+    """아직 손대지 않은(접수) 개선요청 목록 — 관리자 홈 알림용."""
+    return [r for r in fb_rows() if (r.get("상태", "") or "").strip() == ST_NEW]
+
+
+def done_for(name, days=3):
+    """`name`이 올린 것 중 **완료됐는데 아직 확인 안 한** 것 — 요청자 홈 알림용.
+
+    처리한 지 `days`일이 지나면 확인을 안 눌러도 더 안 띄운다(계속 남아 거슬리지 않게).
+    """
+    name = (name or "").strip()
+    if not name:
+        return []
+    today = datetime.now(KST).date()
+    out = []
+    for r in fb_rows():
+        if (r.get("작성자", "") or "").strip() != name:
+            continue
+        if (r.get("상태", "") or "").strip() != ST_DONE:
+            continue
+        if (r.get("확인", "") or "").strip():
+            continue
+        at = (r.get("처리일시", "") or "")[:10]
+        if at:
+            try:
+                d = datetime.strptime(at, "%Y-%m-%d").date()
+                if (today - d).days > days:
+                    continue
+            except Exception:
+                pass
+        out.append(r)
+    return out
 
 
 def delete_feedback(row, expected_ts):
