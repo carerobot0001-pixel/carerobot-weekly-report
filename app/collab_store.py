@@ -16,7 +16,7 @@ from sheets_store import _get_client, KST
 COLLAB_WS_TITLE = "문서협업"
 # '열람자'는 **맨 뒤에 붙였다** — 옛 행이 밀리지 않게(다른 시트와 같은 원칙).
 COLLAB_HEADER = ["요청ID", "등록일시", "요청자", "제목", "요청사항", "문서링크",
-                 "마감일", "담당자", "완료자", "상태", "열람자"]
+                 "마감일", "담당자", "완료자", "상태", "열람자", "코멘트"]
 
 STATUS_OPEN = "진행중"
 STATUS_CLOSED = "완료"
@@ -170,7 +170,7 @@ def add_collab(requester: str, title: str, request_text: str, link: str,
     req_id = now.strftime("%Y%m%d-%H%M%S-") + requester
     row = [req_id, now.strftime("%Y-%m-%d %H:%M"), requester, title, request_text,
            link, deadline, ", ".join(assignees) if assignees else "전체",
-           "", STATUS_OPEN, ""]        # 마지막 "" = 열람자
+           "", STATUS_OPEN, "", ""]    # 뒤 두 칸 = 열람자, 코멘트
     ws.append_row(row, value_input_option="USER_ENTERED")
     collab_rows.clear()
     return req_id
@@ -212,6 +212,45 @@ def mark_open(req_id: str, member: str) -> list:
     ws.update_cell(i, k + 1, ", ".join(names))
     collab_rows.clear()
     return names
+
+
+def comments(row) -> list:
+    """행에서 코멘트 목록 [{who, text, at}] 을 꺼낸다(없으면 빈 목록).
+
+    한 칸에 JSON 으로 넣는다 — 칸을 새로 만들지 않고 여러 줄을 담기 위해서.
+    깨진 값이면 조용히 빈 목록(옛 행 호환).
+    """
+    k = COLLAB_HEADER.index("코멘트")
+    raw = (row[k] if len(row) > k else "").strip()
+    if not raw:
+        return []
+    try:
+        out = json.loads(raw)
+        return out if isinstance(out, list) else []
+    except Exception:
+        return []
+
+
+def add_comment(req_id: str, who: str, text: str) -> list:
+    """코멘트 한 줄 추가. 반환: 갱신된 코멘트 목록.
+
+    쓰임새(류현경 연구원 요청, 2026-08): 중간에 양식이 바뀌었을 때,
+    담당자인데 **작성할 내용이 없을 때**, 문서를 따로 보냈을 때.
+    ⚠️ 완료(✅)와는 다른 것이다 — 코멘트를 남겨도 제출현황은 안 바뀐다.
+    """
+    text = (text or "").strip()
+    if not text:
+        return []
+    ws = _ws()
+    i, r = _find_row(ws, req_id)
+    cur = comments(r)
+    cur.append({"who": (who or "").strip(),
+                "text": text[:300],
+                "at": datetime.now(KST).strftime("%m-%d %H:%M")})
+    k = COLLAB_HEADER.index("코멘트")
+    ws.update_cell(i, k + 1, json.dumps(cur, ensure_ascii=False))
+    collab_rows.clear()
+    return cur
 
 
 def set_status(req_id: str, status: str) -> None:

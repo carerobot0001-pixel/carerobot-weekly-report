@@ -38,6 +38,7 @@ from purchase_store import (
 )
 from collab_store import (
     COLLAB_HEADER, collab_rows, add_collab, mark_done, mark_open,
+    comments as collab_comments, add_comment as add_collab_comment,
     set_status, delete_collab,
     drive_enabled, create_drive_doc, doc_activity,
 )
@@ -2841,6 +2842,43 @@ def _copy_link_button(url: str, key: str, label: str = "📋 링크 복사"):
         "</script>", height=48)
 
 
+def _collab_comments(row, req_id, my_name):
+    """협업 카드의 💬 코멘트 — 짧은 한 줄을 남기는 칸.
+
+    요청 배경(류현경 연구원, 2026-08): 중간에 양식이 바뀌었을 때,
+    담당자인데 **작성할 내용이 없을 때**, 문서를 따로 보냈을 때 알릴 곳이 없었다.
+    ⚠️ 완료(✅)와 다르다 — 코멘트를 남겨도 제출현황은 그대로다.
+    """
+    cs = collab_comments(row)
+    _open = st.session_state.get(f"cmt_{req_id}", False)
+    if cs:
+        _dk = bool(st.session_state.get("dark"))
+        _c = "#cfc9c0" if _dk else "#5d574f"
+        st.markdown("".join(
+            f"<div style='color:{_c};font-size:.86rem;margin:.1rem 0 .1rem .2rem'>"
+            f"💬 <b>{html_escape(c.get('who', ''))}</b> "
+            f"{html_escape(c.get('text', ''))}"
+            f"<span style='opacity:.55;font-size:.75rem'>  {c.get('at', '')}</span>"
+            f"</div>" for c in cs), unsafe_allow_html=True)
+    if st.button(("－ 코멘트 닫기" if _open else "💬 코멘트 남기기")
+                 + (f" ({len(cs)})" if cs and not _open else ""),
+                 key=f"cmt_btn_{req_id}", use_container_width=True):
+        st.session_state[f"cmt_{req_id}"] = not _open
+        st.rerun()
+    if _open:
+        with st.form(f"cmt_form_{req_id}", clear_on_submit=True):
+            _t = st.text_input(
+                "코멘트", key=f"cmt_txt_{req_id}", label_visibility="collapsed",
+                placeholder="예: 제 파트는 작성할 내용이 없습니다 / 양식 일부 수정했습니다")
+            if st.form_submit_button("등록") and _t.strip():
+                try:
+                    add_collab_comment(req_id, my_name, _t)
+                    st.session_state[f"cmt_{req_id}"] = False
+                except Exception as e:
+                    st.error(f"등록 실패: {e}")
+                st.rerun()
+
+
 def collab_page():
     """문서 협업 보드 — 구글 문서 링크 + 요청 + 제출현황 (파일은 구글에 보관)."""
     st.header("📋 문서 협업")
@@ -2877,6 +2915,7 @@ def collab_page():
                                    use_container_width=True, type="primary")
                 st.caption("작성을 마치면 **아래 버튼**을 눌러 주세요. "
                            "그래야 요청자 화면에 완료로 보입니다.")
+                _collab_comments(_row, _focus, my_name)
                 _fc1, _fc2 = st.columns(2)
                 if _fc1.button(f"✅ 내 부분 완료 ({my_name})",
                                key=f"focus_done_{_focus}",
@@ -3032,6 +3071,7 @@ def collab_page():
                     for n in roster))
             else:
                 st.caption("아직 완료 표시한 사람이 없습니다.")
+            _collab_comments(r, req_id, my_name)
             if act.get("count"):
                 _msg = (f"📝 마지막 수정 {act['modified'][5:]} · "
                         f"편집 {act['count']}회")
@@ -3298,7 +3338,8 @@ def resource_page():
 
 def _res_links():
     """팀 공용 참고자료·양식 링크 보드(파일이 아니라 링크만 관리)."""
-    st.caption("팀 공용 참고자료·양식·매뉴얼 **링크** 모음. (파일이 아니라 구글문서/드라이브/URL 링크를 등록)")
+    st.caption("팀 공용 참고자료·양식·매뉴얼 모음. **링크를 붙이거나 파일을 올리면** "
+               "됩니다(파일은 변환 없이 원본 그대로 보관).")
     _flash("res_flash")
     me = st.session_state.get("me", "")
 
@@ -3307,13 +3348,31 @@ def _res_links():
         cat = c1.selectbox("분류", resource_store.CATEGORIES, key="res_cat")
         title = c2.text_input("제목", key="res_title")
         link = st.text_input("링크(URL)", key="res_link", placeholder="https://...")
+        # 파일 올리기 — 문서 협업과 달리 **구글 문서로 변환하지 않는다.**
+        # 자료실은 양식·매뉴얼처럼 원본 그대로 두어야 하는 것들이라
+        # 기기 자료(maker_store)와 같은 방식(원본 보관 + 보기 전용 공유)을 쓴다.
+        up = None
+        if maker_store.upload_enabled():
+            up = st.file_uploader(
+                "또는 파일 올리기 (한글·PDF·엑셀·워드·PPT 등)",
+                type=[e for e in maker_store.UPLOAD_EXTS], key="res_file")
+            st.caption(f"최대 {maker_store.MAX_MB}MB · 올린 파일은 사업단 구글 "
+                       "드라이브에 원본 그대로 보관되고, 링크가 자동으로 등록됩니다.")
         author = st.text_input("등록자", value=me, key="res_author")
         desc = st.text_area("설명(선택)", key="res_desc", height=60)
         if st.button("등록", type="primary", key="res_add"):
             try:
+                if up is not None and not link.strip():
+                    with st.spinner(
+                            f"드라이브에 올리는 중… "
+                            f"({len(up.getvalue()) / 1024 / 1024:.1f}MB)"):
+                        link = maker_store.upload_file(up.getvalue(), up.name)
+                    if not title.strip():
+                        title = up.name.rsplit(".", 1)[0]
+                    desc = (desc + " [파일 보관본]").strip()
                 resource_store.add_resource(author, cat, title, link, desc)
                 st.session_state["res_flash"] = f"✅ 등록 — {title.strip()}"
-                for k in ("res_title", "res_link", "res_desc"):
+                for k in ("res_title", "res_link", "res_desc", "res_file"):
                     st.session_state.pop(k, None)
                 st.rerun()
             except ValueError as e:
