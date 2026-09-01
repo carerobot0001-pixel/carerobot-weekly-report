@@ -54,7 +54,8 @@ from calendar_store import (
     add_event, update_event, delete_event, event_view,
 )
 from news_store import (fetch_news, fetch_section, NEWS_SECTIONS, SECTION_CAP,
-                        today_key as news_today)
+                        BRIEFING_SECTION_NAMES, today_key as news_today,
+                        refresh_key as news_refresh_key)
 from news_store import DEFAULT_CAP as NEWS_DEFAULT_CAP
 from notice_store import (notices, add_notice, delete_notice,
                           is_expired, sweep_expired,
@@ -1993,34 +1994,15 @@ def home_page():
         st.markdown("**📅 사업단 일정**")
         st.caption("⚙️ 캘린더 미설정 — Secrets에 [calendar] id 필요.")
 
-    # 하루 1회 수집 · 매일 교체 — 날짜를 캐시 키로 준다(예약 실행 장치 없이).
-    # 같은 날에는 처음 연 사람이 가져온 목록을 하루 종일 함께 본다.
+    # 화면에는 오늘 날짜를 보이고, RSS 결과는 한 시간마다 다시 수집한다.
     _day = news_today()
     with st.expander(f"📰 관련 뉴스  ·  {_day} 수집", expanded=True):
-        _news_tabs(_day)
+        _news_tabs(_day, news_refresh_key())
 
 
-def _news_tabs(_day):
-    """📰 관련 뉴스 탭 묶음 — 홈의 expander 안에서 부른다."""
-    tabs = st.tabs([name for name, _ in NEWS_SECTIONS])
-    for tab, (_name, queries) in zip(tabs, NEWS_SECTIONS):
-        with tab:
-            if not queries:
-                # 과제 키워드가 아직 안 들어온 탭(목욕·배설). 자리만 잡아 둔다 —
-                # 빈 탭이 있어야 '아직 안 왔다'가 보인다.
-                st.caption("아직 키워드가 없습니다 — "
-                           "과제별 자료조사 키워드 양식이 들어오면 여기에 뜹니다.")
-                continue
-            try:
-                # 최근 24시간에 걸리는 대로 다 (최신순). 없으면 없는 대로 둔다.
-                # 경제·시장만 상한이 있다(SECTION_CAP) — 토픽 피드라 100건씩 쌓인다.
-                items = fetch_section(
-                    queries, _day,
-                    cap=SECTION_CAP.get(_name, NEWS_DEFAULT_CAP),
-                    drop=_name)
-            except Exception:
-                items = []
-            if items:
+def _render_news_items(items):
+    """핵심 브리핑과 분야별 탐색에서 공용으로 쓰는 뉴스 목록 렌더러."""
+    if items:
                 # 한 항목 = 제목 한 줄 + 작은 회색 메타 한 줄.
                 # 예전엔 [해외]배지·출처·원문이 제목과 같은 줄에 섞여 읽기 어려웠다.
                 # 링크 밑줄도 뺀다 — 목록 전체가 밑줄이면 글이 안 읽힌다.
@@ -2056,10 +2038,52 @@ def _news_tabs(_day):
                         f"white-space:nowrap'>&nbsp;&nbsp;"
                         f"{' · '.join(meta)}</span></div>")
                 st.markdown("".join(_html), unsafe_allow_html=True)
-            else:
-                # 최근 24시간에 그 과제 뉴스가 없으면 정상적으로 빈 탭이다.
-                # (예전엔 '불러오지 못했어요'라 오류처럼 보였다)
-                st.caption("오늘은 새 뉴스가 없습니다.")
+    else:
+        st.caption("최근 24시간에 새 뉴스가 없습니다.")
+
+
+def _news_tabs(_day, _refresh):
+    """핵심 브리핑 우선 뉴스 영역. refresh는 한 시간마다 RSS를 새로 받는 캐시 키다."""
+    by_name = dict(NEWS_SECTIONS)
+    briefing, seen = [], set()
+    for name in BRIEFING_SECTION_NAMES:
+        queries = by_name.get(name, ())
+        if not queries:
+            continue
+        try:
+            # 분야마다 세 건만 뽑아 한 주제의 기사들이 브리핑을 독점하지 않게 한다.
+            items = fetch_section(queries, _refresh, cap=3, drop=name)
+        except Exception:
+            items = []
+        for item in items:
+            identity = item.get("link") or item.get("title")
+            if identity in seen:
+                continue
+            seen.add(identity)
+            briefing.append(item)
+
+    briefing.sort(key=lambda item: item.get("hours", 1e9))
+    st.markdown("**오늘의 핵심**")
+    st.caption("돌봄로봇·돌봄정책 관련 분야에서 최근성이 높은 기사만 골랐습니다. "
+               "검색 결과 전체는 아래에서 분야별로 볼 수 있습니다.")
+    _render_news_items(briefing[:8])
+
+    st.divider()
+    section_names = [name for name, _ in NEWS_SECTIONS]
+    selected = st.selectbox("분야별 기사 더 보기", section_names,
+                            index=section_names.index("돌봄·정책"),
+                            key="news_section_picker")
+    queries = by_name[selected]
+    if not queries:
+        st.caption("아직 이 과제의 뉴스 키워드가 없습니다.")
+        return
+    try:
+        items = fetch_section(queries, _refresh,
+                              cap=SECTION_CAP.get(selected, NEWS_DEFAULT_CAP),
+                              drop=selected)
+    except Exception:
+        items = []
+    _render_news_items(items)
 
 
 def member_page():

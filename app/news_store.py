@@ -154,6 +154,13 @@ NEWS_SECTIONS = (
            key=lambda x: _FRONT.index(x[0]))
     + [x for x in NEWS_SECTIONS if x[0] not in _FRONT])
 
+# 첫 화면은 "검색 결과 전부"보다 회의 때 바로 훑을 만한 분야를 우선한다.
+# 경제·시장은 관련성이 낮아 핵심 브리핑에서는 제외하되, 필요하면 분야 선택에서 볼 수 있다.
+BRIEFING_SECTION_NAMES = (
+    "돌봄·정책", "10·11 커뮤니케이션·AI챗봇", "6 모니터링",
+    "4·5 착용형", "1 이동", "8 욕창",
+)
+
 # 전체 합본용(구버전 홈 호환)
 _ALL_SPECS = tuple(s for _, specs in NEWS_SECTIONS for s in specs)
 _UA = {"User-Agent": "Mozilla/5.0"}
@@ -340,6 +347,12 @@ def _near_dup(toks: set, kept: list) -> bool:
         if not k:
             continue
         inter = len(toks & k)
+        # 제목이 두 낱말뿐이면 한 낱말(AI, 로봇 등) 겹치는 것으로는 같은
+        # 사건이라 보기 어렵다. 예전 규칙은 이런 짧은 제목을 과하게 숨겼다.
+        if min(len(toks), len(k)) <= 2:
+            if toks == k:
+                return True
+            continue
         # 임계 0.6은 느슨했다 — 같은 심포지엄 기사가 매체마다 0.50 겹침으로
         # 통과해 한 탭에 4줄이 쌓였다(2026-08-19 확인). 0.45로 조인다.
         if inter / min(len(toks), len(k)) >= 0.45:
@@ -366,7 +379,7 @@ def _is_noise(title: str, source: str) -> bool:
                 or _NOISE_SRC.search(source or ""))
 
 
-def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
+def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0, drop: str = "") -> list:
     """[{title, link, source, region, hours}] — 최근 24시간 기사 전부, 최신순.
 
     **개수 제한이 없다**(2026-08 지시). 예전엔 섹션당 6건으로 자르고 키워드를
@@ -410,6 +423,11 @@ def _fetch_specs(specs, max_age_h: int = 24, cap: int = 0) -> list:
                 if _is_noise(title, source):
                     continue
                 if not q.startswith("topic:") and not _relevant(title, q):
+                    continue
+                # 홍보성 제목은 중복 판정·상한 적용 전에 버려야 한다. 그래야
+                # 앞쪽 결과의 보도자료가 좋은 기사의 자리를 차지하지 않는다.
+                pat = SECTION_DROP.get(drop)
+                if pat and pat.search(title):
                     continue
                 seen.add(title)
                 kept.append(_tk)
@@ -480,7 +498,7 @@ DEFAULT_CAP = 15
 SECTION_CAP = {"경제·시장": 10}
 
 
-@st.cache_data(ttl=172800, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_section(specs: tuple, day: str, max_age_h: int = 24,
                   cap: int = 0, drop: str = "") -> list:
     """한 섹션의 최근 24시간 기사(국내·해외 섞임, 최신순). day = today_key().
@@ -488,14 +506,15 @@ def fetch_section(specs: tuple, day: str, max_age_h: int = 24,
     `cap=0`이면 개수 제한 없음 — 걸리는 대로 다 준다. 해당 과제에 그날 뉴스가 없으면
     **빈 목록**이다(억지로 채우지 않는다). 화면에는 '오늘은 새 뉴스가 없습니다'.
     """
-    out = _fetch_specs(list(specs), max_age_h=max_age_h, cap=cap)
-    pat = SECTION_DROP.get(drop)
-    if pat:
-        out = [x for x in out if not pat.search(x["title"])]
-    return out
+    return _fetch_specs(list(specs), max_age_h=max_age_h, cap=cap, drop=drop)
 
 
-@st.cache_data(ttl=172800, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_news(day: str, max_age_h: int = 24) -> list:
     """전체 합본(돌봄 우선). 섹션 탭을 쓰지 않는 곳의 호환용."""
     return _fetch_specs(list(_ALL_SPECS), max_age_h=max_age_h)
+
+
+def refresh_key() -> str:
+    """KST 기준 시간대 캐시 키. 첫 방문자의 결과가 하루 종일 고정되지 않게 한다."""
+    return datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d-%H")
