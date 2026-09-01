@@ -2066,7 +2066,6 @@ def _news_tabs(_day, _refresh):
     section_names = [name for name, _ in NEWS_SECTIONS]
     tabs = st.tabs(["📰 주목할 뉴스"] + section_names)
     with tabs[0]:
-        st.caption("돌봄로봇·돌봄정책 관련 분야에서 최근성이 높은 기사만 골랐습니다.")
         _render_news_items(briefing[:8])
 
     # 기존처럼 과제·주제별 탭을 한 번에 보여준다.
