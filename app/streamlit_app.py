@@ -2064,7 +2064,7 @@ def _news_tabs(_day, _refresh):
 
     briefing.sort(key=lambda item: item.get("hours", 1e9))
     section_names = [name for name, _ in NEWS_SECTIONS]
-    tabs = st.tabs(["오늘의 핵심"] + section_names)
+    tabs = st.tabs(["📰 주목할 뉴스"] + section_names)
     with tabs[0]:
         st.caption("돌봄로봇·돌봄정책 관련 분야에서 최근성이 높은 기사만 골랐습니다.")
         _render_news_items(briefing[:8])
