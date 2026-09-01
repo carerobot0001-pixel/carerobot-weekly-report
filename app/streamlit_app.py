@@ -2043,7 +2043,7 @@ def _render_news_items(items):
 
 
 def _news_tabs(_day, _refresh):
-    """핵심 브리핑 우선 뉴스 영역. refresh는 한 시간마다 RSS를 새로 받는 캐시 키다."""
+    """기존 탭 목록 앞에 핵심 브리핑 탭을 하나 더한 뉴스 영역."""
     by_name = dict(NEWS_SECTIONS)
     briefing, seen = [], set()
     for name in BRIEFING_SECTION_NAMES:
@@ -2063,27 +2063,27 @@ def _news_tabs(_day, _refresh):
             briefing.append(item)
 
     briefing.sort(key=lambda item: item.get("hours", 1e9))
-    st.markdown("**오늘의 핵심**")
-    st.caption("돌봄로봇·돌봄정책 관련 분야에서 최근성이 높은 기사만 골랐습니다. "
-               "검색 결과 전체는 아래에서 분야별로 볼 수 있습니다.")
-    _render_news_items(briefing[:8])
-
-    st.divider()
     section_names = [name for name, _ in NEWS_SECTIONS]
-    selected = st.selectbox("분야별 기사 더 보기", section_names,
-                            index=section_names.index("돌봄·정책"),
-                            key="news_section_picker")
-    queries = by_name[selected]
-    if not queries:
-        st.caption("아직 이 과제의 뉴스 키워드가 없습니다.")
-        return
-    try:
-        items = fetch_section(queries, _refresh,
-                              cap=SECTION_CAP.get(selected, NEWS_DEFAULT_CAP),
-                              drop=selected)
-    except Exception:
-        items = []
-    _render_news_items(items)
+    tabs = st.tabs(["오늘의 핵심"] + section_names)
+    with tabs[0]:
+        st.caption("돌봄로봇·돌봄정책 관련 분야에서 최근성이 높은 기사만 골랐습니다.")
+        _render_news_items(briefing[:8])
+
+    # 기존처럼 과제·주제별 탭을 한 번에 보여준다.
+    for tab, name in zip(tabs[1:], section_names):
+        with tab:
+            queries = by_name[name]
+            if not queries:
+                st.caption("아직 이 과제의 뉴스 키워드가 없습니다.")
+                continue
+            try:
+                items = fetch_section(
+                    queries, _refresh,
+                    cap=SECTION_CAP.get(name, NEWS_DEFAULT_CAP),
+                    drop=name)
+            except Exception:
+                items = []
+            _render_news_items(items)
 
 
 def member_page():
