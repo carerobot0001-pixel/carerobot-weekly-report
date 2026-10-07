@@ -66,7 +66,7 @@ from common_store import (
     HWPX_YONG_MAX, HWPX_ASSET_MAX,
     load_common, save_common, build_common_hwpx, build_common_xlsx,
 )
-from hwpx_exporter import build_report
+from hwpx_exporter import build_report, calendar_bmp_size
 
 _ICON = Path(__file__).resolve().parent / "assets" / "dolbom_favicon.png"
 st.set_page_config(page_title="dolbom studio",
@@ -4503,19 +4503,30 @@ def _report_collect():
                         f"{', '.join(fallback_used)}")
 
             # 마지막 장 월간 달력을 이번 주차의 달로 새로 그려 교체(템플릿 옛 달력 방지)
+            # 결과는 눈에 띄게 알린다 — 조용히 건너뛰면 옛 달력이 박힌 줄 모른다.
             cal_bmp = None
             try:
-                if calendar_enabled():
+                _cal_size = calendar_bmp_size(template_bytes)
+                if not calendar_enabled():
+                    st.warning("📅 사업단 캘린더가 설정되지 않아 달력을 바꾸지 못했습니다"
+                               "(템플릿 달력 그대로).")
+                elif not _cal_size:
+                    st.warning("📅 이 템플릿에는 달력 그림(BMP)이 없어 달력을 넣지 못했습니다. "
+                               "목록의 기본 템플릿을 쓰거나, 달력 그림이 있는 파일을 올려주세요.")
+                else:
                     import calendar_image   # 지연 임포트(PIL 없어도 앱은 정상)
                     if not calendar_image.has_korean_font():
-                        st.caption("※ 한글 폰트가 없어 달력 갱신을 건너뜁니다"
-                                   "(템플릿 달력 그대로). 나머지는 정상 생성됩니다.")
+                        st.warning("📅 서버에 한글 폰트가 없어 달력을 바꾸지 못했습니다"
+                                   "(템플릿 달력 그대로).")
                     else:
                         _evs = month_events(wed.year, wed.month)
                         cal_bmp = calendar_image.build_calendar_bmp(
-                            wed.year, wed.month, _evs)
+                            wed.year, wed.month, _evs,
+                            width=_cal_size[0], height=_cal_size[1])
+                        st.caption(f"📅 마지막 장 달력: {wed.year}년 {wed.month}월 "
+                                   f"(일정 {len(_evs)}건)으로 교체")
             except Exception as _e:
-                st.caption(f"※ 달력 이미지 갱신을 건너뜁니다({_e}). 나머지는 정상 생성됩니다.")
+                st.warning(f"📅 달력을 바꾸지 못했습니다({_e}). 나머지는 정상 생성됩니다.")
             _shrunk = []
             result = build_report(
                 template_bytes, submissions,

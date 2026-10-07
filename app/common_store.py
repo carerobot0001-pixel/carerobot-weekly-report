@@ -7,14 +7,13 @@
 import io
 import re
 import zipfile
-import html
 from pathlib import Path
 
 import gspread
 import streamlit as st
 
 from sheets_store import _get_client, KST
-from hwpx_exporter import replace_cell, _patch_zip_flag_bits
+from hwpx_exporter import replace_cell, make_paragraph_xml, _patch_zip_flag_bits
 from datetime import datetime
 
 COMMON_WS_TITLE = "공통확인사항"
@@ -30,6 +29,10 @@ HWPX_YONG_MAX = 5
 HWPX_ASSET_MAX = 10
 TEMPLATE = Path(__file__).resolve().parent.parent / "사업단_공통확인사항_템플릿.hwpx"
 COMMON_BODY_CHARPR = "34"
+# 기타내용 문단 모양 — 템플릿의 '<본부과제 자산구매>' 제목 문단과 같은 것을 쓴다
+EXTRA_PARAPR = "36"
+EXTRA_TITLE_CHARPR = "28"   # 11pt 굵게
+EXTRA_BODY_CHARPR = "15"    # 11pt 보통
 
 
 @st.cache_resource
@@ -149,29 +152,22 @@ def _preview_text(tables: dict) -> str:
 
 
 def _extra_hwpx_block(text: str) -> str:
-    text = str(text).strip()
-    if not text:
-        return ""
-    lines = [x.strip() for x in text.splitlines() if x.strip()]
-    body = " / ".join(lines)
-    return (
-        '<hp:p id="2147483648" paraPrIDRef="25" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
-        '<hp:run charPrIDRef="11"><hp:t>기타내용</hp:t></hp:run>'
-        '<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="1100" textheight="1100" '
-        'baseline="935" spacing="220" horzpos="0" horzsize="78516" flags="393216"/></hp:linesegarray></hp:p>'
-        '<hp:p id="2147483648" paraPrIDRef="26" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
-        f'<hp:run charPrIDRef="13"><hp:t>{html.escape(body)}</hp:t></hp:run>'
-        '<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="900" textheight="900" '
-        'baseline="765" spacing="272" horzpos="0" horzsize="77132" flags="393216"/></hp:linesegarray></hp:p>'
-    )
+    """'<기타내용>' 제목 + 줄마다 한 문단. 자산구매 표 아래(같은 칸 안)에 붙인다.
 
-
-def _extra_cell_text(text: str) -> str:
-    text = str(text).strip()
-    if not text:
+    제목은 '<본부과제 자산구매>'와 같은 모양(굵게), 본문은 보통 글씨.
+    줄바꿈 캐시(linesegarray)는 비워 두어 한글이 열 때 다시 계산하게 한다.
+    """
+    lines = [x.rstrip() for x in str(text or "").splitlines() if x.strip()]
+    if not lines:
         return ""
-    lines = [x.rstrip() for x in text.splitlines() if x.strip()]
-    return "\n".join(["<기타내용>"] + lines)
+    ls = '<hp:linesegarray/>'
+    out = make_paragraph_xml("<기타내용>", char_pr_id=EXTRA_TITLE_CHARPR,
+                             para_pr_id=EXTRA_PARAPR, lineseg_xml=ls)
+    out += "".join(make_paragraph_xml(x, char_pr_id=EXTRA_BODY_CHARPR,
+                                      para_pr_id=EXTRA_PARAPR, is_first=False,
+                                      lineseg_xml=ls)
+                   for x in lines)
+    return out
 
 
 def _leaf_tables(xml):
@@ -237,20 +233,24 @@ def build_common_hwpx(tables: dict) -> bytes:
     if len(yong) < 2 or len(asset) < 2:
         raise RuntimeError("템플릿에서 용역/자산 표(각 2개)를 찾지 못했습니다.")
 
+    # 기타내용은 실적/계획 각 칸의 **자산구매 표 바로 아래**(같은 칸 끝)에 붙인다.
+    # ⚠️ 예전엔 본문 큰 표의 (4,25)/(5,25)에 넣었는데, 이 템플릿에서 그 칸은 빈
+    # 본문 표의 최혜민 행이라 11쪽에 떨어져 "표만 나온다"로 보였다(2026-10 확인).
+    extra_done = _extra_hwpx_block(tables.get(EXTRA_DONE_KEY, tables.get(EXTRA_KEY, "")))
+    extra_plan = _extra_hwpx_block(tables.get(EXTRA_PLAN_KEY, tables.get(EXTRA_KEY, "")))
+    done_at = xml.find('</hp:subList>', asset[0][1])
+    plan_at = xml.find('</hp:subList>', asset[1][1])
+
     edits = [
         (yong[0][0], yong[0][1], _fill_yong(yong[0][2], tables.get("용역_실적", []))),
         (yong[1][0], yong[1][1], _fill_yong(yong[1][2], tables.get("용역_계획", []))),
         (asset[0][0], asset[0][1], _fill_asset(asset[0][2], tables.get("자산_실적", []))),
         (asset[1][0], asset[1][1], _fill_asset(asset[1][2], tables.get("자산_계획", []))),
+        (done_at, done_at, extra_done),
+        (plan_at, plan_at, extra_plan),
     ]
     for s, e, new_seg in sorted(edits, key=lambda x: x[0], reverse=True):
         xml = xml[:s] + new_seg + xml[e:]
-    extra_done = _extra_cell_text(tables.get(EXTRA_DONE_KEY, tables.get(EXTRA_KEY, "")))
-    extra_plan = _extra_cell_text(tables.get(EXTRA_PLAN_KEY, tables.get(EXTRA_KEY, "")))
-    if extra_done:
-        xml = replace_cell(xml, 4, 25, extra_done)
-    if extra_plan:
-        xml = replace_cell(xml, 5, 25, extra_plan)
 
     files['Contents/section0.xml'] = xml.encode('utf-8')
     if 'Preview/PrvText.txt' in files:

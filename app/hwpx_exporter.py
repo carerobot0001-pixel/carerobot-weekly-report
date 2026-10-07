@@ -1,9 +1,12 @@
 """10명 업무보고 데이터를 HWPX 템플릿에 일괄 삽입하는 모듈.
 
-- 기본 본문 색상: charPr 15 (검정, 템플릿에 이미 존재)
-- 파란색: 런타임에 charPr 15를 복제 + textColor를 #0000FF로 수정해서
-          header.xml에 동적 추가한 뒤 그 id 사용
+- 기본 본문 색상: 셀의 원래 글자모양(charPr)을 쓰되 글자색만 검정으로
+- 파란색(획득 데이터): 셀의 원래 글자모양을 복제해 **파랑 + 굵게**로 바꾼 판을 추가
 - 셀 위치가 여러 테이블에 중복으로 존재할 수 있음 → nth 인덱스 지원
+
+⚠️ 한글은 charPrIDRef 를 id 속성이 아니라 **목록 안 순서(위치)**로 찾는다(2026-10
+렌더링으로 확인). 새 charPr 를 목록 중간에 끼우면 그 뒤 번호가 한 칸씩 밀려
+파란 굵은 글씨가 빨간 보통 글씨로 나왔다. 새 charPr 는 반드시 **맨 끝**에 붙인다.
 """
 import zipfile
 import re
@@ -182,42 +185,72 @@ def replace_cell(xml, col, row, text, override_color_id=None, nth=0):
     return xml[:start] + new_content + xml[end:]
 
 
-def ensure_blue_charpr(header_xml: str) -> tuple[str, str]:
-    """header.xml에 파란색 charPr가 없으면 추가하고 해당 id 반환.
-    이미 textColor=#0000FF인 charPr가 있으면 그걸 재사용."""
-    existing = re.search(r'<hh:charPr\s+id="(\d+)"[^>]*textColor="#0000FF"', header_xml)
-    if existing:
-        return header_xml, existing.group(1)
+def _charpr_xml(header_xml: str, char_pr_id: str) -> str | None:
+    """id 가 char_pr_id 인 <hh:charPr>…</hh:charPr> 블록. 없으면 None."""
+    m = re.search(rf'<hh:charPr\s+id="{char_pr_id}"[^>]*?>.*?</hh:charPr>',
+                  header_xml, re.DOTALL)
+    return m.group(0) if m else None
 
-    black_m = re.search(
-        rf'<hh:charPr\s+id="{CHARPR_BLACK}"[^>]*?>.*?</hh:charPr>',
-        header_xml, re.DOTALL)
-    if not black_m:
-        raise RuntimeError("템플릿에 기본 검정 charPr(15)가 없습니다.")
-    black_xml = black_m.group(0)
 
-    max_id = max(
-        int(x) for x in re.findall(r'<hh:charPr\s+id="(\d+)"', header_xml)
-    )
-    new_id = str(max_id + 1)
+def normalize_charpr_ids(header_xml: str) -> str:
+    """charPr 의 id 를 목록 순서(0,1,2…)와 같게 맞춘다.
 
-    blue_xml = re.sub(
-        r'id="\d+"', f'id="{new_id}"', black_xml, count=1
-    )
-    blue_xml = re.sub(
-        r'textColor="#[0-9A-Fa-f]{6}"',
-        'textColor="#0000FF"',
-        blue_xml, count=1,
-    )
+    한글은 참조를 '순서'로 찾으므로, 옛 버그판이 만든 파일(중간에 끼운 charPr 때문에
+    id 와 순서가 어긋남)을 템플릿으로 올려도 **한글이 보여주던 모양 그대로** 맞춰진다.
+    이미 맞는 파일은 바뀌지 않는다.
+    """
+    seq = iter(range(1_000_000))
+    header_xml = re.sub(r'(<hh:charPr\s+id=")\d+(")',
+                        lambda m: f'{m.group(1)}{next(seq)}{m.group(2)}',
+                        header_xml)
+    n = len(re.findall(r'<hh:charPr\s+id=', header_xml))
+    return re.sub(r'(<hh:charProperties[^>]*itemCnt=")\d+(")',
+                  rf'\g<1>{n}\g<2>', header_xml, count=1)
 
-    new_header = header_xml.replace(black_xml, black_xml + blue_xml)
 
-    new_header = re.sub(
+def _append_charpr(header_xml: str, charpr_xml: str) -> tuple[str, str]:
+    """charPr 를 목록 **맨 끝**에 붙이고 새 id(=순서 번호) 반환.
+
+    ⚠️ 중간에 끼우면 한글이 그 뒤 참조를 한 칸씩 밀려 읽는다(파일 머리 설명 참고).
+    """
+    new_id = str(len(re.findall(r'<hh:charPr\s+id=', header_xml)))
+    charpr_xml = re.sub(r'id="\d+"', f'id="{new_id}"', charpr_xml, count=1)
+    header_xml = header_xml.replace('</hh:charProperties>',
+                                    charpr_xml + '</hh:charProperties>', 1)
+    header_xml = re.sub(
         r'(<hh:charProperties[^>]*itemCnt=")(\d+)(")',
         lambda m: f'{m.group(1)}{int(m.group(2)) + 1}{m.group(3)}',
-        new_header, count=1,
+        header_xml, count=1,
     )
-    return new_header, new_id
+    return header_xml, new_id
+
+
+def ensure_blue_charpr(header_xml: str, base_id: str,
+                       cache: dict) -> tuple[str, str]:
+    """base_id 글꼴·크기는 그대로 두고 **파랑 + 굵게**인 charPr id 반환(획득 데이터용).
+
+    예전엔 헤더에서 처음 보이는 파란 charPr 를 그냥 썼는데, 템플릿에 따라
+    그게 굵지 않은 것이어서 굵은 글씨가 안 나왔다.
+    """
+    if base_id in cache:
+        return header_xml, cache[base_id]
+    base_xml = _charpr_xml(header_xml, base_id)
+    if base_xml is None:
+        base_xml = _charpr_xml(header_xml, CHARPR_BLACK)
+        if base_xml is None:
+            raise RuntimeError("템플릿에 기본 검정 charPr(15)가 없습니다.")
+    is_blue = 'textColor="#0000FF"' in base_xml.split('>', 1)[0]
+    if is_blue and '<hh:bold/>' in base_xml:
+        cache[base_id] = base_id          # 이미 파랑+굵게 → 그대로 사용
+        return header_xml, base_id
+    blue_xml = re.sub(r'textColor="#[0-9A-Fa-f]{6}"', 'textColor="#0000FF"',
+                      base_xml, count=1)
+    if '<hh:bold/>' not in blue_xml:
+        # 스키마 순서상 bold 는 underline 바로 앞(italic 뒤)에 온다
+        blue_xml = blue_xml.replace('<hh:underline', '<hh:bold/><hh:underline', 1)
+    header_xml, new_id = _append_charpr(header_xml, blue_xml)
+    cache[base_id] = new_id
+    return header_xml, new_id
 
 
 def ensure_black_charpr(header_xml: str, base_id: str,
@@ -231,29 +264,19 @@ def ensure_black_charpr(header_xml: str, base_id: str,
     if base_id in cache:
         return header_xml, cache[base_id]
 
-    m = re.search(rf'<hh:charPr\s+id="{base_id}"[^>]*?>.*?</hh:charPr>',
-                  header_xml, re.DOTALL)
-    if not m:
+    base_xml = _charpr_xml(header_xml, base_id)
+    if base_xml is None:
         cache[base_id] = base_id
         return header_xml, base_id
-    base_xml = m.group(0)
 
     col_m = re.search(r'textColor="#([0-9A-Fa-f]{6})"', base_xml)
     if not col_m or col_m.group(1).upper() == "000000":
         cache[base_id] = base_id          # 이미 검정 → 그대로 사용
         return header_xml, base_id
 
-    max_id = max(int(x) for x in re.findall(r'<hh:charPr\s+id="(\d+)"', header_xml))
-    new_id = str(max_id + 1)
-    black_xml = re.sub(r'id="\d+"', f'id="{new_id}"', base_xml, count=1)
     black_xml = re.sub(r'textColor="#[0-9A-Fa-f]{6}"',
-                       'textColor="#000000"', black_xml, count=1)
-    header_xml = header_xml.replace(base_xml, base_xml + black_xml)
-    header_xml = re.sub(
-        r'(<hh:charProperties[^>]*itemCnt=")(\d+)(")',
-        lambda mm: f'{mm.group(1)}{int(mm.group(2)) + 1}{mm.group(3)}',
-        header_xml, count=1,
-    )
+                       'textColor="#000000"', base_xml, count=1)
+    header_xml, new_id = _append_charpr(header_xml, black_xml)
     cache[base_id] = new_id
     return header_xml, new_id
 
@@ -291,12 +314,10 @@ def ensure_smaller_charpr(header_xml: str, base_id: str, cache: dict,
     key = (base_id, delta_pt)
     if key in cache:
         return header_xml, cache[key]
-    m = re.search(rf'<hh:charPr\s+id="{base_id}"[^>]*?>.*?</hh:charPr>',
-                  header_xml, re.DOTALL)
-    if not m:
+    base_xml = _charpr_xml(header_xml, base_id)
+    if base_xml is None:
         cache[key] = base_id
         return header_xml, base_id
-    base_xml = m.group(0)
     h = re.search(r'\bheight="(\d+)"', base_xml)
     if not h:
         cache[key] = base_id
@@ -305,16 +326,8 @@ def ensure_smaller_charpr(header_xml: str, base_id: str, cache: dict,
     if new_h < 700:                       # 7pt 미만은 만들지 않음
         cache[key] = base_id
         return header_xml, base_id
-    max_id = max(int(x) for x in re.findall(r'<hh:charPr\s+id="(\d+)"', header_xml))
-    new_id = str(max_id + 1)
-    small = re.sub(r'id="\d+"', f'id="{new_id}"', base_xml, count=1)
-    small = re.sub(r'\bheight="\d+"', f'height="{new_h}"', small, count=1)
-    header_xml = header_xml.replace(base_xml, base_xml + small)
-    header_xml = re.sub(
-        r'(<hh:charProperties[^>]*itemCnt=")(\d+)(")',
-        lambda mm: f'{mm.group(1)}{int(mm.group(2)) + 1}{mm.group(3)}',
-        header_xml, count=1,
-    )
+    small = re.sub(r'\bheight="\d+"', f'height="{new_h}"', base_xml, count=1)
+    header_xml, new_id = _append_charpr(header_xml, small)
     cache[key] = new_id
     return header_xml, new_id
 
@@ -349,6 +362,55 @@ def strip_linesegarrays(xml: str) -> str:
                   '<hp:linesegarray/>', xml, flags=re.DOTALL)
 
 
+def _calendar_bmp_name(files) -> str | None:
+    """템플릿의 달력 그림(BinData 의 첫 BMP) 경로. 없으면 None."""
+    for name in files:
+        if name.startswith('BinData/') and name.lower().endswith('.bmp'):
+            return name
+    return None
+
+
+def calendar_bmp_size(template_bytes: bytes):
+    """템플릿 달력 BMP 의 (가로, 세로) 픽셀. 달력 그림이 없으면 None.
+
+    템플릿마다 달력 크기가 다르다(1442×857, 1588×855, 2131×1202…). 새 달력을
+    **같은 크기**로 그려야 원본과 구조가 같은 파일이 된다.
+    """
+    with zipfile.ZipFile(io.BytesIO(template_bytes), 'r') as z:
+        name = _calendar_bmp_name(z.namelist())
+        if not name:
+            return None
+        head = z.read(name)[:26]
+    if head[:2] != b'BM':
+        return None
+    w = int.from_bytes(head[18:22], 'little', signed=True)
+    h = int.from_bytes(head[22:26], 'little', signed=True)
+    return abs(w), abs(h)
+
+
+def _manifest_item_id(hpf: bytes, href: str) -> str | None:
+    """content.hpf 에서 href 에 해당하는 manifest id(예: image1)."""
+    m = re.search(rf'<opf:item\s+id="([^"]+)"\s+href="{re.escape(href)}"',
+                  hpf.decode('utf-8', errors='replace'))
+    return m.group(1) if m else None
+
+
+def _unclip_picture(xml: str, item_id: str) -> str:
+    """그 그림의 자르기(imgClip)를 없앤다 — 템플릿 달력에 걸려 있던 자르기가
+    새로 그린 달력의 양 끝(일·토요일 칸)을 잘라먹지 않게."""
+    def fix(m):
+        pic = m.group(0)
+        if f'binaryItemIDRef="{item_id}"' not in pic:
+            return pic
+        o = re.search(r'<hp:orgSz\s+width="(\d+)"\s+height="(\d+)"', pic)
+        if not o:
+            return pic
+        return re.sub(r'<hp:imgClip\b[^>]*/>',
+                      f'<hp:imgClip left="0" right="{o.group(1)}" '
+                      f'top="0" bottom="{o.group(2)}"/>', pic, count=1)
+    return re.sub(r'<hp:pic\b.*?</hp:pic>', fix, xml, flags=re.DOTALL)
+
+
 def build_report(template_bytes: bytes, submissions: dict,
                  title_date: str,
                  period_start: str, period_end: str,
@@ -372,8 +434,8 @@ def build_report(template_bytes: bytes, submissions: dict,
         original_infos = {info.filename: info for info in zin.infolist()}
         all_files = {name: zin.read(name) for name in zin.namelist()}
 
-    header, blue_id = ensure_blue_charpr(header)
-    color_to_id = {"black": CHARPR_BLACK, "blue": blue_id}
+    header = normalize_charpr_ids(header)
+    _blue_cache: dict = {}    # 원본 charPr id → 같은 서식의 '파랑+굵게 판' id
     _black_cache: dict = {}   # 원본 charPr id → 같은 서식의 '검정 판' id
     _small_cache: dict = {}   # (charPr id, 줄일 pt) → 1pt 작은 판 id
     shrunk: list = []         # 실제로 작게 넣은 칸 목록(사용자 안내용)
@@ -428,12 +490,12 @@ def build_report(template_bytes: bytes, submissions: dict,
                     text = f"획득 데이터: {stripped}"
                 elif not stripped:
                     text = "획득 데이터:"
-            # 파란색은 파란 charPr, 그 외(검정)는 원본 서식 유지하되 글자색만 검정으로.
+            # 원본 서식(글꼴·크기)은 유지하고 파랑은 '파랑+굵게', 그 외는 글자색만 검정으로.
             # (템플릿에 남아있던 빨간 글씨색이 새 본문에 물려지는 문제 방지)
+            _base = _extract_cell_charpr(xml, col, row, nth=nth)
             if color == "blue":
-                override = color_to_id["blue"]
+                header, override = ensure_blue_charpr(header, _base, _blue_cache)
             else:
-                _base = _extract_cell_charpr(xml, col, row, nth=nth)
                 header, override = ensure_black_charpr(header, _base, _black_cache)
             # 칸 분량을 넘치면 그 칸만 1pt 작게 — 다음 장으로 밀리는 것을 줄인다.
             # 1pt 까지만(더 줄이면 회의에서 안 보임). 그래도 넘치면 그냥 둔다.
@@ -462,12 +524,14 @@ def build_report(template_bytes: bytes, submissions: dict,
     all_files['Contents/header.xml'] = header.encode('utf-8')
 
     # 월간 달력 이미지 교체 — 템플릿에 박힌 옛 달력이 그대로 나오는 문제 해결.
-    # 원본과 '같은 픽셀 크기'의 BMP만 넣으면 section0.xml 의 크기 정보는 그대로 OK.
-    if calendar_bmp:
-        for _name in list(all_files):
-            if _name.startswith('BinData/') and _name.lower().endswith('.bmp'):
-                all_files[_name] = calendar_bmp
-                break
+    # 원본과 '같은 픽셀 크기'의 BMP를 넣는다(calendar_bmp_size 로 크기를 맞춰 그림).
+    _bmp = _calendar_bmp_name(all_files)
+    if calendar_bmp and _bmp:
+        all_files[_bmp] = calendar_bmp
+        _item = _manifest_item_id(all_files.get('Contents/content.hpf', b''), _bmp)
+        if _item:
+            xml = _unclip_picture(xml, _item)
+            all_files['Contents/section0.xml'] = xml.encode('utf-8')
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w') as zout:

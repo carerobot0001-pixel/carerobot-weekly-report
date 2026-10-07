@@ -186,7 +186,9 @@ HWPX = ZIP + XML. `unzip` 이나 `zipfile` 로 열어볼 수 있음:
 ### 주요 XML 규칙
 
 #### `charPrIDRef` (문자 속성 = 색상·폰트·크기)
-- `header.xml` 의 `<hh:charProperties>` 에 정의된 id 참조
+- `header.xml` 의 `<hh:charProperties>` 에 정의된 charPr 참조
+- ⚠️ **한글은 id 속성이 아니라 목록 안 '순서'로 찾는다** (5번 항목 참고).
+  새 charPr 는 반드시 목록 **맨 끝**에, id = 순서 번호로 붙인다(`_append_charpr`).
 - 우리 템플릿 기준:
   - `id=15` : 검정 기본
   - `id=28` : 파란색 (획득 데이터용)
@@ -221,6 +223,58 @@ zout.writestr(zi, files[name])
 # 마지막에 바이너리 패치 필요:
 result = _patch_zip_flag_bits(buf.getvalue(), original_infos)
 ```
+
+---
+
+## 5. 취합본 글자색이 엉뚱하게 나옴 — 파랑이 빨강, 굵게가 안 됨 (2026-10)
+
+### 증상 (팀원 개선 요청)
+- 획득 데이터가 파란 굵은 글씨로 안 나옴
+- 연구 실적·계획 일부가 빨간 글씨로 나옴
+
+### 원인: 한글은 charPr 를 **id 가 아니라 순서**로 찾는다
+07-23 커밋(`7163b50`, 빨간 글씨 '검정 판')과 07-29 커밋(`688ad33`, 1pt 축소)이
+새 charPr 를 **원본 바로 뒤(목록 중간)** 에 끼워 넣었다. XML 상으로는
+`charPrIDRef="42"` = id 42(파랑·굵게·10pt)가 맞는데, 한글은 **42번째 자리**를
+읽어 id 41(빨강·보통·11pt)을 썼다. 한글 2022 로 PDF 렌더링해 정확히 일치함을 확인.
+07.22 취합본(그 커밋 직전 생성)은 정상이었던 것도 이걸로 설명된다.
+
+### 해결
+- 새 charPr 는 `_append_charpr()` 로 **목록 맨 끝**에, id = 순서 번호.
+- 템플릿을 읽을 때 `normalize_charpr_ids()` 로 id 를 순서에 맞춤 —
+  옛 버그판이 만든 파일을 템플릿으로 올려도 한글이 보던 모양 그대로 정리된다.
+- 획득 데이터는 셀 원래 글자모양을 복제해 **파랑 + 굵게**(`ensure_blue_charpr`).
+  예전엔 헤더의 '첫 번째 파란 charPr'를 썼는데 템플릿 대부분에서 그게 굵지 않았다.
+- ⚠️ 부수 효과: '내용 많은 칸 1pt 작게'가 이제야 실제로 적용된다(그동안은 밀린 번호
+  때문에 엉뚱한 모양이 나왔다).
+
+### 확인 방법 — 한글로 직접 렌더링
+이 PC 엔 한글 2022 + `pyhwpx` 의 `FilePathCheckerModule` 이 등록돼 있어 COM 으로
+PDF 를 뽑아 글자색·굵기·크기를 기계적으로 읽을 수 있다(PyMuPDF `get_text('dict')`).
+XML 만 보고 "맞다"고 하면 이번처럼 놓친다.
+
+```python
+import win32com.client as w
+hwp = w.gencache.EnsureDispatch("HWPFrame.HwpObject")
+hwp.RegisterModule("FilePathCheckDLL", "FilePathCheckerModule")
+hwp.Open(src, "HWPX", "forceopen:true"); hwp.SaveAs(dst_pdf, "PDF"); hwp.Quit()
+```
+
+## 6. 취합본 마지막 장 달력이 이번 달로 안 바뀜 (2026-10)
+
+- 원인: 일정 제목에 **줄바꿈**이 든 건이 있으면 PIL `textlength` 가
+  `ValueError: can't measure length of multiline text` 로 죽는다(10월 일정 58건 중 1건).
+  앱은 이걸 작은 회색 글씨로만 알리고 템플릿의 옛 달력을 그대로 넣었다.
+- 해결: `calendar_image._ev_info` 에서 제목을 한 줄로 편다. 달력은 **템플릿 BMP 와 같은
+  픽셀 크기**로 그리고(`calendar_bmp_size`), 템플릿 그림의 자르기(`imgClip`)를 풀어
+  일·토요일 칸이 잘리지 않게 했다. 건너뛸 때는 `st.warning` 으로 크게 알린다.
+
+## 7. 공통확인사항 한글에 '기타내용'이 안 보임 (2026-10)
+
+- 원인: 기타내용을 `replace_cell(xml, 4, 25)`/`(5, 25)` 에 넣었는데, 공통확인사항
+  템플릿에서 그 칸은 **빈 본문 표의 최혜민 행(11쪽)** 이었다. 2쪽 표만 보면 없는 것처럼 보임.
+- 해결: 실적·계획 각 칸의 **자산구매 표 바로 아래**(같은 칸 끝, `</hp:subList>` 앞)에
+  `<기타내용>` 제목 + 줄마다 한 문단으로 넣는다(`_extra_hwpx_block`).
 
 ---
 

@@ -70,6 +70,9 @@ def _ev_info(ev: dict):
         d = dt[:10]
         label = f"{dt[11:16]} {ev.get('summary', '') or ''}".strip()
         all_day = False
+    # 제목에 줄바꿈이 있으면 PIL textlength 가 ValueError 로 죽어 달력 교체가
+    # 통째로 건너뛰어졌다(2026-10 실제 일정으로 확인) → 한 줄로 편다.
+    label = " ".join(label.split())
     try:
         return int(d[8:10]), label, color, all_day
     except Exception:
