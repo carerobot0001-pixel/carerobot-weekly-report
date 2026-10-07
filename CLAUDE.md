@@ -726,6 +726,9 @@ localStorage(`ds_per_<uid>`)에만 둔다.
   빈 줄 문단만 글자 크기를 `BLANK_LINE_RATIO`(0.5)배로 넣는다(`ensure_blank_charpr`).
   칸 줄간격이 전부 글자크기 비례(%)라 높이가 같이 준다. 실측: 빈 줄 12.6pt → 6.3pt.
   더 좁히거나 넓히려면 이 상수만 바꾼다. 글이 있는 줄의 간격은 그대로.
+  **🖥️ 주간취합 화면도 같게**: `meeting_page()`의 `_esc()`가 빈 줄을 `<br>` 대신
+  글자 50% 크기의 빈 `<div>`(`_BLANK`)로 넣는다(브라우저 실측 22.2px → 11.1px).
+  비율을 바꾸면 두 곳(`BLANK_LINE_RATIO`, `_BLANK`의 `font-size`)을 함께 바꿀 것.
 - **달력**: 일정 제목의 줄바꿈 때문에 달력 그리기가 죽어 옛 달력이 남던 것을 고침.
   템플릿 BMP 크기에 맞춰 그리고(`calendar_bmp_size`), 결과를 화면에 `📅 …으로 교체` /
   `st.warning` 으로 알린다.

@@ -4133,11 +4133,27 @@ def meeting_page():
                          "font-weight:700;text-align:center;")
             _ADS = _TD + f"height:1px;background:{_ADBG};color:{_ADFG};font-weight:700;"
 
+            # 엔터로 띄운 빈 줄은 글자 절반 크기의 빈 줄로 — 줄 높이가 절반이 된다.
+            # 한글 취합본(hwpx_exporter.BLANK_LINE_RATIO)과 같은 모양으로 맞춤.
+            _BLANK = "<div style='font-size:50%;'>&nbsp;</div>"
+
             def _esc(s):
                 s = (s or "").strip()
-                s = (s.replace("&", "&amp;").replace("<", "&lt;")
-                     .replace(">", "&gt;").replace("\n", "<br>"))
-                return s or "-"
+                if not s:
+                    return "-"
+                s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                parts, buf = [], []
+                for ln in s.split("\n"):
+                    if ln.strip():
+                        buf.append(ln)
+                        continue
+                    if buf:
+                        parts.append("<br>".join(buf))
+                        buf = []
+                    parts.append(_BLANK)
+                if buf:
+                    parts.append("<br>".join(buf))
+                return "".join(parts)
 
             def _tbl(inner, fill=False, lblw="56px"):
                 # table-layout:fixed + colgroup → 구분칸 고정, 실적/계획 50:50(정중앙)
