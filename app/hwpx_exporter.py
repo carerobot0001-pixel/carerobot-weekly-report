@@ -62,16 +62,23 @@ def make_paragraph_xml(text: str, char_pr_id: str = CHARPR_BLACK,
 def make_cell_content(text: str, char_pr_id: str = CHARPR_BLACK,
                       para_pr_id: str = "27",
                       style_id: str = "0",
-                      lineseg_xml: str = DEFAULT_LINESEG) -> str:
-    """여러 줄 텍스트를 여러 <hp:p> 문단으로 변환."""
+                      lineseg_xml: str = DEFAULT_LINESEG,
+                      blank_char_pr_id: str | None = None) -> str:
+    """여러 줄 텍스트를 여러 <hp:p> 문단으로 변환.
+
+    blank_char_pr_id 를 주면 **빈 줄**(엔터로 띄운 줄)만 그 글자모양(작은 글자)으로
+    넣어 줄 높이를 줄인다 — 줄간격이 글자크기 비례(%)라 빈 줄 높이도 같이 준다.
+    """
     lines = (text or "").splitlines() or [""]
-    return "".join(
-        make_paragraph_xml(line, char_pr_id=char_pr_id,
-                           para_pr_id=para_pr_id,
-                           style_id=style_id,
-                           is_first=(i == 0), lineseg_xml=lineseg_xml)
-        for i, line in enumerate(lines)
-    )
+    out = []
+    for i, line in enumerate(lines):
+        blank = blank_char_pr_id is not None and not line.strip()
+        out.append(make_paragraph_xml("" if blank else line,
+                                      char_pr_id=blank_char_pr_id if blank else char_pr_id,
+                                      para_pr_id=para_pr_id,
+                                      style_id=style_id,
+                                      is_first=(i == 0), lineseg_xml=lineseg_xml))
+    return "".join(out)
 
 
 def _find_clean_lineseg_in_column(xml: str, col: int) -> str | None:
@@ -168,9 +175,10 @@ def find_cell_sublist(xml, col, row, nth=0):
     return sublist_content_start, sublist_end
 
 
-def replace_cell(xml, col, row, text, override_color_id=None, nth=0):
+def replace_cell(xml, col, row, text, override_color_id=None, nth=0,
+                 blank_char_pr_id=None):
     """셀 내용을 새 <hp:p> 블록으로 교체. lineseg 는 원본 셀에서 추출하여
-    셀 너비에 맞는 자간 유지."""
+    셀 너비에 맞는 자간 유지. blank_char_pr_id: 빈 줄용 작은 글자모양(선택)."""
     start, end = find_cell_sublist(xml, col, row, nth=nth)
     if start is None:
         return xml
@@ -181,7 +189,8 @@ def replace_cell(xml, col, row, text, override_color_id=None, nth=0):
     new_content = make_cell_content(text, char_pr_id=char_pr,
                                     para_pr_id=para_pr,
                                     style_id=style_id,
-                                    lineseg_xml=lineseg)
+                                    lineseg_xml=lineseg,
+                                    blank_char_pr_id=blank_char_pr_id)
     return xml[:start] + new_content + xml[end:]
 
 
@@ -332,6 +341,27 @@ def ensure_smaller_charpr(header_xml: str, base_id: str, cache: dict,
     return header_xml, new_id
 
 
+BLANK_LINE_RATIO = 0.5   # 빈 줄 높이 = 본문 줄의 절반(사용자 요청 2026-10)
+
+
+def ensure_blank_charpr(header_xml: str, base_id: str,
+                        cache: dict) -> tuple[str, str]:
+    """빈 줄(엔터로 띄운 줄)용 — base_id 와 같되 글자 크기만 BLANK_LINE_RATIO 배인
+    charPr id. 줄간격이 글자크기 비례(%)라 빈 줄 높이가 그만큼 줄어든다."""
+    if base_id in cache:
+        return header_xml, cache[base_id]
+    base_xml = _charpr_xml(header_xml, base_id)
+    h = re.search(r'\bheight="(\d+)"', base_xml) if base_xml else None
+    if not h:
+        cache[base_id] = base_id
+        return header_xml, base_id
+    new_h = max(int(int(h.group(1)) * BLANK_LINE_RATIO), 100)
+    small = re.sub(r'\bheight="\d+"', f'height="{new_h}"', base_xml, count=1)
+    header_xml, new_id = _append_charpr(header_xml, small)
+    cache[base_id] = new_id
+    return header_xml, new_id
+
+
 def overflows_cell(text: str, cell_w: int, cell_h: int, font_h: int) -> bool:
     """이 글이 칸을 넘치는지 어림 계산.
 
@@ -346,6 +376,9 @@ def overflows_cell(text: str, cell_w: int, cell_h: int, font_h: int) -> bool:
     line_h = font_h * 1.25
     lines = 0
     for ln in (text or "").split("\n"):
+        if not ln.strip():
+            lines += BLANK_LINE_RATIO        # 빈 줄은 작은 글자로 들어간다
+            continue
         w = sum(0.5 if ch.isascii() else 1.0 for ch in ln)
         lines += max(1, -(-int(w * 10) // (per_line * 10)))   # 올림
     return lines * line_h > inner_h
@@ -438,6 +471,7 @@ def build_report(template_bytes: bytes, submissions: dict,
     _blue_cache: dict = {}    # 원본 charPr id → 같은 서식의 '파랑+굵게 판' id
     _black_cache: dict = {}   # 원본 charPr id → 같은 서식의 '검정 판' id
     _small_cache: dict = {}   # (charPr id, 줄일 pt) → 1pt 작은 판 id
+    _blank_cache: dict = {}   # charPr id → 빈 줄용(글자 절반) 판 id
     shrunk: list = []         # 실제로 작게 넣은 칸 목록(사용자 안내용)
 
     # 변경 추적(트랙 체인지) 설정 끄기 — 한글이 파일 열 때 "변경 내용 표시"
@@ -506,9 +540,13 @@ def build_report(template_bytes: bytes, submissions: dict,
                     header, override = ensure_smaller_charpr(
                         header, override, _small_cache, delta_pt=1)
                     shrunk.append(f"{m['name']}·{field}")
+            # 엔터로 띄운 빈 줄은 글자 크기를 절반으로 — 띄운 간격이 너무 넓다는 요청
+            blank_id = None
+            if any(not ln.strip() for ln in text.splitlines()):
+                header, blank_id = ensure_blank_charpr(header, override, _blank_cache)
             xml = replace_cell(xml, col, row, text,
                                override_color_id=override,
-                               nth=nth)
+                               nth=nth, blank_char_pr_id=blank_id)
 
     # 달력 캡션 "…일정 (2026년 06월)" 도 보고 주차의 달로 갱신
     if calendar_ym:
