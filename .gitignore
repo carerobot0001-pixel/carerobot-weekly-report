@@ -40,3 +40,7 @@ update_hwpx.py
 care_studio/data/
 care_studio/certs/
 시장조사_주간보호센터/
+
+# NAS 백업 — 내부망 주소·실행 기록(공개 레포에 올리지 않음)
+backup_config.json
+backup_log.txt

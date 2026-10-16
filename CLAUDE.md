@@ -874,6 +874,33 @@ cd app && grep -nE "stVerticalBlock|stHorizontalBlock" streamlit_app.py \
 - 빌드 실패 시: share.streamlit.io → My apps → 앱 → "..." → Manage app → 로그 확인
 - 패키지 추가: `app/requirements.txt`에 추가 후 push
 
+## 🗄️ 백업 (2026-10 정리)
+
+- **데이터 원본**: 제출함 구글시트(carerobot0001 드라이브). 구글 '버전 기록'으로 되돌리기 가능.
+- **수동 백업**: 홈 하단 `🗄️ 전체 데이터 백업` → 모든 탭을 엑셀 한 파일로(`build_full_backup_xlsx`).
+- **NAS 자동 백업**(2026-10-16 설정): 이 PC(JUSTKIM)의 작업 스케줄러
+  **`DolbomStudio NAS 백업`** 이 **매주 월요일 09:00** 에 레포 루트 `backup_to_nas.py` 를 실행한다
+  (`pythonw`, 로그온 상태에서만, 놓친 실행은 PC가 켜진 뒤 바로).
+  - 저장 위치: `backup_config.json` 의 `nas_parent` 아래 **`DolbomStudio_백업` 폴더 하나만**
+    만들고 그 안에 `돌봄로봇_전체백업_YYYYMMDD_HHMM.xlsx` 를 쌓는다. ⚠️ **다른 NAS 폴더는
+    만들지도 고치지도 않는다**(사용자 지시). 옛 백업도 지우지 않는다(1회 약 0.55MB).
+  - `nas_parent` 가 없는 경로면 **새로 만들지 않고 실패**로 끝낸다(오타로 엉뚱한 곳에 폴더가 생기지 않게).
+  - `backup_config.json`·`backup_log.txt` 는 git 제외(내부망 주소·기록).
+  - 결과는 `backup_log.txt` + 팀 시트 `_team`/`nas_backup` → 홈 백업 칸에
+    `마지막 NAS 자동 백업` 으로 보인다. **실패도 그대로 보인다.**
+  - NAS = 사무실 내부망의 Synology NAS. 정확한 주소·공유 경로는 `backup_config.json`(git 제외)에만
+    둔다 — ⚠️ **NAS 공인 IP·웹 관리 포트는 공개 레포에 적지 말 것**(로그인 화면이 노출된다).
+    백업 폴더 이름은 `DolbomStudio_백업`.
+    2026-10-16 첫 실제 백업 성공(돌봄로봇 폴더에 새로 생긴 항목은 이 폴더 하나뿐임을 전후 비교로 확인).
+  - ⚠️ 이 PC의 **Windows 자격 증명에 NAS 로그인이 저장돼 있지 않다**(2026-10-16 확인 — 탐색기
+    로그인 세션으로만 접근됨). PC를 다시 켜면 월요일 자동 백업이 `NAS에 접근할 수 없음`으로
+    실패할 수 있다 → 제어판 › 자격 증명 관리자 › Windows 자격 증명 추가
+    (인터넷/네트워크 주소 `CareRobot_NAS`, NAS 아이디·비밀번호). 비밀번호는 사람이 넣는다.
+  - SMB(445)는 내부망에서만 열려 있다(공인 IP 쪽 445 닫힘 확인). 사무실 밖에서는 백업 안 된다.
+  - 백업 파일에는 `계정` 탭(가입 이메일·비밀번호 해시), 장비현황 피험자명이 들어간다 →
+    NAS 폴더는 팀 내부만 볼 수 있어야 한다.
+  - 자료실·문서협업의 **드라이브 파일 자체는 이 백업에 안 들어간다**(시트의 링크만).
+
 ## 비밀 파일 (절대 깃허브에 올리지 말 것)
 
 - `app/.streamlit/secrets.toml` — 구글 서비스 계정 키 (Streamlit Cloud에도 같은 내용 등록되어 있음)
