@@ -20,6 +20,7 @@ import todo_store
 import request_store
 import feedback_store
 import resource_store
+import demo_store
 import mail_store
 import voice_note
 import maker_store
@@ -3683,60 +3684,110 @@ def _calendar_manage():
                     st.error(f"삭제 실패: {ex}")
 
 
-def _drive_preview_url(link: str) -> str:
-    """구글 문서/드라이브 링크 → iframe 에 넣을 수 있는 미리보기 주소. 못 바꾸면 ''.
-
-    - 구글 시트·문서·슬라이드(변환본): docs.google.com/<종류>/d/<id>/preview
-    - 드라이브에 원본으로 둔 파일(xlsx·pdf 등, 링크에 rtpof=true): drive 미리보기
-    둘 다 로그인 없이 iframe 안에 뜨는 것을 확인했다(2026-10, '링크가 있는 사용자' 공유일 때).
-    """
-    m = re.search(r"docs\.google\.com/(spreadsheets|document|presentation)/d/([\w-]+)",
-                  link or "")
-    if m and "rtpof=true" not in link:
-        return f"https://docs.google.com/{m.group(1)}/d/{m.group(2)}/preview"
-    m = re.search(r"/d/([\w-]+)", link or "") or re.search(r"[?&]id=([\w-]+)", link or "")
-    return f"https://drive.google.com/file/d/{m.group(1)}/preview" if m else ""
-
-
 def demo_plan_page():
-    """업무보고 탭 '🧪 실증 계획' — 자료실에 올라온 실증 계획 문서를 바로 띄운다.
+    """업무보고 탭 '🧪 실증 계획' — 9종 돌봄로봇 실증 계획표를 입력·저장·엑셀로.
 
-    문서를 따로 저장하지 않는다. 자료실에서 제목에 '실증'과 '계획'이 둘 다 든 자료 중
-    **가장 최근 것**을 고른다 — 새 판을 자료실에 올리면 이 칸도 저절로 바뀐다.
-    (2026-10 지시: 정지수 연구원이 올린 '9종 돌봄로봇 및 기기 실증 계획')
+    공통확인사항처럼 표에 직접 입력한다(2026-10 지시). 칸은 정지수 연구원 엑셀
+    (26.10.14 시트)과 같다 → `demo_store.COLS`.
+
+    ⚠️ 담당자 여럿이 한 표를 고친다. 편집은 **시작 시점 사본**(`dp_snap_<ver>`)으로 하고,
+    저장 직전 시트를 다시 읽어 그 사이 남이 저장했으면 덮어쓰기 전에 멈춘다.
+    저장·새로고침 때 `dp_ver` 를 올려 편집기를 새로 만든다(옛 편집 기록이 새 데이터에
+    다시 얹혀 행이 겹치는 것 방지).
     """
+    st.header("🧪 실증 계획")
+    st.caption("9종 돌봄로봇 및 기기 실증 계획(2025년 결과 · 2026년 계획)을 표에 바로 "
+               "입력하고 저장합니다. 칸 구성은 정지수 연구원 엑셀(10.14 기준)과 같습니다.")
+    _flash("demo_flash")
+
+    ver = st.session_state.setdefault("dp_ver", 0)
+    snap_key = f"dp_snap_{ver}"
+    if snap_key not in st.session_state:
+        try:
+            st.session_state[snap_key] = demo_store.load_plan_fresh()
+        except Exception as e:
+            st.error(f"실증 계획을 읽지 못했습니다: {e}")
+            return
+    base = st.session_state[snap_key]
+
+    cols = demo_store.COLS
+    df = pd.DataFrame(base or [[""] * len(cols)], columns=cols)
+    cfg = {}
+    for c in cols:
+        w = "small" if c in ("연번", "25 점수", "25 n수", "26 n수", "25 제품 버전",
+                             "26 제품 버전") else "medium"
+        if c in ("26 획득하는 데이터", "26 비고"):
+            w = "large"
+        try:   # pinned 는 최근 Streamlit 에만 있다
+            cfg[c] = st.column_config.TextColumn(
+                c, width=w, pinned=c in ("연번", "분야"))
+        except TypeError:
+            cfg[c] = st.column_config.TextColumn(c, width=w)
+    st.caption("칸 이름 앞 **25** = 2025년 평가 결과, **26** = 2026년 평가 계획. "
+               "칸 안에서 줄을 바꾸려면 Shift+Enter. 맨 아래 빈 줄에 쓰면 행이 늘어납니다.")
+    edited = st.data_editor(
+        df.astype(str), column_config=cfg, num_rows="dynamic",
+        use_container_width=True, hide_index=True,
+        height=min(38 * (len(df) + 2), 760), key=f"dp_ed_{ver}")
+
+    rows = []
+    for _, r in edited.iterrows():
+        vals = ["" if str(r[c]) in ("None", "nan") else str(r[c]).strip() for c in cols]
+        if any(vals):
+            rows.append(vals)
+
+    st.divider()
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button("💾 저장", type="primary", use_container_width=True, key="dp_save"):
+            try:
+                fresh = demo_store.load_plan_fresh()
+                changed = demo_store.rows_hash(fresh) != demo_store.rows_hash(base)
+                if changed and not st.session_state.get("dp_force"):
+                    st.session_state["dp_conflict"] = True
+                else:
+                    n = demo_store.save_plan(rows)
+                    me = st.session_state.get("me", "")
+                    try:
+                        todo_store.set_sync("_team", "demo_plan_saved",
+                                            f"{me} · {datetime.now(KST):%m-%d %H:%M}")
+                    except Exception:
+                        pass
+                    for k in ("dp_conflict", "dp_force"):
+                        st.session_state.pop(k, None)
+                    st.session_state.pop(snap_key, None)
+                    st.session_state["dp_ver"] = ver + 1
+                    st.session_state["demo_flash"] = f"저장 완료 ({n}행)"
+                    st.rerun()
+            except Exception as e:
+                st.error(f"저장 실패: {e}")
+    with b2:
+        if st.button("🔄 최신 내용 다시 불러오기", use_container_width=True, key="dp_reload",
+                     help="저장하지 않은 내 수정은 사라집니다."):
+            for k in ("dp_conflict", "dp_force"):
+                st.session_state.pop(k, None)
+            st.session_state.pop(snap_key, None)
+            st.session_state["dp_ver"] = ver + 1
+            st.rerun()
+    with b3:
+        st.download_button(
+            "📊 엑셀 다운로드",
+            data=demo_store.build_plan_xlsx(rows, datetime.now(KST).strftime("%y.%m.%d")),
+            file_name=f"9종_돌봄로봇_실증계획_{datetime.now(KST):%Y%m%d}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True, key="dp_xlsx")
+
+    if st.session_state.get("dp_conflict"):
+        st.warning("편집하는 사이에 **다른 사람이 먼저 저장**했습니다. 그대로 저장하면 그 사람이 "
+                   "고친 내용이 지워집니다. 내 수정을 따로 적어 두고 **🔄 최신 내용 다시 "
+                   "불러오기** 후 다시 입력하는 것을 권합니다.")
+        st.checkbox("그래도 내 내용으로 덮어쓰기(다른 사람 수정 지움)", key="dp_force")
     try:
-        docs = [r for r in resource_store.list_resources()
-                if "실증" in r["제목"] and "계획" in r["제목"] and r["링크"].strip()]
-    except Exception as e:
-        st.error(f"자료실을 읽지 못했습니다: {e}")
-        return
-    if not docs:
-        st.info("자료실에 실증 계획 문서가 없습니다. 📁 자료실에 제목에 "
-                "'실증'과 '계획'이 들어가게 올리면 여기에 뜹니다.")
-        return
-    docs.sort(key=lambda r: r["등록일시"], reverse=True)
-    cur = docs[0]
-    c1, c2 = st.columns([4, 1])
-    c1.markdown(f"**{cur['제목']}**")
-    c1.caption(f"{cur['등록자']} · {cur['등록일시']} 자료실 등록"
-               + (f" · {cur['설명']}" if cur["설명"].strip() else ""))
-    c2.link_button("새 창에서 열기", cur["링크"], use_container_width=True)
-    src = _drive_preview_url(cur["링크"])
-    if src:
-        # st.markdown iframe — 탭이 숨겨져 있어도 브라우저가 미리 불러온다(크롬은
-        # 숨은 iframe 에 lazy 를 안 건다). 보기 전용이라 고치려면 '새 창에서 열기'.
-        st.markdown(f"<iframe src='{html_escape(src)}' style='width:100%;height:78vh;"
-                    "border:1px solid var(--ds-border,#e5ddd2);border-radius:6px;'>"
-                    "</iframe>", unsafe_allow_html=True)
-        st.caption("미리보기는 보기 전용입니다. 고치려면 **새 창에서 열기**를 누르세요. "
-                   "새 판은 📁 자료실에 올리면 이 칸이 자동으로 바뀝니다.")
-    else:
-        st.caption("이 링크는 미리보기를 만들 수 없어 '새 창에서 열기'로만 볼 수 있습니다.")
-    if len(docs) > 1:
-        with st.expander(f"이전 판 · 다른 실증 계획 자료 ({len(docs) - 1})"):
-            for r in docs[1:]:
-                st.markdown(f"- [{r['제목']}]({r['링크']}) — {r['등록자']} · {r['등록일시']}")
+        _saved = todo_store.get_sync("_team", "demo_plan_saved")
+        if _saved:
+            st.caption(f"마지막 저장: {_saved}")
+    except Exception:
+        pass
 
 
 def common_page():
