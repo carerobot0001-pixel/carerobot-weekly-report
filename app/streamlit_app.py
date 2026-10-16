@@ -45,6 +45,7 @@ from collab_store import (
 )
 from equip_store import (
     EQUIP_HEADER, equip_rows, save_all_equipment, build_equip_xlsx, sheet_link,
+    equip_choices,
 )
 from visit_store import (
     VISIT_HEADER, visit_rows, add_visit, delete_visit,
@@ -3491,14 +3492,41 @@ def equip_page():
     _flash("equip_flash")
 
     rows = equip_rows()
-    researches = sorted({r[3] for r in rows if r[3].strip()})
 
-    fc1, fc2 = st.columns([3, 1])
-    with fc1:
-        sel = st.selectbox("연구(실증) 필터", ["전체"] + researches, key="equip_filter")
-    shown = rows if sel == "전체" else [r for r in rows if r[3] == sel]
-    with fc2:
-        st.metric("장비 수", f"{len(shown)} / {len(rows)}")
+    # 🔽 칸별 필터 — 엑셀 첫 줄에 필터 거는 것처럼(2026-10 한벼리 연구원 요청).
+    # 칸마다 그 칸에 있는 값 목록에서 골라 거른다. 아무것도 안 고르면 그 칸은 전체.
+    # 고를 수 있는 값은 **다른 칸 필터를 먼저 적용하고 남은 행**에서 뽑는다(엑셀과 같게).
+    _NONE = "(빈 칸)"
+    _fkeys = [f"eqf_{i}" for i in range(len(EQUIP_HEADER))]
+
+    def _cell(r, i):
+        return (r[i] or "").strip() or _NONE
+
+    def _passes(r, skip=None):
+        for i, k in enumerate(_fkeys):
+            chosen = st.session_state.get(k) or []
+            if i != skip and chosen and _cell(r, i) not in chosen:
+                return False
+        return True
+
+    def _clear_filters():
+        for k in _fkeys:
+            st.session_state[k] = []
+
+    _fcols = st.columns(6) + st.columns(6)
+    for i, h in enumerate(EQUIP_HEADER):
+        # 이미 고른 값은 목록에서 빠지지 않게 남긴다(빠지면 선택이 풀려 버린다)
+        opts = {_cell(r, i) for r in rows if _passes(r, skip=i)}
+        opts |= set(st.session_state.get(_fkeys[i]) or [])
+        _fcols[i].multiselect(h, sorted(opts, key=lambda x: (x == _NONE, x)),
+                              key=_fkeys[i], placeholder="전체")
+    _fcols[len(EQUIP_HEADER)].button("필터 모두 지우기", on_click=_clear_filters,
+                     use_container_width=True, key="eqf_clear")
+    shown = [r for r in rows if _passes(r)]
+    _active = [h for h, k in zip(EQUIP_HEADER, _fkeys) if st.session_state.get(k)]
+    sel = "필터" if _active else "전체"
+    st.caption(f"장비 **{len(shown)}** / {len(rows)}개"
+               + (f" · 거른 칸: {', '.join(_active)}" if _active else ""))
 
     if shown:
         st.dataframe(pd.DataFrame(shown, columns=EQUIP_HEADER),
@@ -3516,8 +3544,9 @@ def equip_page():
     # (표는 캔버스로 그려져 행 안에 링크를 못 넣는다 → 표 아래 목록으로)
     if shown:
         _seen, _hit = set(), []
+        _ni = EQUIP_HEADER.index("기기명")
         for _r in shown:
-            _dev = (_r[0] or "").strip()
+            _dev = (_r[_ni] or "").strip()
             if not _dev or _dev in _seen:
                 continue
             _seen.add(_dev)
@@ -3549,13 +3578,21 @@ def equip_page():
         with st.container(border=True):
             st.markdown("표에서 **행 추가(맨 아래 빈 줄)·수정·삭제**(행 왼쪽 체크 후 휴지통) 후 "
                         "**저장**하세요. 연구·플랫폼명은 기존과 똑같이 적어야 필터가 깔끔합니다.")
+            st.caption("첫 칸 **장비 선택**은 구글시트와 같은 목록(장비관리 물품)에서 "
+                       "고릅니다 — `물품명 | S/N | 자산번호`.")
             cur = (pd.DataFrame(rows, columns=EQUIP_HEADER) if rows
                    else pd.DataFrame([{h: "" for h in EQUIP_HEADER}]))
-            edited = st.data_editor(cur, num_rows="dynamic", height=420,
-                                    use_container_width=True, key="equip_editor")
+            # 지금 들어 있는 값도 목록에 넣는다 — 빠지면 그 칸이 빈 칸으로 보인다
+            _choices = sorted(set(equip_choices()) | {r[0] for r in rows if r[0].strip()})
+            edited = st.data_editor(
+                cur, num_rows="dynamic", height=420, use_container_width=True,
+                key="equip_editor",
+                column_config={"장비 선택": st.column_config.SelectboxColumn(
+                    "장비 선택", options=_choices, width="large")})
             if st.button("💾 전체 저장", type="primary", use_container_width=True):
-                new = edited.fillna("").astype(str)
-                new = new[new["기기명"].str.strip() != ""]
+                new = edited.fillna("").astype(str).replace({"None": "", "nan": ""})
+                new = new[(new["기기명"].str.strip() != "")
+                          | (new["장비 선택"].str.strip() != "")]
                 new_rows = new[EQUIP_HEADER].values.tolist()
                 try:
                     n = save_all_equipment(new_rows)

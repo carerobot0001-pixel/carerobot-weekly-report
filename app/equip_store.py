@@ -11,7 +11,11 @@ import streamlit as st
 from sheets_store import _get_client
 
 EQUIP_WS_TITLE = "장비현황"
-EQUIP_HEADER = ["기기명", "S/N/Device ID", "자산번호", "연구", "플랫폼",
+CHOICE_WS_TITLE = "장비선택목록"
+# ⚠️ 2026-10: 시트에서 맨 앞에 '장비 선택' 칸(A열, 드롭다운)이 끼워졌다. 목록은
+# `장비선택목록` 탭(장비관리 427건에서 자동 생성 — "물품명 | S/N | 자산번호")에서 온다.
+# 나머지 칸은 한 칸씩 오른쪽으로 밀렸다. 칸 이름은 그 구조를 따른다.
+EQUIP_HEADER = ["장비 선택", "기기명", "S/N/Device ID", "자산번호", "연구", "플랫폼",
                 "관련 앱 계정", "피험자명", "기간", "비고"]
 
 
@@ -27,10 +31,23 @@ def _ws():
         return ws
     if ws.col_count < len(EQUIP_HEADER):
         ws.add_cols(len(EQUIP_HEADER) - ws.col_count)
-    if ws.row_values(1) != EQUIP_HEADER:
+    # ⚠️ 머리줄이 다르다고 덮어쓰지 않는다. 예전엔 덮어써서, 시트에서 칸을 끼워 넣은
+    # 뒤 칸 이름이 한 칸씩 밀려 보이는 사고가 났다(2026-10). 비어 있을 때만 채운다.
+    if not any(c.strip() for c in ws.row_values(1)):
         end = gspread.utils.rowcol_to_a1(1, len(EQUIP_HEADER))
         ws.update(values=[EQUIP_HEADER], range_name=f"A1:{end}")
     return ws
+
+
+@st.cache_data(ttl=300)
+def equip_choices() -> list:
+    """'장비 선택' 칸에서 고를 수 있는 값 — 시트 드롭다운과 같은 목록(장비선택목록 A열)."""
+    try:
+        ss = _get_client().open_by_key(st.secrets["sheet"]["id"])
+        vals = ss.worksheet(CHOICE_WS_TITLE).col_values(1)[1:]
+    except Exception:
+        return []
+    return [v for v in vals if v.strip()]
 
 
 def sheet_link() -> str:
@@ -105,7 +122,7 @@ def build_equip_xlsx(rows: list, title: str = "전체") -> bytes:
             c.alignment = Alignment(vertical="center", wrap_text=True)
 
     widths = {"A": 5, "B": 22, "C": 26, "D": 9, "E": 16, "F": 15, "G": 24,
-              "H": 22, "I": 16, "J": 18}
+              "H": 22, "I": 16, "J": 18, "K": 18}
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
 
