@@ -2087,14 +2087,17 @@ def _news_tabs(_day, _refresh):
 
 def member_page():
     st.header("✍️ 업무보고 작성 · 취합")
-    tab_write, tab_collect, tab_common = st.tabs(
-        ["✍️ 내 보고 작성", "📊 제출현황 · 취합본 생성", "📑 사업단 공통확인사항"])
+    tab_write, tab_collect, tab_common, tab_demo = st.tabs(
+        ["✍️ 내 보고 작성", "📊 제출현황 · 취합본 생성", "📑 사업단 공통확인사항",
+         "🧪 실증 계획"])
     with tab_write:
         _report_write()
     with tab_collect:
         _report_collect()
     with tab_common:
         common_page()
+    with tab_demo:
+        demo_plan_page()
 
 
 def _report_write():
@@ -3678,6 +3681,62 @@ def _calendar_manage():
                     st.rerun()
                 except Exception as ex:
                     st.error(f"삭제 실패: {ex}")
+
+
+def _drive_preview_url(link: str) -> str:
+    """구글 문서/드라이브 링크 → iframe 에 넣을 수 있는 미리보기 주소. 못 바꾸면 ''.
+
+    - 구글 시트·문서·슬라이드(변환본): docs.google.com/<종류>/d/<id>/preview
+    - 드라이브에 원본으로 둔 파일(xlsx·pdf 등, 링크에 rtpof=true): drive 미리보기
+    둘 다 로그인 없이 iframe 안에 뜨는 것을 확인했다(2026-10, '링크가 있는 사용자' 공유일 때).
+    """
+    m = re.search(r"docs\.google\.com/(spreadsheets|document|presentation)/d/([\w-]+)",
+                  link or "")
+    if m and "rtpof=true" not in link:
+        return f"https://docs.google.com/{m.group(1)}/d/{m.group(2)}/preview"
+    m = re.search(r"/d/([\w-]+)", link or "") or re.search(r"[?&]id=([\w-]+)", link or "")
+    return f"https://drive.google.com/file/d/{m.group(1)}/preview" if m else ""
+
+
+def demo_plan_page():
+    """업무보고 탭 '🧪 실증 계획' — 자료실에 올라온 실증 계획 문서를 바로 띄운다.
+
+    문서를 따로 저장하지 않는다. 자료실에서 제목에 '실증'과 '계획'이 둘 다 든 자료 중
+    **가장 최근 것**을 고른다 — 새 판을 자료실에 올리면 이 칸도 저절로 바뀐다.
+    (2026-10 지시: 정지수 연구원이 올린 '9종 돌봄로봇 및 기기 실증 계획')
+    """
+    try:
+        docs = [r for r in resource_store.list_resources()
+                if "실증" in r["제목"] and "계획" in r["제목"] and r["링크"].strip()]
+    except Exception as e:
+        st.error(f"자료실을 읽지 못했습니다: {e}")
+        return
+    if not docs:
+        st.info("자료실에 실증 계획 문서가 없습니다. 📁 자료실에 제목에 "
+                "'실증'과 '계획'이 들어가게 올리면 여기에 뜹니다.")
+        return
+    docs.sort(key=lambda r: r["등록일시"], reverse=True)
+    cur = docs[0]
+    c1, c2 = st.columns([4, 1])
+    c1.markdown(f"**{cur['제목']}**")
+    c1.caption(f"{cur['등록자']} · {cur['등록일시']} 자료실 등록"
+               + (f" · {cur['설명']}" if cur["설명"].strip() else ""))
+    c2.link_button("새 창에서 열기", cur["링크"], use_container_width=True)
+    src = _drive_preview_url(cur["링크"])
+    if src:
+        # st.markdown iframe — 탭이 숨겨져 있어도 브라우저가 미리 불러온다(크롬은
+        # 숨은 iframe 에 lazy 를 안 건다). 보기 전용이라 고치려면 '새 창에서 열기'.
+        st.markdown(f"<iframe src='{html_escape(src)}' style='width:100%;height:78vh;"
+                    "border:1px solid var(--ds-border,#e5ddd2);border-radius:6px;'>"
+                    "</iframe>", unsafe_allow_html=True)
+        st.caption("미리보기는 보기 전용입니다. 고치려면 **새 창에서 열기**를 누르세요. "
+                   "새 판은 📁 자료실에 올리면 이 칸이 자동으로 바뀝니다.")
+    else:
+        st.caption("이 링크는 미리보기를 만들 수 없어 '새 창에서 열기'로만 볼 수 있습니다.")
+    if len(docs) > 1:
+        with st.expander(f"이전 판 · 다른 실증 계획 자료 ({len(docs) - 1})"):
+            for r in docs[1:]:
+                st.markdown(f"- [{r['제목']}]({r['링크']}) — {r['등록자']} · {r['등록일시']}")
 
 
 def common_page():
