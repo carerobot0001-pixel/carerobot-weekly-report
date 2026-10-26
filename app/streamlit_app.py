@@ -4206,11 +4206,12 @@ def _backup_section():
             use_container_width=True)
     st.caption("※ 참고: 구글 시트는 자체 **버전 기록**이 있어, 실수로 지우거나 덮어써도 "
                "구글시트 '파일 → 버전 기록'에서 과거 상태로 되돌릴 수 있습니다.")
-    # NAS 자동 백업 결과 — 사무실 PC 의 backup_to_nas.py 가 매주 월 09:00 에 남긴다.
+    # 자동 백업 결과 — 사무실 PC 의 backup_to_nas.py 가 매주 월 09:00 에 남긴다.
+    # NAS·드라이브 결과를 한 줄로 남긴다(키 이름 nas_backup 은 옛 그대로).
     # 실패도 그대로 보여 준다(조용히 실패한 백업은 없는 것보다 위험하다).
     try:
         _nb = todo_store.get_sync("_team", "nas_backup")
-        st.caption(f"🗄️ 마지막 NAS 자동 백업(매주 월 09:00): {_nb or '아직 없음'}")
+        st.caption(f"🗄️ 마지막 자동 백업(NAS·드라이브, 매주 월 09:00): {_nb or '아직 없음'}")
     except Exception:
         pass
 
