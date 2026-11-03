@@ -4,6 +4,7 @@
   A: 이름  B: 주차  C~K: 10개 필드  L: 제출시간
 """
 import io
+import re
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime, timezone, timedelta
@@ -147,6 +148,27 @@ def save_submission(name: str, week: str, values: dict) -> str:
     return "created"
 
 
+# 엑셀(openpyxl)이 거부하는 제어문자 — openpyxl 의 ILLEGAL_CHARACTERS_RE 와 같은 범위
+_XLSX_BAD = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def xlsx_safe(v):
+    """엑셀 칸에 넣기 전에 제어문자를 정리한다.
+
+    ⚠️ 한글·워드에서 붙여 넣은 줄바꿈(Shift+Enter)은 `\\x0b`(세로 탭)로 들어오는데,
+    openpyxl 이 이걸 `IllegalCharacterError` 로 거부해 **업무보고 화면 전체와 주간 자동
+    백업이 함께 멈췄다**(2026-11-02, 공통확인사항 기타내용 1칸). 줄바꿈으로 바꾸고
+    나머지 제어문자는 지운다. 엑셀을 만드는 곳은 전부 이걸 거친다.
+    """
+    if not isinstance(v, str):
+        return v
+    return _XLSX_BAD.sub("", v.replace("\x0b", "\n").replace("\x0c", "\n"))
+
+
+def xlsx_row(row) -> list:
+    return [xlsx_safe(c) for c in row]
+
+
 def build_full_backup_xlsx() -> bytes:
     """제출함 스프레드시트의 모든 탭을 엑셀 1개로 덤프(오프라인 백업용).
 
@@ -165,7 +187,7 @@ def build_full_backup_xlsx() -> bytes:
             title = title.replace(bad, "_")
         ws = wb.create_sheet(title=title or "sheet")
         for row in sh.get_all_values():
-            ws.append(row)
+            ws.append(xlsx_row(row))
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

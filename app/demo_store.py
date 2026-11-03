@@ -14,7 +14,7 @@ import json
 import gspread
 import streamlit as st
 
-from sheets_store import _get_client
+from sheets_store import _get_client, xlsx_safe
 
 DEMO_WS = "실증계획"
 BASE = ["연번", "분야", "사용성평가 담당자", "세부과제 주관기관"]
@@ -126,7 +126,7 @@ def build_plan_xlsx(rows, as_of: str = "") -> bytes:
 
     for ri, row in enumerate(_clean(rows), 5):
         for ci, v in enumerate(row, 1):
-            cell = ws.cell(ri, ci, _num(v))
+            cell = ws.cell(ri, ci, _num(xlsx_safe(v)))
             cell.font, cell.alignment, cell.border = font, mid, box
         # 진행기관 칸에만 글이 있으면(예: "해당 없음…") 그 묶음을 가로로 합친다 — 원본과 같게
         for s, e in ((e25, e26 - 1), (e26, n)):

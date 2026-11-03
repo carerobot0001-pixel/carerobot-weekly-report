@@ -11,7 +11,7 @@ import io
 import gspread
 import streamlit as st
 
-from sheets_store import _get_client, KST
+from sheets_store import _get_client, KST, xlsx_row
 from datetime import datetime
 
 PURCHASE_WS_TITLE = "구매요청"
@@ -169,8 +169,8 @@ def build_purchase_list_xlsx(rows: list) -> bytes:
         qty = int(r[6] or 0)
         sub = int(r[7] or 0)
         total += sub
-        ws.append([i, r[1], r[3], r[4], price, qty, sub, r[8], r[9], r[2],
-                   r[10], r[11], r[12]])
+        ws.append(xlsx_row([i, r[1], r[3], r[4], price, qty, sub, r[8], r[9], r[2],
+                            r[10], r[11], r[12]]))
     ws.append(["합계", "", "", "", "", "", total, "", "", "", "", "", ""])
 
     for row in ws.iter_rows(min_row=head_row + 1, max_row=ws.max_row,
@@ -227,8 +227,8 @@ def build_purchase_xlsx(requester: str, reason: str, items: list) -> bytes:
         qty = int(it.get("수량") or 0)
         subtotal = price * qty
         total += subtotal
-        ws.append([i, it.get("품명", ""), it.get("품목", ""), price, qty,
-                   subtotal, reason, it.get("비고", "")])
+        ws.append(xlsx_row([i, it.get("품명", ""), it.get("품목", ""), price, qty,
+                            subtotal, reason, it.get("비고", "")]))
     ws.append(["합계", "", "", "", "", total, "", ""])
 
     # 본문 스타일 (헤더 다음 행부터 끝까지)

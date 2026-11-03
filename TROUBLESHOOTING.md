@@ -278,6 +278,22 @@ hwp.Open(src, "HWPX", "forceopen:true"); hwp.SaveAs(dst_pdf, "PDF"); hwp.Quit()
 
 ---
 
+## 8. 업무보고 메뉴 전체가 `IllegalCharacterError` 로 멈춤 + 주간 백업 실패 (2026-11)
+
+- 증상: 「📝 업무보고 작성·취합」 어느 탭을 열어도 빨간 오류
+  (`openpyxl.utils.exceptions.IllegalCharacterError … cannot be used in worksheets`,
+  `common_store.build_common_xlsx`). 같은 날 11-02 09:00 주간 자동 백업도
+  `백업 파일을 만들지 못함 — IllegalCharacterError` 로 실패.
+- 원인: `공통확인사항` 탭 기타내용 한 칸에 ``(세로 탭) 2개 — 한글·워드에서 줄바꿈
+  (Shift+Enter)을 붙여 넣으면 이렇게 들어온다. openpyxl 은 이 글자를 엑셀에 못 쓴다.
+  `st.tabs` 는 네 탭을 매번 다 그려서, 공통확인 탭의 엑셀 버튼 하나가 메뉴 전체를 죽였다.
+- 해결: `sheets_store.xlsx_safe()/xlsx_row()` — ``·`` 는 줄바꿈으로, 나머지 제어문자는
+  지운다. 엑셀을 만드는 **모든 곳**(전체 백업·공통확인·실증계획·장비·구매요청)이 거친다.
+  시트 데이터는 고치지 않았다. HWPX 는 원래 괜찮다(`splitlines()` 가 `` 도 줄로 나눈다).
+- 새로 엑셀을 만드는 코드를 추가하면 **반드시 `xlsx_row`/`xlsx_safe` 를 거칠 것.**
+
+---
+
 ## 관련 커밋 참조
 
 | 커밋 | 내용 |

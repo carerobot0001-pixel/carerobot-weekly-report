@@ -12,7 +12,7 @@ from pathlib import Path
 import gspread
 import streamlit as st
 
-from sheets_store import _get_client, KST
+from sheets_store import _get_client, KST, xlsx_row
 from hwpx_exporter import replace_cell, make_paragraph_xml, _patch_zip_flag_bits
 from datetime import datetime
 
@@ -286,8 +286,8 @@ def build_common_xlsx(tables: dict) -> bytes:
 
     def block(title, header, items, is_asset):
         items = _data_rows(items)
-        ws.append([title])
-        ws.append(["연번"] + header)
+        ws.append(xlsx_row([title]))
+        ws.append(xlsx_row(["연번"] + header))
         hr = ws.max_row
         for c in ws[hr]:
             c.font = Font(bold=True); c.fill = hf; c.border = bd; c.alignment = ctr
@@ -296,11 +296,11 @@ def build_common_xlsx(tables: dict) -> bytes:
             it = list(it)
             if is_asset:
                 품명, 수량, 구매, 비고 = (it + ["", "", "", ""])[:4]
-                ws.append([i, 품명, 수량, _num(구매), 비고])
+                ws.append(xlsx_row([i, 품명, 수량, _num(구매), 비고]))
                 total += _num(구매)
             else:
                 분야, 발주, 비고 = (it + ["", "", ""])[:3]
-                ws.append([i, 분야, _num(발주), 비고])
+                ws.append(xlsx_row([i, 분야, _num(발주), 비고]))
                 total += _num(발주)
         tot_row = (["합계", "", "", total, ""] if is_asset else ["합계", "", total, ""])
         ws.append(tot_row)
@@ -320,8 +320,8 @@ def build_common_xlsx(tables: dict) -> bytes:
     for title, key in [("\uae30\ud0c0\ub0b4\uc6a9 (\uc2e4\uc801)", EXTRA_DONE_KEY), ("\uae30\ud0c0\ub0b4\uc6a9 (\uacc4\ud68d)", EXTRA_PLAN_KEY)]:
         extra = str(tables.get(key, tables.get(EXTRA_KEY, ""))).strip()
         if extra:
-            ws.append([title])
-            ws.append([extra])
+            ws.append(xlsx_row([title]))
+            ws.append(xlsx_row([extra]))
             ws[ws.max_row][0].alignment = Alignment(wrap_text=True, vertical="top")
     for col, w in {"A": 6, "B": 40, "C": 14, "D": 14, "E": 16}.items():
         ws.column_dimensions[col].width = w

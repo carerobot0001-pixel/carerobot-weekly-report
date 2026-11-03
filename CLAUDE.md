@@ -914,6 +914,9 @@ cd app && grep -nE "stVerticalBlock|stHorizontalBlock" streamlit_app.py \
   - 백업 파일에는 `계정` 탭(가입 이메일·비밀번호 해시), 장비현황 피험자명이 들어간다 →
     NAS 폴더는 팀 내부만 볼 수 있어야 한다.
   - 자료실·문서협업의 **드라이브 파일 자체는 이 백업에 안 들어간다**(시트의 링크만).
+  - ⚠️ 2026-11-02 정기 백업이 `IllegalCharacterError`(시트에 붙여 넣은 ``)로 실패 →
+    `sheets_store.xlsx_safe` 로 고치고 11-03 수동 재실행 성공(NAS·드라이브). `TROUBLESHOOTING.md` 8번.
+    10-19 실패는 그 시각 PC가 오프라인이라 NAS·구글 모두 접속 못 한 것(로그의 이름 해석 실패).
 
 ## 비밀 파일 (절대 깃허브에 올리지 말 것)
 

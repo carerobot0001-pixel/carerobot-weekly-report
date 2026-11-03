@@ -8,7 +8,7 @@ import io
 import gspread
 import streamlit as st
 
-from sheets_store import _get_client
+from sheets_store import _get_client, xlsx_row
 
 EQUIP_WS_TITLE = "장비현황"
 CHOICE_WS_TITLE = "장비선택목록"
@@ -114,7 +114,7 @@ def build_equip_xlsx(rows: list, title: str = "전체") -> bytes:
         c.border = border
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     for i, r in enumerate(rows, 1):
-        ws.append([i] + list(r))
+        ws.append([i] + xlsx_row(r))
     for row in ws.iter_rows(min_row=hr + 1, max_row=ws.max_row,
                             min_col=1, max_col=len(EQUIP_HEADER) + 1):
         for c in row:
